@@ -27,6 +27,12 @@ extern "C" {
   #include "alist_internal.h"
 }
 
+static unsigned align(unsigned x, unsigned m)
+{
+    --m;
+    return (x + m) & (~m);
+}
+
 static s16 clamp_s16(s32 x)
 {
     if (x > 32767) { x = 32767; } else if (x < -32768) { x = -32768; }
@@ -43,6 +49,17 @@ static u32 parse_address(u32 w2)
     // ignore segments (always zero in practice)
     return (w2 & 0xffffff); // SEGMENTS[(w2 >> 24) & 0xff];
 }
+
+static u16 parse_lo(u32 x)
+{
+    return x & 0xffff;
+}
+
+static u16 parse_hi(u32 x)
+{
+    return (x >> 16) & 0xffff;
+}
+
 
 //#include "rsp.h"
 //#define SAFE_MEMORY
@@ -176,10 +193,10 @@ extern const u16 ResampleLUT [0x200] = {
 };
 
 static void CLEARBUFF (u32 inst1, u32 inst2) {
-    u32 addr = (u32)(inst1 & 0xffff);
-    u32 count = (u32)(inst2 & 0xffff);
-    addr &= 0xFFFC;
-    memset(BufferSpace+addr, 0, (count+3)&0xFFFC);
+    u16 addr = parse_lo(inst1) & ~3;
+    u16 count = align(parse_lo(inst2), 4);
+    
+    memset(BufferSpace+addr, 0, count);
 }
 
 //FILE *dfile = fopen ("d:\\envmix.txt", "wt");
@@ -399,7 +416,7 @@ static void ENVMIXER (u32 inst1, u32 inst2) {
 
 static void RESAMPLE (u32 inst1, u32 inst2) {
     unsigned flags = parse_flags(inst1);
-    unsigned int Pitch=((inst1&0xffff))<<1;
+    unsigned int Pitch= parse_lo(inst1) << 1;
     u32 addy = parse_address(inst2);
     unsigned int Accum=0;
     unsigned int location;
@@ -412,6 +429,8 @@ static void RESAMPLE (u32 inst1, u32 inst2) {
     u32 dstPtr=(AudioOutBuffer/2);
     s32 temp;
     s32 accum;
+    int count = align(AudioCount, 16) >> 1;
+
 /*
     if (addy > (1024*1024*8))
         addy = (inst2 & 0xffffff);
@@ -428,7 +447,8 @@ static void RESAMPLE (u32 inst1, u32 inst2) {
         Accum = *(u16 *)(rsp.RDRAM+addy+10);
     }
 
-    for(int i=0;i < ((AudioCount+0xf)&0xFFF0)/2;i++)    {
+    for(int i=0; i < count; i++)
+    {
         //location = (((Accum * 0x40) >> 0x10) * 8);
        // location is the fractional position between two samples
         location = (Accum >> 0xa) * 4;
@@ -473,21 +493,21 @@ static void RESAMPLE (u32 inst1, u32 inst2) {
 static void SETVOL (u32 inst1, u32 inst2) {
 // Might be better to unpack these depending on the flags...
     unsigned flags = parse_flags(inst1);
-    u16 vol = (s16)(inst1 & 0xffff);
+    s16 vol = (s16)parse_lo(inst1);
     //u16 voltarg =(u16)((inst2 >> 16)&0xffff);
-    u16 volrate = (u16)((inst2 & 0xffff));
+    s16 volrate = (s16)parse_lo(inst2);
 
     if (flags & A_AUX) {
-        Env_Dry = (s16)vol;         // m_MainVol
-        Env_Wet = (s16)volrate;     // m_AuxVol
+        Env_Dry = vol;         // m_MainVol
+        Env_Wet = volrate;     // m_AuxVol
         return;
     }
 
     if (flags & A_VOL) { // Set the Source(start) Volumes
         if (flags & A_LEFT) {
-            Vol_Left = (s16)vol;    // m_LeftVolume
+            Vol_Left = vol;    // m_LeftVolume
         } else { // A_RIGHT
-            Vol_Right = (s16)vol;   // m_RightVolume
+            Vol_Right = vol;   // m_RightVolume
         }
         return;
     }
@@ -768,7 +788,7 @@ static void LOADBUFF (u32 inst1, u32 inst2) { // memcpy causes static... endiane
     if (AudioCount == 0)
         return;
     v0 = parse_address(inst2) & ~3;
-    memcpy (BufferSpace+(AudioInBuffer&0xFFFC), rsp.RDRAM+v0, (AudioCount+3)&0xFFFC);
+    memcpy (BufferSpace+(AudioInBuffer&0xFFFC), rsp.RDRAM+v0, align(AudioCount,4));
 }
 
 static void SAVEBUFF (u32 inst1, u32 inst2) { // memcpy causes static... endianess issue :(
@@ -777,31 +797,36 @@ static void SAVEBUFF (u32 inst1, u32 inst2) { // memcpy causes static... endiane
     if (AudioCount == 0)
         return;
     v0 = parse_address(inst2) & ~3;
-    memcpy (rsp.RDRAM+v0, BufferSpace+(AudioOutBuffer&0xFFFC), (AudioCount+3)&0xFFFC);
+    memcpy (rsp.RDRAM+v0, BufferSpace+(AudioOutBuffer&0xFFFC), align(AudioCount,4));
 }
 
 static void SETBUFF (u32 inst1, u32 inst2) { // Should work ;-)
-    if ((inst1 >> 0x10) & 0x8) { // A_AUX - Auxillary Sound Buffer Settings
-        AudioAuxA       = u16(inst1);
-        AudioAuxC       = u16((inst2 >> 0x10));
-        AudioAuxE       = u16(inst2);
-    } else {        // A_MAIN - Main Sound Buffer Settings
-        AudioInBuffer   = u16(inst1); // 0x00
-        AudioOutBuffer  = u16((inst2 >> 0x10)); // 0x02
-        AudioCount      = u16(inst2); // 0x04
+
+    if (parse_flags(inst1) & A_AUX)
+    {
+        AudioAuxA       = parse_lo(inst1);
+        AudioAuxC       = parse_hi(inst2);
+        AudioAuxE       = parse_lo(inst2);
+    }
+    else
+    {
+        AudioInBuffer   = parse_lo(inst1);
+        AudioOutBuffer  = parse_hi(inst2);
+        AudioCount      = parse_lo(inst2);
     }
 }
 
 static void DMEMMOVE (u32 inst1, u32 inst2) { // Doesn't sound just right?... will fix when HLE is ready - 03-11-01
     u32 v0, v1;
     u32 cnt;
-    if ((inst2 & 0xffff)==0)
+    u32 count = parse_lo(inst2);
+    if (count == 0)
         return;
-    v0 = (inst1 & 0xFFFF);
-    v1 = (inst2 >> 0x10);
+    v0 = parse_lo(inst1);
+    v1 = parse_hi(inst2);
     //assert ((v1 & 0x3) == 0);
     //assert ((v0 & 0x3) == 0);
-    u32 count = ((inst2+3) & 0xfffc);
+    count = align(count, 4);
     //v0 = (v0) & 0xfffc;
     //v1 = (v1) & 0xfffc;
 
@@ -813,12 +838,13 @@ static void DMEMMOVE (u32 inst1, u32 inst2) { // Doesn't sound just right?... wi
 
 static void LOADADPCM (u32 inst1, u32 inst2) { // Loads an ADPCM table - Works 100% Now 03-13-01
     u32 v0 = parse_address(inst2);
+    u16 iter_max = parse_lo(inst1) >> 4;
 /*  if (v0 > (1024*1024*8))
         v0 = (inst2 & 0xffffff);*/
     //memcpy (dmem+0x4c0, rsp.RDRAM+v0, inst1&0xffff); // Could prolly get away with not putting this in dmem
     //assert ((inst1&0xffff) <= 0x80);
     u16 *table = (u16 *)(rsp.RDRAM+v0);
-    for (u32 x = 0; x < ((inst1&0xffff)>>0x4); x++) {
+    for (u32 x = 0; x < iter_max; x++) {
         adpcmtable[(0x0+(x<<3))^S] = table[0];
         adpcmtable[(0x1+(x<<3))^S] = table[1];
 
@@ -842,8 +868,8 @@ static void INTERLEAVE (u32 inst1, u32 inst2) { // Works... - 3-11-01
     u16 *inSrcL;
     u16 Left, Right, Left2, Right2;
 
-    inL = inst2 & 0xFFFF;
-    inR = (inst2 >> 16) & 0xFFFF;
+    inL = parse_lo(inst2);
+    inR = parse_hi(inst2);
 
     inSrcR = (u16 *)(BufferSpace+inR);
     inSrcL = (u16 *)(BufferSpace+inL);
@@ -870,9 +896,9 @@ static void INTERLEAVE (u32 inst1, u32 inst2) { // Works... - 3-11-01
 
 
 static void MIXER (u32 inst1, u32 inst2) { // Fixed a sign issue... 03-14-01
-    u32 dmemin  = (u16)(inst2 >> 0x10);
-    u32 dmemout = (u16)(inst2 & 0xFFFF);
-    s32 gain    = (s16)(inst1 & 0xFFFF);
+    u32 dmemin  = parse_hi(inst2);
+    u32 dmemout = parse_lo(inst2);
+    s32 gain    = (s16)parse_lo(inst1);
     s32 temp;
 
     if (AudioCount == 0)
