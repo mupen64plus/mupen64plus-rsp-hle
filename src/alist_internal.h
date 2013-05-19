@@ -43,8 +43,4 @@ typedef void (*acmd_callback_t)(u32 inst1, u32 inst2);
 #define A_MAIN          0x00
 #define A_MIX           0x10
 
-extern u16 AudioInBuffer, AudioOutBuffer, AudioCount;
-extern u16 AudioAuxA, AudioAuxC, AudioAuxE;
-extern u32 loopval; // Value set by A_SETLOOP : Possible conflict with SETVOLUME???
-
 #endif

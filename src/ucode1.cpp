@@ -47,7 +47,7 @@ static unsigned parse_flags(u32 w1)
 static u32 parse_address(u32 w2)
 {
     // ignore segments (always zero in practice)
-    return (w2 & 0xffffff); // SEGMENTS[(w2 >> 24) & 0xff];
+    return (w2 & 0xffffff); // audio.segments[(w2 >> 24) & 0xff];
 }
 
 static u16 parse_lo(u32 x)
@@ -132,30 +132,39 @@ static void SPNOOP (u32 inst1, u32 inst2) {
     //MessageBox (NULL, "Unknown Audio Command in ABI 1", "Audio HLE Error", MB_OK);
 }
 
-u32 SEGMENTS[0x10];     // 0x0320
-// T8 = 0x360
-u16 AudioInBuffer;      // 0x0000(T8)
-u16 AudioOutBuffer;     // 0x0002(T8)
-u16 AudioCount;         // 0x0004(T8)
-s16 Vol_Left;       // 0x0006(T8)
-s16 Vol_Right;      // 0x0008(T8)
-u16 AudioAuxA;          // 0x000A(T8)
-u16 AudioAuxC;          // 0x000C(T8)
-u16 AudioAuxE;          // 0x000E(T8)
-u32 loopval;            // 0x0010(T8) // Value set by A_SETLOOP : Possible conflict with SETVOLUME???
-s16 VolTrg_Left;    // 0x0010(T8)
-s32 VolRamp_Left;   // m_LeftVolTarget
-//u16 VolRate_Left; // m_LeftVolRate
-s16 VolTrg_Right;   // m_RightVol
-s32 VolRamp_Right;  // m_RightVolTarget
-//u16 VolRate_Right;    // m_RightVolRate
-s16 Env_Dry;        // 0x001C(T8)
-s16 Env_Wet;        // 0x001E(T8)
+static struct audio_t
+{
+    // segments
+    u32 segments[0x10]; // 0x320
+
+    // main buffers
+    u16 in;             // 0x0000(t8)
+    u16 out;            // 0x0002(t8)
+    u16 count;          // 0x0004(t8)
+
+    // auxiliary buffers
+    u16 aux_dry_left;   // 0x000a(t8)
+    u16 aux_wet_right;  // 0x000c(t8)
+    u16 aux_wet_left;   // 0x000e(t8)
+
+    // loop
+    u32 loop;           // 0x0010(t8)
+
+    // envmixer gains
+    s16 dry;            // 0x001c(t8)
+    s16 wet;            // 0x001e(t8)
+
+    // envmixer envelopes (0: left, 1: right)
+    s16 env_vol[2];
+    s16 env_target[2];
+    s32 env_ramp[2];
+
+    // adpcm
+    u16 adpcm_table[0x80];
+} audio;
 
 u8 BufferSpace[0x10000];
-
 short hleMixerWorkArea[256];
-u16 adpcmtable[0x88];
 
 extern const u16 ResampleLUT [0x200] = {
     0x0C39, 0x66AD, 0x0D46, 0xFFDF, 0x0B39, 0x6696, 0x0E5F, 0xFFD8,
@@ -207,15 +216,15 @@ static void ENVMIXER (u32 inst1, u32 inst2) {
     u32 addy = parse_address(inst2);
     //static
 // ********* Make sure these conditions are met... ***********
-    /*if ((AudioInBuffer | AudioOutBuffer | AudioAuxA | AudioAuxC | AudioAuxE | AudioCount) & 0x3) {
+    /*if ((audio.in | audio.out | audio.aux_dry_left | audio.aux_wet_right | audio.aux_wet_left | audio.count) & 0x3) {
         MessageBox (NULL, "Unaligned EnvMixer... please report this to Azimer with the following information: RomTitle, Place in the rom it occurred, and any save state just before the error", "AudioHLE Error", MB_OK);
     }*/
 // ------------------------------------------------------------
-    short *inp=(short *)(BufferSpace+AudioInBuffer);
-    short *out=(short *)(BufferSpace+AudioOutBuffer);
-    short *aux1=(short *)(BufferSpace+AudioAuxA);
-    short *aux2=(short *)(BufferSpace+AudioAuxC);
-    short *aux3=(short *)(BufferSpace+AudioAuxE);
+    short *inp=(short *)(BufferSpace+audio.in);
+    short *out=(short *)(BufferSpace+audio.out);
+    short *aux1=(short *)(BufferSpace+audio.aux_dry_left);
+    short *aux2=(short *)(BufferSpace+audio.aux_wet_right);
+    short *aux3=(short *)(BufferSpace+audio.aux_wet_left);
     s32 MainR;
     s32 MainL;
     s32 AuxR;
@@ -237,16 +246,18 @@ static void ENVMIXER (u32 inst1, u32 inst2) {
 
     //fprintf (dfile, "\n----------------------------------------------------\n");
     if (flags & A_INIT) {
-        LVol = ((Vol_Left * (s32)VolRamp_Left));
-        RVol = ((Vol_Right * (s32)VolRamp_Right));
-        Wet = (s16)Env_Wet; Dry = (s16)Env_Dry; // Save Wet/Dry values
-        LTrg = (VolTrg_Left << 16); RTrg = (VolTrg_Right << 16); // Save Current Left/Right Targets
-        LAdderStart = Vol_Left << 16;
-        RAdderStart = Vol_Right << 16;
+        LVol = ((audio.env_vol[0] * (s32)audio.env_ramp[0]));
+        RVol = ((audio.env_vol[1] * (s32)audio.env_ramp[1]));
+        Wet = audio.wet;
+        Dry = audio.dry; // Save Wet/Dry values
+        LTrg = (audio.env_target[0] << 16);
+        RTrg = (audio.env_target[1] << 16); // Save Current Left/Right Targets
+        LAdderStart = audio.env_vol[0] << 16;
+        RAdderStart = audio.env_vol[1] << 16;
         LAdderEnd = LVol;
         RAdderEnd = RVol;
-        RRamp = VolRamp_Right;
-        LRamp = VolRamp_Left;
+        LRamp = audio.env_ramp[0];
+        RRamp = audio.env_ramp[1];
     } else {
         // Load LVol, RVol, LAcc, and RAcc (all 32bit)
         // Load Wet, Dry, LTrg, RTrg
@@ -273,7 +284,7 @@ static void ENVMIXER (u32 inst1, u32 inst2) {
     oMainR = (Dry * (RTrg>>16) + 0x4000) >> 15;
     oAuxR  = (Wet * (RTrg>>16) + 0x4000)  >> 15;
 
-    for (int y = 0; y < AudioCount; y += 0x10) {
+    for (int y = 0; y < audio.count; y += 0x10) {
 
         if (LAdderStart != LTrg) {
             LAcc = LAdderStart;
@@ -425,11 +436,11 @@ static void RESAMPLE (u32 inst1, u32 inst2) {
     s16 *src;
     dst=(short *)(BufferSpace);
     src=(s16 *)(BufferSpace);
-    u32 srcPtr=(AudioInBuffer/2);
-    u32 dstPtr=(AudioOutBuffer/2);
+    u32 srcPtr=(audio.in/2);
+    u32 dstPtr=(audio.out/2);
     s32 temp;
     s32 accum;
-    int count = align(AudioCount, 16) >> 1;
+    int count = align(audio.count, 16) >> 1;
 
 /*
     if (addy > (1024*1024*8))
@@ -498,39 +509,39 @@ static void SETVOL (u32 inst1, u32 inst2) {
     s16 volrate = (s16)parse_lo(inst2);
 
     if (flags & A_AUX) {
-        Env_Dry = vol;         // m_MainVol
-        Env_Wet = volrate;     // m_AuxVol
+        audio.dry = vol;         // m_MainVol
+        audio.wet = volrate;     // m_AuxVol
         return;
     }
 
     if (flags & A_VOL) { // Set the Source(start) Volumes
         if (flags & A_LEFT) {
-            Vol_Left = vol;    // m_LeftVolume
+            audio.env_vol[0] = vol;    // m_LeftVolume
         } else { // A_RIGHT
-            Vol_Right = vol;   // m_RightVolume
+            audio.env_vol[1] = vol;   // m_RightVolume
         }
         return;
     }
 
 //0x370             Loop Value (shared location)
 //0x370             Target Volume (Left)
-//u16 VolRamp_Left; // 0x0012(T8)
+//u16 env_ramp[0]; // 0x0012(T8)
     if (flags & A_LEFT) { // Set the Ramping values Target, Ramp
         //loopval = (((u32)vol << 0x10) | (u32)voltarg);
-        VolTrg_Left  = (s16)inst1;      // m_LeftVol
-        //VolRamp_Left = (s32)inst2;
-        VolRamp_Left = (s32)inst2;//(u16)(inst2) | (s32)(s16)(inst2 << 0x10);
-        //fprintf (dfile, "Ramp Left: %f\n", (float)VolRamp_Left/65536.0);
+        audio.env_target[0]  = (s16)inst1;      // m_LeftVol
+        //env_ramp[0] = (s32)inst2;
+        audio.env_ramp[0] = (s32)inst2;//(u16)(inst2) | (s32)(s16)(inst2 << 0x10);
+        //fprintf (dfile, "Ramp Left: %f\n", (float)env_ramp[0]/65536.0);
         //fprintf (dfile, "Ramp Left: %08X\n", inst2);
-        //VolRamp_Left = (s16)voltarg;  // m_LeftVolTarget
+        //env_ramp[0] = (s16)voltarg;  // m_LeftVolTarget
         //VolRate_Left = (s16)volrate;  // m_LeftVolRate
     } else { // A_RIGHT
-        VolTrg_Right  = (s16)inst1;     // m_RightVol
-        //VolRamp_Right = (s32)inst2;
-        VolRamp_Right = (s32)inst2;//(u16)(inst2 >> 0x10) | (s32)(s16)(inst2 << 0x10);
-        //fprintf (dfile, "Ramp Right: %f\n", (float)VolRamp_Right/65536.0);
+        audio.env_target[1]  = (s16)inst1;     // m_RightVol
+        //env_ramp[1] = (s32)inst2;
+        audio.env_ramp[1] = (s32)inst2;//(u16)(inst2 >> 0x10) | (s32)(s16)(inst2 << 0x10);
+        //fprintf (dfile, "Ramp Right: %f\n", (float)env_ramp[1]/65536.0);
         //fprintf (dfile, "Ramp Right: %08X\n", inst2);
-        //VolRamp_Right = (s16)voltarg; // m_RightVolTarget
+        //env_ramp[1] = (s16)voltarg; // m_RightVolTarget
         //VolRate_Right = (s16)volrate; // m_RightVolRate
     }
 }
@@ -538,9 +549,9 @@ static void SETVOL (u32 inst1, u32 inst2) {
 static void UNKNOWN (u32 inst1, u32 inst2) {}
 
 static void SETLOOP (u32 inst1, u32 inst2) {
-    loopval = parse_address(inst2);
-    //VolTrg_Left  = (s16)(loopval>>16);        // m_LeftVol
-    //VolRamp_Left = (s16)(loopval);    // m_LeftVolTarget
+    audio.loop = parse_address(inst2);
+    //env_target[0]  = (s16)(loopval>>16);        // m_LeftVol
+    //env_ramp[0] = (s16)(loopval);    // m_LeftVolTarget
 }
 
 static void ADPCM (u32 inst1, u32 inst2) { // Work in progress! :)
@@ -548,10 +559,10 @@ static void ADPCM (u32 inst1, u32 inst2) { // Work in progress! :)
     //unsigned short Gain=(u16)(inst1&0xffff);
     u32 Address = parse_address(inst2);
     unsigned short inPtr=0;
-    //short *out=(s16 *)(testbuff+(AudioOutBuffer>>2));
-    short *out=(short *)(BufferSpace+AudioOutBuffer);
-    //unsigned char *in=(unsigned char *)(BufferSpace+AudioInBuffer);
-    short count=(short)AudioCount;
+    //short *out=(s16 *)(testbuff+(audio.out>>2));
+    short *out=(short *)(BufferSpace+audio.out);
+    //unsigned char *in=(unsigned char *)(BufferSpace+audio.in);
+    short count=(short)audio.count;
     unsigned char icode;
     unsigned char code;
     int vscale;
@@ -568,7 +579,7 @@ static void ADPCM (u32 inst1, u32 inst2) { // Work in progress! :)
     if (!(flags & A_INIT))
     {
         if (flags & A_LOOP) {
-            memcpy(out,&rsp.RDRAM[loopval&MEMMASK],32);
+            memcpy(out,&rsp.RDRAM[audio.loop&MEMMASK],32);
         } else {
             memcpy(out,&rsp.RDRAM[Address],32);
         }
@@ -586,10 +597,10 @@ static void ADPCM (u32 inst1, u32 inst2) { // Work in progress! :)
                                                     // area of memory in the case of A_LOOP or just
                                                     // the values we calculated the last time
 
-        code=BufferSpace[(AudioInBuffer+inPtr)^S8];
+        code=BufferSpace[(audio.in+inPtr)^S8];
         index=code&0xf;
         index<<=4;                                  // index into the adpcm code table
-        book1=(short *)&adpcmtable[index];
+        book1=(short *)&audio.adpcm_table[index];
         book2=book1+8;
         code>>=4;                                   // upper nibble is scale
         vscale=(0x8000>>((12-code)-1));         // very strange. 0x8000 would be .5 in 16:16 format
@@ -604,7 +615,7 @@ static void ADPCM (u32 inst1, u32 inst2) { // Work in progress! :)
         while(j<8)                                  // loop of 8, for 8 coded nibbles from 4 bytes
                                                     // which yields 8 short pcm values
         {
-            icode=BufferSpace[(AudioInBuffer+inPtr)^S8];
+            icode=BufferSpace[(audio.in+inPtr)^S8];
             inPtr++;
 
             inp1[j]=(s16)((icode&0xf0)<<8);         // this will in effect be signed
@@ -624,7 +635,7 @@ static void ADPCM (u32 inst1, u32 inst2) { // Work in progress! :)
         j=0;
         while(j<8)
         {
-            icode=BufferSpace[(AudioInBuffer+inPtr)^S8];
+            icode=BufferSpace[(audio.in+inPtr)^S8];
             inPtr++;
 
             inp2[j]=(short)((icode&0xf0)<<8);           // this will in effect be signed
@@ -785,34 +796,34 @@ static void ADPCM (u32 inst1, u32 inst2) { // Work in progress! :)
 static void LOADBUFF (u32 inst1, u32 inst2) { // memcpy causes static... endianess issue :(
     u32 v0;
     //u32 cnt;
-    if (AudioCount == 0)
+    if (audio.count == 0)
         return;
     v0 = parse_address(inst2) & ~3;
-    memcpy (BufferSpace+(AudioInBuffer&0xFFFC), rsp.RDRAM+v0, align(AudioCount,4));
+    memcpy (BufferSpace+(audio.in&0xFFFC), rsp.RDRAM+v0, align(audio.count,4));
 }
 
 static void SAVEBUFF (u32 inst1, u32 inst2) { // memcpy causes static... endianess issue :(
     u32 v0;
     //u32 cnt;
-    if (AudioCount == 0)
+    if (audio.count == 0)
         return;
     v0 = parse_address(inst2) & ~3;
-    memcpy (rsp.RDRAM+v0, BufferSpace+(AudioOutBuffer&0xFFFC), align(AudioCount,4));
+    memcpy (rsp.RDRAM+v0, BufferSpace+(audio.out&0xFFFC), align(audio.count,4));
 }
 
 static void SETBUFF (u32 inst1, u32 inst2) { // Should work ;-)
 
     if (parse_flags(inst1) & A_AUX)
     {
-        AudioAuxA       = parse_lo(inst1);
-        AudioAuxC       = parse_hi(inst2);
-        AudioAuxE       = parse_lo(inst2);
+        audio.aux_dry_left  = parse_lo(inst1);
+        audio.aux_wet_right = parse_hi(inst2);
+        audio.aux_wet_left  = parse_lo(inst2);
     }
     else
     {
-        AudioInBuffer   = parse_lo(inst1);
-        AudioOutBuffer  = parse_hi(inst2);
-        AudioCount      = parse_lo(inst2);
+        audio.in    = parse_lo(inst1);
+        audio.out   = parse_hi(inst2);
+        audio.count = parse_lo(inst2);
     }
 }
 
@@ -845,17 +856,17 @@ static void LOADADPCM (u32 inst1, u32 inst2) { // Loads an ADPCM table - Works 1
     //assert ((inst1&0xffff) <= 0x80);
     u16 *table = (u16 *)(rsp.RDRAM+v0);
     for (u32 x = 0; x < iter_max; x++) {
-        adpcmtable[(0x0+(x<<3))^S] = table[0];
-        adpcmtable[(0x1+(x<<3))^S] = table[1];
+        audio.adpcm_table[(0x0+(x<<3))^S] = table[0];
+        audio.adpcm_table[(0x1+(x<<3))^S] = table[1];
 
-        adpcmtable[(0x2+(x<<3))^S] = table[2];
-        adpcmtable[(0x3+(x<<3))^S] = table[3];
+        audio.adpcm_table[(0x2+(x<<3))^S] = table[2];
+        audio.adpcm_table[(0x3+(x<<3))^S] = table[3];
 
-        adpcmtable[(0x4+(x<<3))^S] = table[4];
-        adpcmtable[(0x5+(x<<3))^S] = table[5];
+        audio.adpcm_table[(0x4+(x<<3))^S] = table[4];
+        audio.adpcm_table[(0x5+(x<<3))^S] = table[5];
 
-        adpcmtable[(0x6+(x<<3))^S] = table[6];
-        adpcmtable[(0x7+(x<<3))^S] = table[7];
+        audio.adpcm_table[(0x6+(x<<3))^S] = table[6];
+        audio.adpcm_table[(0x7+(x<<3))^S] = table[7];
         table += 8;
     }
 }
@@ -863,7 +874,7 @@ static void LOADADPCM (u32 inst1, u32 inst2) { // Loads an ADPCM table - Works 1
 
 static void INTERLEAVE (u32 inst1, u32 inst2) { // Works... - 3-11-01
     u32 inL, inR;
-    u16 *outbuff = (u16 *)(AudioOutBuffer+BufferSpace);
+    u16 *outbuff = (u16 *)(audio.out+BufferSpace);
     u16 *inSrcR;
     u16 *inSrcL;
     u16 Left, Right, Left2, Right2;
@@ -874,7 +885,7 @@ static void INTERLEAVE (u32 inst1, u32 inst2) { // Works... - 3-11-01
     inSrcR = (u16 *)(BufferSpace+inR);
     inSrcL = (u16 *)(BufferSpace+inL);
 
-    for (int x = 0; x < (AudioCount/4); x++) {
+    for (int x = 0; x < (audio.count/4); x++) {
         Left=*(inSrcL++);
         Right=*(inSrcR++);
         Left2=*(inSrcL++);
@@ -901,10 +912,10 @@ static void MIXER (u32 inst1, u32 inst2) { // Fixed a sign issue... 03-14-01
     s32 gain    = (s16)parse_lo(inst1);
     s32 temp;
 
-    if (AudioCount == 0)
+    if (audio.count == 0)
         return;
 
-    for (int x=0; x < AudioCount; x+=2) { // I think I can do this a lot easier
+    for (int x=0; x < audio.count; x+=2) { // I think I can do this a lot easier
         temp = (*(s16 *)(BufferSpace+dmemin+x) * gain) >> 15;
         temp += *(s16 *)(BufferSpace+dmemout+x);
 
@@ -937,10 +948,10 @@ void MIXER (u32 inst1, u32 inst2) { // Fixed a sign issue... 03-14-01
     u8  flags   = (u8)((inst1 >> 16) & 0xff);
     u64 temp;
 
-    if (AudioCount == 0)
+    if (audio.count == 0)
         return;
 
-    for (int x=0; x < AudioCount; x+=2) { // I think I can do this a lot easier
+    for (int x=0; x < audio.count; x+=2) { // I think I can do this a lot easier
         temp = (s64)(*(s16 *)(BufferSpace+dmemout+x)) * (s64)((s16)(0x7FFF)*2);
 
         if (temp & 0x8000)

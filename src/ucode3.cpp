@@ -35,25 +35,29 @@ static void SPNOOP (u32 inst1, u32 inst2) {
 }
 */
 
+static struct audio_t
+{
+    // loop
+    u32 loop;           // 0x0010(t8)
+
+    // envmixer gains
+    s16 dry;            // 0x001c(t8)
+    s16 wet;            // 0x001e(t8)
+
+    // envmixer envelopes (0: left, 1: right)
+    s16 env_vol[2];
+    s16 env_target[2];
+    s32 env_ramp[2];
+
+    // adpcm
+    u16 adpcm_table[0x80];
+
+    // TODO: add mp3 related variables
+} audio;
+
 extern const u16 ResampleLUT [0x200];
 
-extern u32 loopval;
-
-extern s16 Env_Dry;
-extern s16 Env_Wet;
-extern s16 Vol_Left;
-extern s16 Vol_Right;
-extern s16 VolTrg_Left;
-extern s32 VolRamp_Left;
-//extern u16 VolRate_Left;
-extern s16 VolTrg_Right;
-extern s32 VolRamp_Right;
-//extern u16 VolRate_Right;
-
-
 extern short hleMixerWorkArea[256];
-extern u16 adpcmtable[0x88];
-
 extern u8 BufferSpace[0x10000];
 
 /*
@@ -61,16 +65,16 @@ static void SETVOL3 (u32 inst1, u32 inst2) { // Swapped Rate_Left and Vol
     u8 Flags = (u8)(inst1 >> 0x10);
     if (Flags & 0x4) { // 288
         if (Flags & 0x2) { // 290
-            VolTrg_Left  = *(s16*)&inst1;
-            VolRamp_Left = *(s32*)&inst2;
+            audio.env_target[0]  = *(s16*)&inst1;
+            audio.env_ramp[0] = *(s32*)&inst2;
         } else {
-            VolTrg_Right  = *(s16*)&inst1;
-            VolRamp_Right = *(s32*)&inst2;
+            audio.env_target[1]  = *(s16*)&inst1;
+            audio.env_ramp[1] = *(s32*)&inst2;
         }
     } else {
-        Vol_Left    = *(s16*)&inst1;
-        Env_Dry     = (s16)(*(s32*)&inst2 >> 0x10);
-        Env_Wet     = *(s16*)&inst2;
+        audio.env_vol[0]    = *(s16*)&inst1;
+        audio.dry     = (s16)(*(s32*)&inst2 >> 0x10);
+        audio.wet     = *(s16*)&inst2;
     }
 }
 */
@@ -78,17 +82,17 @@ static void SETVOL3 (u32 inst1, u32 inst2) {
     u8 Flags = (u8)(inst1 >> 0x10);
     if (Flags & 0x4) { // 288
         if (Flags & 0x2) { // 290
-            Vol_Left  = (s16)inst1; // 0x50
-            Env_Dry   = (s16)(inst2 >> 0x10); // 0x4E
-            Env_Wet   = (s16)inst2; // 0x4C
+            audio.env_vol[0]  = (s16)inst1; // 0x50
+            audio.dry   = (s16)(inst2 >> 0x10); // 0x4E
+            audio.wet   = (s16)inst2; // 0x4C
         } else {
-            VolTrg_Right  = (s16)inst1; // 0x46
-            //VolRamp_Right = (u16)(inst2 >> 0x10) | (s32)(s16)(inst2 << 0x10);
-            VolRamp_Right = (s32)inst2; // 0x48/0x4A
+            audio.env_target[1]  = (s16)inst1; // 0x46
+            //audio.env_ramp[1] = (u16)(inst2 >> 0x10) | (s32)(s16)(inst2 << 0x10);
+            audio.env_ramp[1] = (s32)inst2; // 0x48/0x4A
         }
     } else {
-        VolTrg_Left  = (s16)inst1; // 0x40
-        VolRamp_Left = (s32)inst2; // 0x42/0x44
+        audio.env_target[0]  = (s16)inst1; // 0x40
+        audio.env_ramp[0] = (s32)inst2; // 0x42/0x44
     }
 }
 
@@ -116,21 +120,21 @@ static void ENVMIXER3 (u32 inst1, u32 inst2) {
     s16 Wet, Dry;
     s16 LTrg, RTrg;
 
-    Vol_Right = (s16)inst1;
+    audio.env_vol[1] = (s16)inst1;
 
     if (flags & A_INIT) {
-        LAdder = VolRamp_Left / 8;
+        LAdder = audio.env_ramp[0] / 8;
         LAcc  = 0;
-        LVol  = Vol_Left;
-        LSig = (s16)(VolRamp_Left >> 16);
+        LVol  = audio.env_vol[0];
+        LSig = (s16)(audio.env_ramp[0] >> 16);
 
-        RAdder = VolRamp_Right / 8;
+        RAdder = audio.env_ramp[1] / 8;
         RAcc  = 0;
-        RVol  = Vol_Right;
-        RSig = (s16)(VolRamp_Right >> 16);
+        RVol  = audio.env_vol[1];
+        RSig = (s16)(audio.env_ramp[1] >> 16);
 
-        Wet = (s16)Env_Wet; Dry = (s16)Env_Dry; // Save Wet/Dry values
-        LTrg = VolTrg_Left; RTrg = VolTrg_Right; // Save Current Left/Right Targets
+        Wet = (s16)audio.wet; Dry = (s16)audio.dry; // Save Wet/Dry values
+        LTrg = audio.env_target[0]; RTrg = audio.env_target[1]; // Save Current Left/Right Targets
     } else {
         memcpy((u8 *)hleMixerWorkArea, rsp.RDRAM+addy, 80);
         Wet    = *(s16 *)(hleMixerWorkArea +  0); // 0-1
@@ -299,17 +303,17 @@ static void LOADADPCM3 (u32 inst1, u32 inst2) { // Loads an ADPCM table - Works 
     //assert ((inst1&0xffff) <= 0x80);
     u16 *table = (u16 *)(rsp.RDRAM+v0);
     for (u32 x = 0; x < ((inst1&0xffff)>>0x4); x++) {
-        adpcmtable[(0x0+(x<<3))^S] = table[0];
-        adpcmtable[(0x1+(x<<3))^S] = table[1];
+        audio.adpcm_table[(0x0+(x<<3))^S] = table[0];
+        audio.adpcm_table[(0x1+(x<<3))^S] = table[1];
 
-        adpcmtable[(0x2+(x<<3))^S] = table[2];
-        adpcmtable[(0x3+(x<<3))^S] = table[3];
+        audio.adpcm_table[(0x2+(x<<3))^S] = table[2];
+        audio.adpcm_table[(0x3+(x<<3))^S] = table[3];
 
-        adpcmtable[(0x4+(x<<3))^S] = table[4];
-        adpcmtable[(0x5+(x<<3))^S] = table[5];
+        audio.adpcm_table[(0x4+(x<<3))^S] = table[4];
+        audio.adpcm_table[(0x5+(x<<3))^S] = table[5];
 
-        adpcmtable[(0x6+(x<<3))^S] = table[6];
-        adpcmtable[(0x7+(x<<3))^S] = table[7];
+        audio.adpcm_table[(0x6+(x<<3))^S] = table[6];
+        audio.adpcm_table[(0x7+(x<<3))^S] = table[7];
         table += 8;
     }
 }
@@ -328,7 +332,7 @@ static void DMEMMOVE3 (u32 inst1, u32 inst2) { // Needs accuracy verification...
 }
 
 static void SETLOOP3 (u32 inst1, u32 inst2) {
-    loopval = (inst2 & 0xffffff);
+    audio.loop = (inst2 & 0xffffff);
 }
 
 static void ADPCM3 (u32 inst1, u32 inst2) { // Verified to be 100% Accurate...
@@ -356,9 +360,9 @@ static void ADPCM3 (u32 inst1, u32 inst2) { // Verified to be 100% Accurate...
         {/*
             for(int i=0;i<16;i++)
             {
-                out[i]=*(short *)&rsp.RDRAM[(loopval+i*2)^2];
+                out[i]=*(short *)&rsp.RDRAM[(audio.loop+i*2)^2];
             }*/
-            memcpy(out,&rsp.RDRAM[loopval],32);
+            memcpy(out,&rsp.RDRAM[audio.loop],32);
         }
         else
         {/*
@@ -385,7 +389,7 @@ static void ADPCM3 (u32 inst1, u32 inst2) { // Verified to be 100% Accurate...
         code=BufferSpace[(0x4f0+inPtr)^S8];
         index=code&0xf;
         index<<=4;                                  // index into the adpcm code table
-        book1=(short *)&adpcmtable[index];
+        book1=(short *)&audio.adpcm_table[index];
         book2=book1+8;
         code>>=4;                                   // upper nibble is scale
         vscale=(0x8000>>((12-code)-1));         // very strange. 0x8000 would be .5 in 16:16 format
@@ -783,7 +787,7 @@ void MP3 (u32 inst1, u32 inst2);
     memcpy (BufferSpace, dmembase+rsp.RDRAM, 0x10);
     ((u32*)BufferSpace)[0x0] = base;
     ((u32*)BufferSpace)[0x008/4] += base;
-    ((u32*)BufferSpace)[0xFFC/4] = loopval;
+    ((u32*)BufferSpace)[0xFFC/4] = audio.loop;
     ((u32*)BufferSpace)[0xFF8/4] = dmembase;
 
     memcpy (imem+0x238, rsp.RDRAM+((u32*)BufferSpace)[0x008/4], 0x9C0);
@@ -791,7 +795,7 @@ void MP3 (u32 inst1, u32 inst2);
     pDMEM = (char *)BufferSpace;
     rsp_run (void);
     dmembase = ((u32*)BufferSpace)[0xFF8/4];
-    loopval  = ((u32*)BufferSpace)[0xFFC/4];
+    audio.loop  = ((u32*)BufferSpace)[0xFFC/4];
 //0x1A98  SW       S1, 0x0FF4 (R0)
 //0x1A9C  SW       S0, 0x0FF8 (R0)
 //0x1AA0  SW       T7, 0x0FFC (R0)

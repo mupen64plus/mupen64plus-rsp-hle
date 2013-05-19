@@ -29,20 +29,31 @@ extern "C" {
   #include "alist_internal.h"
 }
 
+static struct audio_t
+{
+    // segments
+    u32 segments[0x10]; // 0x320
+
+    // main buffers
+    u16 in;             // 0x0000(t8)
+    u16 out;            // 0x0002(t8)
+    u16 count;          // 0x0004(t8)
+
+    // loop
+    u32 loop;           // 0x0010(t8)
+
+    // adpcm
+    u16 adpcm_table[0x80];
+
+    // TODO: add envsetup state values here
+} audio;
+
 extern u8 BufferSpace[0x10000];
+extern const u16 ResampleLUT [0x200];
 
 static void SPNOOP (u32 inst1, u32 inst2) {
     DebugMessage(M64MSG_ERROR, "Unknown/Unimplemented Audio Command %i in ABI 2", (int)(inst1 >> 24));
 }
-extern u16 AudioInBuffer;       // 0x0000(T8)
-extern u16 AudioOutBuffer;      // 0x0002(T8)
-extern u16 AudioCount;          // 0x0004(T8)
-extern u32 loopval;         // 0x0010(T8)
-extern u32 SEGMENTS[0x10];
-
-extern u16 adpcmtable[0x88];
-
-extern const u16 ResampleLUT [0x200];
 
 bool isMKABI = false;
 bool isZeldaABI = false;
@@ -55,29 +66,29 @@ static void LOADADPCM2 (u32 inst1, u32 inst2) { // Loads an ADPCM table - Works 
     u16 *table = (u16 *)(rsp.RDRAM+v0); // Zelda2 Specific...
 
     for (u32 x = 0; x < ((inst1&0xffff)>>0x4); x++) {
-        adpcmtable[(0x0+(x<<3))^S] = table[0];
-        adpcmtable[(0x1+(x<<3))^S] = table[1];
+        audio.adpcm_table[(0x0+(x<<3))^S] = table[0];
+        audio.adpcm_table[(0x1+(x<<3))^S] = table[1];
 
-        adpcmtable[(0x2+(x<<3))^S] = table[2];
-        adpcmtable[(0x3+(x<<3))^S] = table[3];
+        audio.adpcm_table[(0x2+(x<<3))^S] = table[2];
+        audio.adpcm_table[(0x3+(x<<3))^S] = table[3];
 
-        adpcmtable[(0x4+(x<<3))^S] = table[4];
-        adpcmtable[(0x5+(x<<3))^S] = table[5];
+        audio.adpcm_table[(0x4+(x<<3))^S] = table[4];
+        audio.adpcm_table[(0x5+(x<<3))^S] = table[5];
 
-        adpcmtable[(0x6+(x<<3))^S] = table[6];
-        adpcmtable[(0x7+(x<<3))^S] = table[7];
+        audio.adpcm_table[(0x6+(x<<3))^S] = table[6];
+        audio.adpcm_table[(0x7+(x<<3))^S] = table[7];
         table += 8;
     }
 }
 
 static void SETLOOP2 (u32 inst1, u32 inst2) {
-    loopval = inst2 & 0xffffff; // No segment?
+    audio.loop = inst2 & 0xffffff; // No segment?
 }
 
 static void SETBUFF2 (u32 inst1, u32 inst2) {
-    AudioInBuffer   = u16(inst1);            // 0x00
-    AudioOutBuffer  = u16((inst2 >> 0x10)); // 0x02
-    AudioCount      = u16(inst2);            // 0x04
+    audio.in    = u16(inst1);            // 0x00
+    audio.out   = u16((inst2 >> 0x10)); // 0x02
+    audio.count = u16(inst2);            // 0x04
 }
 
 static void ADPCM2 (u32 inst1, u32 inst2) { // Verified to be 100% Accurate...
@@ -85,10 +96,10 @@ static void ADPCM2 (u32 inst1, u32 inst2) { // Verified to be 100% Accurate...
     //unsigned short Gain=(u16)(inst1&0xffff);
     unsigned int Address=(inst2 & 0xffffff);// + SEGMENTS[(inst2>>24)&0xf];
     unsigned short inPtr=0;
-    //short *out=(s16 *)(testbuff+(AudioOutBuffer>>2));
-    short *out=(short *)(BufferSpace+AudioOutBuffer);
-    //unsigned char *in=(unsigned char *)(BufferSpace+AudioInBuffer);
-    short count=(short)AudioCount;
+    //short *out=(s16 *)(testbuff+(audio.out>>2));
+    short *out=(short *)(BufferSpace+audio.out);
+    //unsigned char *in=(unsigned char *)(BufferSpace+audio.in);
+    short count=(short)audio.count;
     unsigned char icode;
     unsigned char code;
     int vscale;
@@ -122,9 +133,9 @@ static void ADPCM2 (u32 inst1, u32 inst2) { // Verified to be 100% Accurate...
         {/*
             for(int i=0;i<16;i++)
             {
-                out[i]=*(short *)&rsp.RDRAM[(loopval+i*2)^2];
+                out[i]=*(short *)&rsp.RDRAM[(audio.loop+i*2)^2];
             }*/
-            memcpy(out,&rsp.RDRAM[loopval],32);
+            memcpy(out,&rsp.RDRAM[audio.loop],32);
         }
         else
         {/*
@@ -142,10 +153,10 @@ static void ADPCM2 (u32 inst1, u32 inst2) { // Verified to be 100% Accurate...
     int inp2[8];
     out+=16;
     while(count>0) {
-        code=BufferSpace[(AudioInBuffer+inPtr)^S8];
+        code=BufferSpace[(audio.in+inPtr)^S8];
         index=code&0xf;
         index<<=4;
-        book1=(short *)&adpcmtable[index];
+        book1=(short *)&audio.adpcm_table[index];
         book2=book1+8;
         code>>=4;
         vscale=(0x8000>>((srange-code)-1));
@@ -154,7 +165,7 @@ static void ADPCM2 (u32 inst1, u32 inst2) { // Verified to be 100% Accurate...
         j=0;
 
         while(j<8) {
-            icode=BufferSpace[(AudioInBuffer+inPtr)^S8];
+            icode=BufferSpace[(audio.in+inPtr)^S8];
             inPtr++;
 
             inp1[j]=(s16)((icode&mask1) << 8);          // this will in effect be signed
@@ -184,7 +195,7 @@ static void ADPCM2 (u32 inst1, u32 inst2) { // Verified to be 100% Accurate...
 
         j=0;
         while(j<8) {
-            icode=BufferSpace[(AudioInBuffer+inPtr)^S8];
+            icode=BufferSpace[(audio.in+inPtr)^S8];
             inPtr++;
 
             inp2[j]=(s16)((icode&mask1) << 8);
@@ -411,8 +422,8 @@ static void RESAMPLE2 (u32 inst1, u32 inst2) {
     s16 *src;
     dst=(short *)(BufferSpace);
     src=(s16 *)(BufferSpace);
-    u32 srcPtr=(AudioInBuffer/2);
-    u32 dstPtr=(AudioOutBuffer/2);
+    u32 srcPtr=(audio.in/2);
+    u32 dstPtr=(audio.out/2);
     s32 temp;
     s32 accum;
 
@@ -430,7 +441,7 @@ static void RESAMPLE2 (u32 inst1, u32 inst2) {
             src[(srcPtr+x)^S] = 0;//*(u16 *)(rsp.RDRAM+((addy+x)^2));
     }
 
-    for(int i=0;i < ((AudioCount+0xf)&0xFFF0)/2;i++)    {
+    for(int i=0;i < ((audio.count+0xf)&0xFFF0)/2;i++)    {
         location = (((Accum * 0x40) >> 0x10) * 8);
         //location = (Accum >> 0xa) << 0x3;
         lut = (s16 *)(((u8 *)ResampleLUT) + location);
@@ -688,8 +699,8 @@ static void INTERLEAVE2 (u32 inst1, u32 inst2) { // Needs accuracy verification.
     u32 count;
     count   = ((inst1 >> 12) & 0xFF0);
     if (count == 0) {
-        outbuff = (u16 *)(AudioOutBuffer+BufferSpace);
-        count = AudioCount;
+        outbuff = (u16 *)(audio.out+BufferSpace);
+        count = audio.count;
     } else {
         outbuff = (u16 *)((inst1&0xFFFF)+BufferSpace);
     }
