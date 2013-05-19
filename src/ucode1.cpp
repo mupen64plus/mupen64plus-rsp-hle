@@ -38,6 +38,12 @@ static unsigned parse_flags(u32 w1)
     return (w1 >> 16) & 0xff;
 }
 
+static u32 parse_address(u32 w2)
+{
+    // ignore segments (always zero in practice)
+    return (w2 & 0xffffff); // SEGMENTS[(w2 >> 24) & 0xff];
+}
+
 //#include "rsp.h"
 //#define SAFE_MEMORY
 /*
@@ -181,7 +187,7 @@ static void CLEARBUFF (u32 inst1, u32 inst2) {
 static void ENVMIXER (u32 inst1, u32 inst2) {
     //static int envmixcnt = 0;
     unsigned flags = parse_flags(inst1);
-    u32 addy = (inst2 & 0xFFFFFF);// + SEGMENTS[(inst2>>24)&0xf];
+    u32 addy = parse_address(inst2);
     //static
 // ********* Make sure these conditions are met... ***********
     /*if ((AudioInBuffer | AudioOutBuffer | AudioAuxA | AudioAuxC | AudioAuxE | AudioCount) & 0x3) {
@@ -394,7 +400,7 @@ static void ENVMIXER (u32 inst1, u32 inst2) {
 static void RESAMPLE (u32 inst1, u32 inst2) {
     unsigned flags = parse_flags(inst1);
     unsigned int Pitch=((inst1&0xffff))<<1;
-    u32 addy = (inst2 & 0xffffff);// + SEGMENTS[(inst2>>24)&0xf];
+    u32 addy = parse_address(inst2);
     unsigned int Accum=0;
     unsigned int location;
     s16 *lut/*, *lut2*/;
@@ -512,7 +518,7 @@ static void SETVOL (u32 inst1, u32 inst2) {
 static void UNKNOWN (u32 inst1, u32 inst2) {}
 
 static void SETLOOP (u32 inst1, u32 inst2) {
-    loopval = (inst2 & 0xffffff);// + SEGMENTS[(inst2>>24)&0xf];
+    loopval = parse_address(inst2);
     //VolTrg_Left  = (s16)(loopval>>16);        // m_LeftVol
     //VolRamp_Left = (s16)(loopval);    // m_LeftVolTarget
 }
@@ -520,7 +526,7 @@ static void SETLOOP (u32 inst1, u32 inst2) {
 static void ADPCM (u32 inst1, u32 inst2) { // Work in progress! :)
     unsigned flags = parse_flags(inst1);
     //unsigned short Gain=(u16)(inst1&0xffff);
-    unsigned int Address=(inst2 & 0xffffff);// + SEGMENTS[(inst2>>24)&0xf];
+    u32 Address = parse_address(inst2);
     unsigned short inPtr=0;
     //short *out=(s16 *)(testbuff+(AudioOutBuffer>>2));
     short *out=(short *)(BufferSpace+AudioOutBuffer);
@@ -761,7 +767,7 @@ static void LOADBUFF (u32 inst1, u32 inst2) { // memcpy causes static... endiane
     //u32 cnt;
     if (AudioCount == 0)
         return;
-    v0 = (inst2 & 0xfffffc);// + SEGMENTS[(inst2>>24)&0xf];
+    v0 = parse_address(inst2) & ~3;
     memcpy (BufferSpace+(AudioInBuffer&0xFFFC), rsp.RDRAM+v0, (AudioCount+3)&0xFFFC);
 }
 
@@ -770,7 +776,7 @@ static void SAVEBUFF (u32 inst1, u32 inst2) { // memcpy causes static... endiane
     //u32 cnt;
     if (AudioCount == 0)
         return;
-    v0 = (inst2 & 0xfffffc);// + SEGMENTS[(inst2>>24)&0xf];
+    v0 = parse_address(inst2) & ~3;
     memcpy (rsp.RDRAM+v0, BufferSpace+(AudioOutBuffer&0xFFFC), (AudioCount+3)&0xFFFC);
 }
 
@@ -806,8 +812,7 @@ static void DMEMMOVE (u32 inst1, u32 inst2) { // Doesn't sound just right?... wi
 }
 
 static void LOADADPCM (u32 inst1, u32 inst2) { // Loads an ADPCM table - Works 100% Now 03-13-01
-    u32 v0;
-    v0 = (inst2 & 0xffffff);// + SEGMENTS[(inst2>>24)&0xf];
+    u32 v0 = parse_address(inst2);
 /*  if (v0 > (1024*1024*8))
         v0 = (inst2 & 0xffffff);*/
     //memcpy (dmem+0x4c0, rsp.RDRAM+v0, inst1&0xffff); // Could prolly get away with not putting this in dmem
