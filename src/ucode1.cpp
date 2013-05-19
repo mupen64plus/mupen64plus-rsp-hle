@@ -27,6 +27,12 @@ extern "C" {
   #include "alist_internal.h"
 }
 
+static s16 clamp_s16(s32 x)
+{
+    if (x > 32767) { x = 32767; } else if (x < -32768) { x = -32768; }
+    return x;
+}
+
 //#include "rsp.h"
 //#define SAFE_MEMORY
 /*
@@ -348,14 +354,8 @@ static void ENVMIXER (u32 inst1, u32 inst2) {
 
         a1=((s64)(((s64)a1*0xfffe)+((s64)i1*MainL*2)+0x8000)>>16);*/
 
-        if(o1>32767) o1=32767;
-        else if(o1<-32768) o1=-32768;
-
-        if(a1>32767) a1=32767;
-        else if(a1<-32768) a1=-32768;
-
-        out[ptr^S]=o1;
-        aux1[ptr^S]=a1;
+        out[ptr^S]  = clamp_s16(o1);
+        aux1[ptr^S] = clamp_s16(a1);
         if (AuxIncRate) {
             //a2=((s64)(((s64)a2*0xfffe)+((s64)i1*AuxR*2)+0x8000)>>16);
 
@@ -363,14 +363,8 @@ static void ENVMIXER (u32 inst1, u32 inst2) {
             a2+=(/*(a2*0x7fff)+*/(i1*AuxR)+0x4000)>>15;
             a3+=(/*(a3*0x7fff)+*/(i1*AuxL)+0x4000)>>15;
 
-            if(a2>32767) a2=32767;
-            else if(a2<-32768) a2=-32768;
-
-            if(a3>32767) a3=32767;
-            else if(a3<-32768) a3=-32768;
-
-            aux2[ptr^S]=a2;
-            aux3[ptr^S]=a3;
+            aux2[ptr^S] = clamp_s16(a2);
+            aux3[ptr^S] = clamp_s16(a3);
         }
         ptr++;
     }
@@ -453,10 +447,7 @@ static void RESAMPLE (u32 inst1, u32 inst2) {
         temp = ((s32)*(s16*)(src+((srcPtr+3)^S))*((s32)((s16)lut[3])));
         accum += (s32)(temp >> 15);
 
-        if (accum > 32767) accum = 32767;
-        if (accum < -32768) accum = -32768;
-
-        dst[dstPtr^S] = (accum);
+        dst[dstPtr^S] = clamp_s16(accum);
         dstPtr++;
         Accum += Pitch;
         srcPtr += (Accum>>16);
@@ -682,10 +673,7 @@ static void ADPCM (u32 inst1, u32 inst2) { // Work in progress! :)
 
         for(j=0;j<8;j++)
         {
-            a[j^S]>>=11;
-            if(a[j^S]>32767) a[j^S]=32767;
-            else if(a[j^S]<-32768) a[j^S]=-32768;
-            *(out++)=a[j^S];
+            *(out++) = a[j^S] = clamp_s16(a[j^S] >> 11);
         }
         l1=a[6];
         l2=a[7];
@@ -752,10 +740,7 @@ static void ADPCM (u32 inst1, u32 inst2) { // Work in progress! :)
 
         for(j=0;j<8;j++)
         {
-            a[j^S]>>=11;
-            if(a[j^S]>32767) a[j^S]=32767;
-            else if(a[j^S]<-32768) a[j^S]=-32768;
-            *(out++)=a[j^S];
+            *(out++) = a[j^S] = clamp_s16(a[j^S] >> 11);
         }
         l1=a[6];
         l2=a[7];
@@ -888,12 +873,7 @@ static void MIXER (u32 inst1, u32 inst2) { // Fixed a sign issue... 03-14-01
         temp = (*(s16 *)(BufferSpace+dmemin+x) * gain) >> 15;
         temp += *(s16 *)(BufferSpace+dmemout+x);
 
-        if ((s32)temp > 32767)
-            temp = 32767;
-        if ((s32)temp < -32768)
-            temp = -32768;
-
-        *(u16 *)(BufferSpace+dmemout+x) = (u16)(temp & 0xFFFF);
+        *(s16*)(BufferSpace+dmemout+x) = clamp_s16(temp);
     }
 }
 
