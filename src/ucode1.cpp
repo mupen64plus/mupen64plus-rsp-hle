@@ -33,6 +33,11 @@ static s16 clamp_s16(s32 x)
     return x;
 }
 
+static unsigned parse_flags(u32 w1)
+{
+    return (w1 >> 16) & 0xff;
+}
+
 //#include "rsp.h"
 //#define SAFE_MEMORY
 /*
@@ -175,7 +180,7 @@ static void CLEARBUFF (u32 inst1, u32 inst2) {
 
 static void ENVMIXER (u32 inst1, u32 inst2) {
     //static int envmixcnt = 0;
-    u8 flags = (u8)((inst1 >> 16) & 0xff);
+    unsigned flags = parse_flags(inst1);
     u32 addy = (inst2 & 0xFFFFFF);// + SEGMENTS[(inst2>>24)&0xf];
     //static
 // ********* Make sure these conditions are met... ***********
@@ -235,7 +240,7 @@ static void ENVMIXER (u32 inst1, u32 inst2) {
         RAdderStart = *(s32 *)(hleMixerWorkArea + 18); // 14-15
     }
 
-    if(!(flags&A_AUX)) {
+    if (!(flags & A_AUX)) {
         AuxIncRate=0;
         aux2=aux3=zero;
     }
@@ -387,7 +392,7 @@ static void ENVMIXER (u32 inst1, u32 inst2) {
 }
 
 static void RESAMPLE (u32 inst1, u32 inst2) {
-    unsigned char Flags=(u8)((inst1>>16)&0xff);
+    unsigned flags = parse_flags(inst1);
     unsigned int Pitch=((inst1&0xffff))<<1;
     u32 addy = (inst2 & 0xffffff);// + SEGMENTS[(inst2>>24)&0xf];
     unsigned int Accum=0;
@@ -407,14 +412,14 @@ static void RESAMPLE (u32 inst1, u32 inst2) {
 */
     srcPtr -= 4;
 
-    if ((Flags & 0x1) == 0) {
+    if (flags & A_INIT) {
+        for (int x=0; x < 4; x++)
+            src[(srcPtr+x)^S] = 0;//*(u16 *)(rsp.RDRAM+((addy+x)^2));
+    } else {
         //memcpy (src+srcPtr, rsp.RDRAM+addy, 0x8);
         for (int x=0; x < 4; x++)
             src[(srcPtr+x)^S] = ((u16 *)rsp.RDRAM)[((addy/2)+x)^S];
         Accum = *(u16 *)(rsp.RDRAM+addy+10);
-    } else {
-        for (int x=0; x < 4; x++)
-            src[(srcPtr+x)^S] = 0;//*(u16 *)(rsp.RDRAM+((addy+x)^2));
     }
 
     for(int i=0;i < ((AudioCount+0xf)&0xFFF0)/2;i++)    {
@@ -461,7 +466,7 @@ static void RESAMPLE (u32 inst1, u32 inst2) {
 
 static void SETVOL (u32 inst1, u32 inst2) {
 // Might be better to unpack these depending on the flags...
-    u8 flags = (u8)((inst1 >> 16) & 0xff);
+    unsigned flags = parse_flags(inst1);
     u16 vol = (s16)(inst1 & 0xffff);
     //u16 voltarg =(u16)((inst2 >> 16)&0xffff);
     u16 volrate = (u16)((inst2 & 0xffff));
@@ -472,8 +477,8 @@ static void SETVOL (u32 inst1, u32 inst2) {
         return;
     }
 
-    if(flags & A_VOL) { // Set the Source(start) Volumes
-        if(flags & A_LEFT) {
+    if (flags & A_VOL) { // Set the Source(start) Volumes
+        if (flags & A_LEFT) {
             Vol_Left = (s16)vol;    // m_LeftVolume
         } else { // A_RIGHT
             Vol_Right = (s16)vol;   // m_RightVolume
@@ -484,7 +489,7 @@ static void SETVOL (u32 inst1, u32 inst2) {
 //0x370             Loop Value (shared location)
 //0x370             Target Volume (Left)
 //u16 VolRamp_Left; // 0x0012(T8)
-    if(flags & A_LEFT) { // Set the Ramping values Target, Ramp
+    if (flags & A_LEFT) { // Set the Ramping values Target, Ramp
         //loopval = (((u32)vol << 0x10) | (u32)voltarg);
         VolTrg_Left  = (s16)inst1;      // m_LeftVol
         //VolRamp_Left = (s32)inst2;
@@ -513,7 +518,7 @@ static void SETLOOP (u32 inst1, u32 inst2) {
 }
 
 static void ADPCM (u32 inst1, u32 inst2) { // Work in progress! :)
-    unsigned char Flags=(u8)(inst1>>16)&0xff;
+    unsigned flags = parse_flags(inst1);
     //unsigned short Gain=(u16)(inst1&0xffff);
     unsigned int Address=(inst2 & 0xffffff);// + SEGMENTS[(inst2>>24)&0xf];
     unsigned short inPtr=0;
@@ -534,9 +539,9 @@ static void ADPCM (u32 inst1, u32 inst2) { // Work in progress! :)
 */
     memset(out,0,32);
 
-    if(!(Flags&0x1))
+    if (!(flags & A_INIT))
     {
-        if(Flags&0x2) {
+        if (flags & A_LOOP) {
             memcpy(out,&rsp.RDRAM[loopval&MEMMASK],32);
         } else {
             memcpy(out,&rsp.RDRAM[Address],32);
@@ -862,7 +867,6 @@ static void INTERLEAVE (u32 inst1, u32 inst2) { // Works... - 3-11-01
 static void MIXER (u32 inst1, u32 inst2) { // Fixed a sign issue... 03-14-01
     u32 dmemin  = (u16)(inst2 >> 0x10);
     u32 dmemout = (u16)(inst2 & 0xFFFF);
-    //u8  flags   = (u8)((inst1 >> 16) & 0xff);
     s32 gain    = (s16)(inst1 & 0xFFFF);
     s32 temp;
 
