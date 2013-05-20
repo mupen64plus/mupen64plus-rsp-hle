@@ -327,6 +327,11 @@ static s16 clamp_s16(s32 x)
     return x;
 }
 
+static unsigned parse_acmd(u32 w1)
+{
+    return (w1 >> 24) & 0xff;
+}
+
 static unsigned parse_flags(u32 w1)
 {
     return (w1 >> 16) & 0xff;
@@ -363,7 +368,7 @@ static void alist_process(const acmd_callback_t abi[], unsigned int abi_size)
         inst1 = *(alist++);
         inst2 = *(alist++);
 
-        acmd = inst1 >> 24;
+        acmd = parse_acmd(inst1);
 
         if (acmd < abi_size)
         {
@@ -380,6 +385,24 @@ static void alist_process(const acmd_callback_t abi[], unsigned int abi_size)
 /* Audio commands */
 static void SPNOOP(u32 inst1, u32 inst2)
 {
+}
+
+static void UNKNOWN(u32 inst1, u32 inst2)
+{
+    DebugMessage(M64MSG_WARNING,
+            "Unknown audio command %d: %08x %08x",
+            parse_acmd(inst1), inst1, inst2);
+}
+
+
+static void SEGMENT(u32 inst1, u32 inst2)
+{
+    // ignored in practice
+}
+
+static void POLEF(u32 inst1, u32 inst2)
+{
+    // TODO
 }
 
 static void CLEARBUFF (u32 inst1, u32 inst2) {
@@ -652,7 +675,6 @@ static void SETVOL (u32 inst1, u32 inst2) {
     }
 }
 
-static void UNKNOWN (u32 inst1, u32 inst2) {}
 
 static void SETLOOP (u32 inst1, u32 inst2)
 {
@@ -1582,9 +1604,6 @@ static void INTERLEAVE3 (u32 inst1, u32 inst2) { // Needs accuracy verification.
     }
 }
 
-static void WHATISTHIS (u32 inst1, u32 inst2) {
-}
-
 static void MP3ADDY (u32 inst1, u32 inst2) {
         setaddr = (inst2 & 0xffffff);
 }
@@ -2016,12 +2035,6 @@ static void InnerLoop () {
                     tmp += 2;
                 }
 }
-
-static void DISABLE (u32 inst1, u32 inst2) {
-    //MessageBox (NULL, "Help", "ABI 3 Command 0", MB_OK);
-    //ChangeABI (5);
-}
-
 
 static void LOADADPCM2 (u32 inst1, u32 inst2) { // Loads an ADPCM table - Works 100% Now 03-13-01
     u32 v0;
@@ -2817,9 +2830,9 @@ static void SEGMENT2 (u32 inst1, u32 inst2) {
 static const acmd_callback_t ABI1[0x10] =
 {
     SPNOOP,     ADPCM,      CLEARBUFF,  ENVMIXER,
-    LOADBUFF,   RESAMPLE,   SAVEBUFF,   UNKNOWN,
+    LOADBUFF,   RESAMPLE,   SAVEBUFF,   SEGMENT,
     SETBUFF,    SETVOL,     DMEMMOVE,   LOADADPCM,
-    MIXER,      INTERLEAVE, UNKNOWN,    SETLOOP
+    MIXER,      INTERLEAVE, POLEF,      SETLOOP
 };
 
 // FIXME: ABI2 in fact is a mix of at least 7 differents ABI which are mostly compatible
@@ -2838,10 +2851,10 @@ static const acmd_callback_t ABI2[0x20] =
 
 static const acmd_callback_t ABI3[0x10] = 
 {
-    DISABLE,    ADPCM3,         CLEARBUFF3, ENVMIXER3,
+    UNKNOWN,    ADPCM3,         CLEARBUFF3, ENVMIXER3,
     LOADBUFF3,  RESAMPLE3,      SAVEBUFF3,  MP3,
     MP3ADDY,    SETVOL3,        DMEMMOVE3,  LOADADPCM3,
-    MIXER3,     INTERLEAVE3,    WHATISTHIS, SETLOOP3
+    MIXER3,     INTERLEAVE3,    UNKNOWN,    SETLOOP3
 };
 
 
