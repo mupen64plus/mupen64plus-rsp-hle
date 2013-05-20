@@ -26,7 +26,104 @@
 #include "hle.h"
 #include "m64p_types.h"
 
+#ifdef USE_EXPANSION
+    #define MEMMASK 0x7FFFFF
+#else
+    #define MEMMASK 0x3FFFFF
+#endif
+
+/* types defintions */
 typedef void (*acmd_callback_t)(u32 inst1, u32 inst2);
+
+/* local variables */
+static struct audio_t
+{
+    // segments
+    u32 segments[0x10]; // 0x320
+
+    // main buffers
+    u16 in;             // 0x0000(t8)
+    u16 out;            // 0x0002(t8)
+    u16 count;          // 0x0004(t8)
+
+    // auxiliary buffers
+    u16 aux_dry_left;   // 0x000a(t8)
+    u16 aux_wet_right;  // 0x000c(t8)
+    u16 aux_wet_left;   // 0x000e(t8)
+
+    // loop
+    u32 loop;           // 0x0010(t8)
+
+    // envmixer gains
+    s16 dry;            // 0x001c(t8)
+    s16 wet;            // 0x001e(t8)
+
+    // envmixer envelopes (0: left, 1: right)
+    s16 env_vol[2];
+    s16 env_target[2];
+    s32 env_ramp[2];
+
+    // adpcm
+    u16 adpcm_table[0x80];
+} audio;
+
+static struct naudio_t
+{
+    // loop
+    u32 loop;
+
+    // envmixer gains
+    s16 dry;
+    s16 wet;
+
+    // envmixer envelopes (0: left, 1: right)
+    s16 env_vol[2];
+    s16 env_target[2];
+    s32 env_ramp[2];
+
+    // adpcm
+    u16 adpcm_table[0x80];
+
+    // TODO: add mp3 related variables
+} naudio;
+
+// mp3 related variables
+static u32 setaddr;
+static u32 inPtr, outPtr;
+static u32 t6;// = 0x08A0; // I think these are temporary storage buffers
+static u32 t5;// = 0x0AC0;
+static u32 t4;// = (inst1 & 0x1E);
+static u8 mp3data[0x1000];
+static s32 v[32];
+
+static struct audio2_t
+{
+    // segments
+    u32 segments[0x10]; // 0x320
+
+    // main buffers
+    u16 in;             // 0x0000(t8)
+    u16 out;            // 0x0002(t8)
+    u16 count;          // 0x0004(t8)
+
+    // loop
+    u32 loop;           // 0x0010(t8)
+
+    // adpcm
+    u16 adpcm_table[0x80];
+
+    // TODO: add envsetup state values here
+} audio2;
+
+// envmixer2 related variables
+static u32 t3, s5, s6;
+static u16 env[8];
+
+// FIXME: remove these flags
+int isMKABI = 0;
+int isZeldaABI = 0;
+
+static u8 BufferSpace[0x10000];
 
 /*
  * Audio flags
@@ -45,63 +142,179 @@ typedef void (*acmd_callback_t)(u32 inst1, u32 inst2);
 #define A_MAIN          0x00
 #define A_MIX           0x10
 
-// FIXME: this decomposition into 3 ABI is not accurate,
-// there are a least 9 or 10 different ABI, each with one or a few revisions
-// for a total of almost 16 differents audio ucode.
-//
-// ABI2 in fact is a mix of at least 7 differents ABI which are mostly compatible
-// but not totally, that's why there is a isZeldaABI/isMKABI workaround.
-//
-static const acmd_callback_t ABI1[0x10];
-static const acmd_callback_t ABI2[0x20];
-static const acmd_callback_t ABI3[0x10];
+static const u16 RESAMPLE_LUT [0x200] =
+{
+    0x0c39, 0x66ad, 0x0d46, 0xffdf, 0x0b39, 0x6696, 0x0e5f, 0xffd8,
+    0x0a44, 0x6669, 0x0f83, 0xffd0, 0x095a, 0x6626, 0x10b4, 0xffc8,
+    0x087d, 0x65cd, 0x11f0, 0xffbf, 0x07ab, 0x655e, 0x1338, 0xffb6,
+    0x06e4, 0x64d9, 0x148c, 0xffac, 0x0628, 0x643f, 0x15eb, 0xffa1,
+    0x0577, 0x638f, 0x1756, 0xff96, 0x04d1, 0x62cb, 0x18cb, 0xff8a,
+    0x0435, 0x61f3, 0x1a4c, 0xff7e, 0x03a4, 0x6106, 0x1bd7, 0xff71,
+    0x031c, 0x6007, 0x1d6c, 0xff64, 0x029f, 0x5ef5, 0x1f0b, 0xff56,
+    0x022a, 0x5dd0, 0x20b3, 0xff48, 0x01be, 0x5c9a, 0x2264, 0xff3a,
+    0x015b, 0x5b53, 0x241e, 0xff2c, 0x0101, 0x59fc, 0x25e0, 0xff1e,
+    0x00ae, 0x5896, 0x27a9, 0xff10, 0x0063, 0x5720, 0x297a, 0xff02,
+    0x001f, 0x559d, 0x2b50, 0xfef4, 0xffe2, 0x540d, 0x2d2c, 0xfee8,
+    0xffac, 0x5270, 0x2f0d, 0xfedb, 0xff7c, 0x50c7, 0x30f3, 0xfed0,
+    0xff53, 0x4f14, 0x32dc, 0xfec6, 0xff2e, 0x4d57, 0x34c8, 0xfebd,
+    0xff0f, 0x4b91, 0x36b6, 0xfeb6, 0xfef5, 0x49c2, 0x38a5, 0xfeb0,
+    0xfedf, 0x47ed, 0x3a95, 0xfeac, 0xfece, 0x4611, 0x3c85, 0xfeab,
+    0xfec0, 0x4430, 0x3e74, 0xfeac, 0xfeb6, 0x424a, 0x4060, 0xfeaf,
+    0xfeaf, 0x4060, 0x424a, 0xfeb6, 0xfeac, 0x3e74, 0x4430, 0xfec0,
+    0xfeab, 0x3c85, 0x4611, 0xfece, 0xfeac, 0x3a95, 0x47ed, 0xfedf,
+    0xfeb0, 0x38a5, 0x49c2, 0xfef5, 0xfeb6, 0x36b6, 0x4b91, 0xff0f,
+    0xfebd, 0x34c8, 0x4d57, 0xff2e, 0xfec6, 0x32dc, 0x4f14, 0xff53,
+    0xfed0, 0x30f3, 0x50c7, 0xff7c, 0xfedb, 0x2f0d, 0x5270, 0xffac,
+    0xfee8, 0x2d2c, 0x540d, 0xffe2, 0xfef4, 0x2b50, 0x559d, 0x001f,
+    0xff02, 0x297a, 0x5720, 0x0063, 0xff10, 0x27a9, 0x5896, 0x00ae,
+    0xff1e, 0x25e0, 0x59fc, 0x0101, 0xff2c, 0x241e, 0x5b53, 0x015b,
+    0xff3a, 0x2264, 0x5c9a, 0x01be, 0xff48, 0x20b3, 0x5dd0, 0x022a,
+    0xff56, 0x1f0b, 0x5ef5, 0x029f, 0xff64, 0x1d6c, 0x6007, 0x031c,
+    0xff71, 0x1bd7, 0x6106, 0x03a4, 0xff7e, 0x1a4c, 0x61f3, 0x0435,
+    0xff8a, 0x18cb, 0x62cb, 0x04d1, 0xff96, 0x1756, 0x638f, 0x0577,
+    0xffa1, 0x15eb, 0x643f, 0x0628, 0xffac, 0x148c, 0x64d9, 0x06e4,
+    0xffb6, 0x1338, 0x655e, 0x07ab, 0xffbf, 0x11f0, 0x65cd, 0x087d,
+    0xffc8, 0x10b4, 0x6626, 0x095a, 0xffd0, 0x0f83, 0x6669, 0x0a44,
+    0xffd8, 0x0e5f, 0x6696, 0x0b39, 0xffdf, 0x0d46, 0x66ad, 0x0c39
+};
+
+static const u16 DEWINDOW_LUT[0x420] =
+{
+    0x0000, 0xfff3, 0x005d, 0xff38, 0x037a, 0xf736, 0x0b37, 0xc00e,
+    0x7fff, 0x3ff2, 0x0b37, 0x08ca, 0x037a, 0x00c8, 0x005d, 0x000d,
+    0x0000, 0xfff3, 0x005d, 0xff38, 0x037a, 0xf736, 0x0b37, 0xc00e,
+    0x7fff, 0x3ff2, 0x0b37, 0x08ca, 0x037a, 0x00c8, 0x005d, 0x000d,
+    0x0000, 0xfff2, 0x005f, 0xff1d, 0x0369, 0xf697, 0x0a2a, 0xbce7,
+    0x7feb, 0x3ccb, 0x0c2b, 0x082b, 0x0385, 0x00af, 0x005b, 0x000b,
+    0x0000, 0xfff2, 0x005f, 0xff1d, 0x0369, 0xf697, 0x0a2a, 0xbce7,
+    0x7feb, 0x3ccb, 0x0c2b, 0x082b, 0x0385, 0x00af, 0x005b, 0x000b,
+    0x0000, 0xfff1, 0x0061, 0xff02, 0x0354, 0xf5f9, 0x0905, 0xb9c4,
+    0x7fb0, 0x39a4, 0x0d08, 0x078c, 0x038c, 0x0098, 0x0058, 0x000a,
+    0x0000, 0xfff1, 0x0061, 0xff02, 0x0354, 0xf5f9, 0x0905, 0xb9c4,
+    0x7fb0, 0x39a4, 0x0d08, 0x078c, 0x038c, 0x0098, 0x0058, 0x000a,
+    0x0000, 0xffef, 0x0062, 0xfee6, 0x033b, 0xf55c, 0x07c8, 0xb6a4,
+    0x7f4d, 0x367e, 0x0dce, 0x06ee, 0x038f, 0x0080, 0x0056, 0x0009,
+    0x0000, 0xffef, 0x0062, 0xfee6, 0x033b, 0xf55c, 0x07c8, 0xb6a4,
+    0x7f4d, 0x367e, 0x0dce, 0x06ee, 0x038f, 0x0080, 0x0056, 0x0009,
+    0x0000, 0xffee, 0x0063, 0xfeca, 0x031c, 0xf4c3, 0x0671, 0xb38c,
+    0x7ec2, 0x335d, 0x0e7c, 0x0652, 0x038e, 0x006b, 0x0053, 0x0008,
+    0x0000, 0xffee, 0x0063, 0xfeca, 0x031c, 0xf4c3, 0x0671, 0xb38c,
+    0x7ec2, 0x335d, 0x0e7c, 0x0652, 0x038e, 0x006b, 0x0053, 0x0008,
+    0x0000, 0xffec, 0x0064, 0xfeac, 0x02f7, 0xf42c, 0x0502, 0xb07c,
+    0x7e12, 0x3041, 0x0f14, 0x05b7, 0x038a, 0x0056, 0x0050, 0x0007,
+    0x0000, 0xffec, 0x0064, 0xfeac, 0x02f7, 0xf42c, 0x0502, 0xb07c,
+    0x7e12, 0x3041, 0x0f14, 0x05b7, 0x038a, 0x0056, 0x0050, 0x0007,
+    0x0000, 0xffeb, 0x0064, 0xfe8e, 0x02ce, 0xf399, 0x037a, 0xad75,
+    0x7d3a, 0x2d2c, 0x0f97, 0x0520, 0x0382, 0x0043, 0x004d, 0x0007,
+    0x0000, 0xffeb, 0x0064, 0xfe8e, 0x02ce, 0xf399, 0x037a, 0xad75,
+    0x7d3a, 0x2d2c, 0x0f97, 0x0520, 0x0382, 0x0043, 0x004d, 0x0007,
+    0xffff, 0xffe9, 0x0063, 0xfe6f, 0x029e, 0xf30b, 0x01d8, 0xaa7b,
+    0x7c3d, 0x2a1f, 0x1004, 0x048b, 0x0377, 0x0030, 0x004a, 0x0006,
+    0xffff, 0xffe9, 0x0063, 0xfe6f, 0x029e, 0xf30b, 0x01d8, 0xaa7b,
+    0x7c3d, 0x2a1f, 0x1004, 0x048b, 0x0377, 0x0030, 0x004a, 0x0006,
+    0xffff, 0xffe7, 0x0062, 0xfe4f, 0x0269, 0xf282, 0x001f, 0xa78d,
+    0x7b1a, 0x271c, 0x105d, 0x03f9, 0x036a, 0x001f, 0x0046, 0x0006,
+    0xffff, 0xffe7, 0x0062, 0xfe4f, 0x0269, 0xf282, 0x001f, 0xa78d,
+    0x7b1a, 0x271c, 0x105d, 0x03f9, 0x036a, 0x001f, 0x0046, 0x0006,
+    0xffff, 0xffe4, 0x0061, 0xfe2f, 0x022f, 0xf1ff, 0xfe4c, 0xa4af,
+    0x79d3, 0x2425, 0x10a2, 0x036c, 0x0359, 0x0010, 0x0043, 0x0005,
+    0xffff, 0xffe4, 0x0061, 0xfe2f, 0x022f, 0xf1ff, 0xfe4c, 0xa4af,
+    0x79d3, 0x2425, 0x10a2, 0x036c, 0x0359, 0x0010, 0x0043, 0x0005,
+    0xffff, 0xffe2, 0x005e, 0xfe10, 0x01ee, 0xf184, 0xfc61, 0xa1e1,
+    0x7869, 0x2139, 0x10d3, 0x02e3, 0x0346, 0x0001, 0x0040, 0x0004,
+    0xffff, 0xffe2, 0x005e, 0xfe10, 0x01ee, 0xf184, 0xfc61, 0xa1e1,
+    0x7869, 0x2139, 0x10d3, 0x02e3, 0x0346, 0x0001, 0x0040, 0x0004,
+    0xffff, 0xffe0, 0x005b, 0xfdf0, 0x01a8, 0xf111, 0xfa5f, 0x9f27,
+    0x76db, 0x1e5c, 0x10f2, 0x025e, 0x0331, 0xfff3, 0x003d, 0x0004,
+    0xffff, 0xffe0, 0x005b, 0xfdf0, 0x01a8, 0xf111, 0xfa5f, 0x9f27,
+    0x76db, 0x1e5c, 0x10f2, 0x025e, 0x0331, 0xfff3, 0x003d, 0x0004,
+    0xffff, 0xffde, 0x0057, 0xfdd0, 0x015b, 0xf0a7, 0xf845, 0x9c80,
+    0x752c, 0x1b8e, 0x1100, 0x01de, 0x0319, 0xffe7, 0x003a, 0x0003,
+    0xffff, 0xffde, 0x0057, 0xfdd0, 0x015b, 0xf0a7, 0xf845, 0x9c80,
+    0x752c, 0x1b8e, 0x1100, 0x01de, 0x0319, 0xffe7, 0x003a, 0x0003,
+    0xfffe, 0xffdb, 0x0053, 0xfdb0, 0x0108, 0xf046, 0xf613, 0x99ee,
+    0x735c, 0x18d1, 0x10fd, 0x0163, 0x0300, 0xffdc, 0x0037, 0x0003,
+    0xfffe, 0xffdb, 0x0053, 0xfdb0, 0x0108, 0xf046, 0xf613, 0x99ee,
+    0x735c, 0x18d1, 0x10fd, 0x0163, 0x0300, 0xffdc, 0x0037, 0x0003,
+    0xfffe, 0xffd8, 0x004d, 0xfd90, 0x00b0, 0xeff0, 0xf3cc, 0x9775,
+    0x716c, 0x1624, 0x10ea, 0x00ee, 0x02e5, 0xffd2, 0x0033, 0x0003,
+    0xfffe, 0xffd8, 0x004d, 0xfd90, 0x00b0, 0xeff0, 0xf3cc, 0x9775,
+    0x716c, 0x1624, 0x10ea, 0x00ee, 0x02e5, 0xffd2, 0x0033, 0x0003,
+    0xfffe, 0xffd6, 0x0047, 0xfd72, 0x0051, 0xefa6, 0xf16f, 0x9514,
+    0x6f5e, 0x138a, 0x10c8, 0x007e, 0x02ca, 0xffc9, 0x0030, 0x0003,
+    0xfffe, 0xffd6, 0x0047, 0xfd72, 0x0051, 0xefa6, 0xf16f, 0x9514,
+    0x6f5e, 0x138a, 0x10c8, 0x007e, 0x02ca, 0xffc9, 0x0030, 0x0003,
+    0xfffe, 0xffd3, 0x0040, 0xfd54, 0xffec, 0xef68, 0xeefc, 0x92cd,
+    0x6d33, 0x1104, 0x1098, 0x0014, 0x02ac, 0xffc0, 0x002d, 0x0002,
+    0xfffe, 0xffd3, 0x0040, 0xfd54, 0xffec, 0xef68, 0xeefc, 0x92cd,
+    0x6d33, 0x1104, 0x1098, 0x0014, 0x02ac, 0xffc0, 0x002d, 0x0002,
+    0x0030, 0xffc9, 0x02ca, 0x007e, 0x10c8, 0x138a, 0x6f5e, 0x9514,
+    0xf16f, 0xefa6, 0x0051, 0xfd72, 0x0047, 0xffd6, 0xfffe, 0x0003,
+    0x0030, 0xffc9, 0x02ca, 0x007e, 0x10c8, 0x138a, 0x6f5e, 0x9514,
+    0xf16f, 0xefa6, 0x0051, 0xfd72, 0x0047, 0xffd6, 0xfffe, 0x0003,
+    0x0033, 0xffd2, 0x02e5, 0x00ee, 0x10ea, 0x1624, 0x716c, 0x9775,
+    0xf3cc, 0xeff0, 0x00b0, 0xfd90, 0x004d, 0xffd8, 0xfffe, 0x0003,
+    0x0033, 0xffd2, 0x02e5, 0x00ee, 0x10ea, 0x1624, 0x716c, 0x9775,
+    0xf3cc, 0xeff0, 0x00b0, 0xfd90, 0x004d, 0xffd8, 0xfffe, 0x0003,
+    0x0037, 0xffdc, 0x0300, 0x0163, 0x10fd, 0x18d1, 0x735c, 0x99ee,
+    0xf613, 0xf046, 0x0108, 0xfdb0, 0x0053, 0xffdb, 0xfffe, 0x0003,
+    0x0037, 0xffdc, 0x0300, 0x0163, 0x10fd, 0x18d1, 0x735c, 0x99ee,
+    0xf613, 0xf046, 0x0108, 0xfdb0, 0x0053, 0xffdb, 0xfffe, 0x0003,
+    0x003a, 0xffe7, 0x0319, 0x01de, 0x1100, 0x1b8e, 0x752c, 0x9c80,
+    0xf845, 0xf0a7, 0x015b, 0xfdd0, 0x0057, 0xffde, 0xffff, 0x0003,
+    0x003a, 0xffe7, 0x0319, 0x01de, 0x1100, 0x1b8e, 0x752c, 0x9c80,
+    0xf845, 0xf0a7, 0x015b, 0xfdd0, 0x0057, 0xffde, 0xffff, 0x0004,
+    0x003d, 0xfff3, 0x0331, 0x025e, 0x10f2, 0x1e5c, 0x76db, 0x9f27,
+    0xfa5f, 0xf111, 0x01a8, 0xfdf0, 0x005b, 0xffe0, 0xffff, 0x0004,
+    0x003d, 0xfff3, 0x0331, 0x025e, 0x10f2, 0x1e5c, 0x76db, 0x9f27,
+    0xfa5f, 0xf111, 0x01a8, 0xfdf0, 0x005b, 0xffe0, 0xffff, 0x0004,
+    0x0040, 0x0001, 0x0346, 0x02e3, 0x10d3, 0x2139, 0x7869, 0xa1e1,
+    0xfc61, 0xf184, 0x01ee, 0xfe10, 0x005e, 0xffe2, 0xffff, 0x0004,
+    0x0040, 0x0001, 0x0346, 0x02e3, 0x10d3, 0x2139, 0x7869, 0xa1e1,
+    0xfc61, 0xf184, 0x01ee, 0xfe10, 0x005e, 0xffe2, 0xffff, 0x0005,
+    0x0043, 0x0010, 0x0359, 0x036c, 0x10a2, 0x2425, 0x79d3, 0xa4af,
+    0xfe4c, 0xf1ff, 0x022f, 0xfe2f, 0x0061, 0xffe4, 0xffff, 0x0005,
+    0x0043, 0x0010, 0x0359, 0x036c, 0x10a2, 0x2425, 0x79d3, 0xa4af,
+    0xfe4c, 0xf1ff, 0x022f, 0xfe2f, 0x0061, 0xffe4, 0xffff, 0x0006,
+    0x0046, 0x001f, 0x036a, 0x03f9, 0x105d, 0x271c, 0x7b1a, 0xa78d,
+    0x001f, 0xf282, 0x0269, 0xfe4f, 0x0062, 0xffe7, 0xffff, 0x0006,
+    0x0046, 0x001f, 0x036a, 0x03f9, 0x105d, 0x271c, 0x7b1a, 0xa78d,
+    0x001f, 0xf282, 0x0269, 0xfe4f, 0x0062, 0xffe7, 0xffff, 0x0006,
+    0x004a, 0x0030, 0x0377, 0x048b, 0x1004, 0x2a1f, 0x7c3d, 0xaa7b,
+    0x01d8, 0xf30b, 0x029e, 0xfe6f, 0x0063, 0xffe9, 0xffff, 0x0006,
+    0x004a, 0x0030, 0x0377, 0x048b, 0x1004, 0x2a1f, 0x7c3d, 0xaa7b,
+    0x01d8, 0xf30b, 0x029e, 0xfe6f, 0x0063, 0xffe9, 0xffff, 0x0007,
+    0x004d, 0x0043, 0x0382, 0x0520, 0x0f97, 0x2d2c, 0x7d3a, 0xad75,
+    0x037a, 0xf399, 0x02ce, 0xfe8e, 0x0064, 0xffeb, 0x0000, 0x0007,
+    0x004d, 0x0043, 0x0382, 0x0520, 0x0f97, 0x2d2c, 0x7d3a, 0xad75,
+    0x037a, 0xf399, 0x02ce, 0xfe8e, 0x0064, 0xffeb, 0x0000, 0x0007,
+    0x0050, 0x0056, 0x038a, 0x05b7, 0x0f14, 0x3041, 0x7e12, 0xb07c,
+    0x0502, 0xf42c, 0x02f7, 0xfeac, 0x0064, 0xffec, 0x0000, 0x0007,
+    0x0050, 0x0056, 0x038a, 0x05b7, 0x0f14, 0x3041, 0x7e12, 0xb07c,
+    0x0502, 0xf42c, 0x02f7, 0xfeac, 0x0064, 0xffec, 0x0000, 0x0008,
+    0x0053, 0x006b, 0x038e, 0x0652, 0x0e7c, 0x335d, 0x7ec2, 0xb38c,
+    0x0671, 0xf4c3, 0x031c, 0xfeca, 0x0063, 0xffee, 0x0000, 0x0008,
+    0x0053, 0x006b, 0x038e, 0x0652, 0x0e7c, 0x335d, 0x7ec2, 0xb38c,
+    0x0671, 0xf4c3, 0x031c, 0xfeca, 0x0063, 0xffee, 0x0000, 0x0009,
+    0x0056, 0x0080, 0x038f, 0x06ee, 0x0dce, 0x367e, 0x7f4d, 0xb6a4,
+    0x07c8, 0xf55c, 0x033b, 0xfee6, 0x0062, 0xffef, 0x0000, 0x0009,
+    0x0056, 0x0080, 0x038f, 0x06ee, 0x0dce, 0x367e, 0x7f4d, 0xb6a4,
+    0x07c8, 0xf55c, 0x033b, 0xfee6, 0x0062, 0xffef, 0x0000, 0x000a,
+    0x0058, 0x0098, 0x038c, 0x078c, 0x0d08, 0x39a4, 0x7fb0, 0xb9c4,
+    0x0905, 0xf5f9, 0x0354, 0xff02, 0x0061, 0xfff1, 0x0000, 0x000a,
+    0x0058, 0x0098, 0x038c, 0x078c, 0x0d08, 0x39a4, 0x7fb0, 0xb9c4,
+    0x0905, 0xf5f9, 0x0354, 0xff02, 0x0061, 0xfff1, 0x0000, 0x000b,
+    0x005b, 0x00af, 0x0385, 0x082b, 0x0c2b, 0x3ccb, 0x7feb, 0xbce7,
+    0x0a2a, 0xf697, 0x0369, 0xff1d, 0x005f, 0xfff2, 0x0000, 0x000b,
+    0x005b, 0x00af, 0x0385, 0x082b, 0x0c2b, 0x3ccb, 0x7feb, 0xbce7,
+    0x0a2a, 0xf697, 0x0369, 0xff1d, 0x005f, 0xfff2, 0x0000, 0x000d,
+    0x005d, 0x00c8, 0x037a, 0x08ca, 0x0b37, 0x3ff2, 0x7fff, 0xc00e,
+    0x0b37, 0xf736, 0x037a, 0xff38, 0x005d, 0xfff3, 0x0000, 0x000d,
+    0x005d, 0x00c8, 0x037a, 0x08ca, 0x0b37, 0x3ff2, 0x7fff, 0xc00e,
+    0x0b37, 0xf736, 0x037a, 0xff38, 0x005d, 0xfff3, 0x0000, 0x0000
+};
 
 /* local functions */
-static void alist_process(const acmd_callback_t abi[], unsigned int abi_size)
-{
-    u32 inst1, inst2;
-    unsigned int acmd;
-    const OSTask_t * const task = get_task();
-
-    const unsigned int *alist = (unsigned int*)(rsp.RDRAM + task->data_ptr);
-    const unsigned int * const alist_end = alist + (task->data_size >> 2);
-
-    while (alist != alist_end)
-    {
-        inst1 = *(alist++);
-        inst2 = *(alist++);
-
-        acmd = inst1 >> 24;
-
-        if (acmd < abi_size)
-        {
-            (*abi[acmd])(inst1, inst2);
-        }
-        else
-        {
-            DebugMessage(M64MSG_WARNING, "Invalid ABI command %u", acmd);
-        }
-    }
-}
-
-/* global functions */
-void alist_process_ABI1()
-{
-    alist_process(ABI1, 0x10);
-}
-
-void alist_process_ABI2()
-{
-    alist_process(ABI2, 0x20);
-}
-
-void alist_process_ABI3()
-{
-    alist_process(ABI3, 0x10);
-}
-
-
-/* audio ucode */
 static unsigned align(unsigned x, unsigned m)
 {
     --m;
@@ -136,144 +349,38 @@ static u16 parse_hi(u32 x)
 }
 
 
-//#include "rsp.h"
-//#define SAFE_MEMORY
-/*
-#ifndef SAFE_MEMORY
-#   define wr8 (src , address);
-#   define rd8 (dest, address);
-#   define wr16 (src, address);
-#   define rd16 (dest, address);
-#   define wr32 (src, address);
-#   define rd32 (dest, address);
-#   define wr64 (src, address);
-#   define rd64 (dest, address);
-#   define dmamem (dest, src, size) memcpy (dest, src, size);
-#   define clrmem (dest, size)      memset (dest, 0, size);
-#else
-    void wr8 (u8 src, void *address);
-    void rd8 (u8 dest, void *address);
-    void wr16 (u16 src, void *address);
-    void rd16 (u16 dest, void *address);
-    void wr32 (u16 src, void *address);
-    void rd32 (u16 dest, void *address);
-    void wr64 (u16 src, void *address);
-    void rd64 (u16 dest, void *address);
-    void dmamem (void *dest, void *src, int size);
-    void clrmem (void *dest, int size);
-#endif
-*/
-/******** DMEM Memory Map for ABI 1 ***************
-Address/Range       Description
--------------       -------------------------------
-0x000..0x2BF        UCodeData
-    0x000-0x00F     Constants  - 0000 0001 0002 FFFF 0020 0800 7FFF 4000
-    0x010-0x02F     Function Jump Table (16 Functions * 2 bytes each = 32) 0x20
-    0x030-0x03F     Constants  - F000 0F00 00F0 000F 0001 0010 0100 1000
-    0x040-0x03F     Used by the Envelope Mixer (But what for?)
-    0x070-0x07F     Used by the Envelope Mixer (But what for?)
-0x2C0..0x31F        <Unknown>
-0x320..0x35F        Segments
-0x360               Audio In Buffer (Location)
-0x362               Audio Out Buffer (Location)
-0x364               Audio Buffer Size (Location)
-0x366               Initial Volume for Left Channel
-0x368               Initial Volume for Right Channel
-0x36A               Auxillary Buffer #1 (Location)
-0x36C               Auxillary Buffer #2 (Location)
-0x36E               Auxillary Buffer #3 (Location)
-0x370               Loop Value (shared location)
-0x370               Target Volume (Left)
-0x372               Ramp?? (Left)
-0x374               Rate?? (Left)
-0x376               Target Volume (Right)
-0x378               Ramp?? (Right)
-0x37A               Rate?? (Right)
-0x37C               Dry??
-0x37E               Wet??
-0x380..0x4BF        Alist data
-0x4C0..0x4FF        ADPCM CodeBook
-0x500..0x5BF        <Unknown>
-0x5C0..0xF7F        Buffers...
-0xF80..0xFFF        <Unknown>
-***************************************************/
-#ifdef USE_EXPANSION
-    #define MEMMASK 0x7FFFFF
-#else
-    #define MEMMASK 0x3FFFFF
-#endif
+static void alist_process(const acmd_callback_t abi[], unsigned int abi_size)
+{
+    u32 inst1, inst2;
+    unsigned int acmd;
+    const OSTask_t * const task = get_task();
 
+    const unsigned int *alist = (unsigned int*)(rsp.RDRAM + task->data_ptr);
+    const unsigned int * const alist_end = alist + (task->data_size >> 2);
+
+    while (alist != alist_end)
+    {
+        inst1 = *(alist++);
+        inst2 = *(alist++);
+
+        acmd = inst1 >> 24;
+
+        if (acmd < abi_size)
+        {
+            (*abi[acmd])(inst1, inst2);
+        }
+        else
+        {
+            DebugMessage(M64MSG_WARNING, "Invalid ABI command %u", acmd);
+        }
+    }
+}
+
+
+/* Audio commands */
 static void SPNOOP(u32 inst1, u32 inst2)
 {
 }
-
-static struct audio_t
-{
-    // segments
-    u32 segments[0x10]; // 0x320
-
-    // main buffers
-    u16 in;             // 0x0000(t8)
-    u16 out;            // 0x0002(t8)
-    u16 count;          // 0x0004(t8)
-
-    // auxiliary buffers
-    u16 aux_dry_left;   // 0x000a(t8)
-    u16 aux_wet_right;  // 0x000c(t8)
-    u16 aux_wet_left;   // 0x000e(t8)
-
-    // loop
-    u32 loop;           // 0x0010(t8)
-
-    // envmixer gains
-    s16 dry;            // 0x001c(t8)
-    s16 wet;            // 0x001e(t8)
-
-    // envmixer envelopes (0: left, 1: right)
-    s16 env_vol[2];
-    s16 env_target[2];
-    s32 env_ramp[2];
-
-    // adpcm
-    u16 adpcm_table[0x80];
-} audio;
-
-u8 BufferSpace[0x10000];
-
-static const u16 ResampleLUT [0x200] = {
-    0x0C39, 0x66AD, 0x0D46, 0xFFDF, 0x0B39, 0x6696, 0x0E5F, 0xFFD8,
-    0x0A44, 0x6669, 0x0F83, 0xFFD0, 0x095A, 0x6626, 0x10B4, 0xFFC8,
-    0x087D, 0x65CD, 0x11F0, 0xFFBF, 0x07AB, 0x655E, 0x1338, 0xFFB6,
-    0x06E4, 0x64D9, 0x148C, 0xFFAC, 0x0628, 0x643F, 0x15EB, 0xFFA1,
-    0x0577, 0x638F, 0x1756, 0xFF96, 0x04D1, 0x62CB, 0x18CB, 0xFF8A,
-    0x0435, 0x61F3, 0x1A4C, 0xFF7E, 0x03A4, 0x6106, 0x1BD7, 0xFF71,
-    0x031C, 0x6007, 0x1D6C, 0xFF64, 0x029F, 0x5EF5, 0x1F0B, 0xFF56,
-    0x022A, 0x5DD0, 0x20B3, 0xFF48, 0x01BE, 0x5C9A, 0x2264, 0xFF3A,
-    0x015B, 0x5B53, 0x241E, 0xFF2C, 0x0101, 0x59FC, 0x25E0, 0xFF1E,
-    0x00AE, 0x5896, 0x27A9, 0xFF10, 0x0063, 0x5720, 0x297A, 0xFF02,
-    0x001F, 0x559D, 0x2B50, 0xFEF4, 0xFFE2, 0x540D, 0x2D2C, 0xFEE8,
-    0xFFAC, 0x5270, 0x2F0D, 0xFEDB, 0xFF7C, 0x50C7, 0x30F3, 0xFED0,
-    0xFF53, 0x4F14, 0x32DC, 0xFEC6, 0xFF2E, 0x4D57, 0x34C8, 0xFEBD,
-    0xFF0F, 0x4B91, 0x36B6, 0xFEB6, 0xFEF5, 0x49C2, 0x38A5, 0xFEB0,
-    0xFEDF, 0x47ED, 0x3A95, 0xFEAC, 0xFECE, 0x4611, 0x3C85, 0xFEAB,
-    0xFEC0, 0x4430, 0x3E74, 0xFEAC, 0xFEB6, 0x424A, 0x4060, 0xFEAF,
-    0xFEAF, 0x4060, 0x424A, 0xFEB6, 0xFEAC, 0x3E74, 0x4430, 0xFEC0,
-    0xFEAB, 0x3C85, 0x4611, 0xFECE, 0xFEAC, 0x3A95, 0x47ED, 0xFEDF,
-    0xFEB0, 0x38A5, 0x49C2, 0xFEF5, 0xFEB6, 0x36B6, 0x4B91, 0xFF0F,
-    0xFEBD, 0x34C8, 0x4D57, 0xFF2E, 0xFEC6, 0x32DC, 0x4F14, 0xFF53,
-    0xFED0, 0x30F3, 0x50C7, 0xFF7C, 0xFEDB, 0x2F0D, 0x5270, 0xFFAC,
-    0xFEE8, 0x2D2C, 0x540D, 0xFFE2, 0xFEF4, 0x2B50, 0x559D, 0x001F,
-    0xFF02, 0x297A, 0x5720, 0x0063, 0xFF10, 0x27A9, 0x5896, 0x00AE,
-    0xFF1E, 0x25E0, 0x59FC, 0x0101, 0xFF2C, 0x241E, 0x5B53, 0x015B,
-    0xFF3A, 0x2264, 0x5C9A, 0x01BE, 0xFF48, 0x20B3, 0x5DD0, 0x022A,
-    0xFF56, 0x1F0B, 0x5EF5, 0x029F, 0xFF64, 0x1D6C, 0x6007, 0x031C,
-    0xFF71, 0x1BD7, 0x6106, 0x03A4, 0xFF7E, 0x1A4C, 0x61F3, 0x0435,
-    0xFF8A, 0x18CB, 0x62CB, 0x04D1, 0xFF96, 0x1756, 0x638F, 0x0577,
-    0xFFA1, 0x15EB, 0x643F, 0x0628, 0xFFAC, 0x148C, 0x64D9, 0x06E4,
-    0xFFB6, 0x1338, 0x655E, 0x07AB, 0xFFBF, 0x11F0, 0x65CD, 0x087D,
-    0xFFC8, 0x10B4, 0x6626, 0x095A, 0xFFD0, 0x0F83, 0x6669, 0x0A44,
-    0xFFD8, 0x0E5F, 0x6696, 0x0B39, 0xFFDF, 0x0D46, 0x66AD, 0x0C39
-};
 
 static void CLEARBUFF (u32 inst1, u32 inst2) {
     u16 addr = parse_lo(inst1) & ~3;
@@ -282,20 +389,11 @@ static void CLEARBUFF (u32 inst1, u32 inst2) {
     memset(BufferSpace+addr, 0, count);
 }
 
-//FILE *dfile = fopen ("d:\\envmix.txt", "wt");
-
 static void ENVMIXER (u32 inst1, u32 inst2) {
     int x,y;
     short state_buffer[40];
-    //static int envmixcnt = 0;
     unsigned flags = parse_flags(inst1);
     u32 addy = parse_address(inst2);
-    //static
-// ********* Make sure these conditions are met... ***********
-    /*if ((audio.in | audio.out | audio.aux_dry_left | audio.aux_wet_right | audio.aux_wet_left | audio.count) & 0x3) {
-        MessageBox (NULL, "Unaligned EnvMixer... please report this to Azimer with the following information: RomTitle, Place in the rom it occurred, and any save state just before the error", "AudioHLE Error", MB_OK);
-    }*/
-// ------------------------------------------------------------
     short *inp=(short *)(BufferSpace+audio.in);
     short *out=(short *)(BufferSpace+audio.out);
     short *aux1=(short *)(BufferSpace+audio.aux_dry_left);
@@ -318,9 +416,6 @@ static void ENVMIXER (u32 inst1, u32 inst2) {
     s32 LAdderStart, RAdderStart, LAdderEnd, RAdderEnd;
     s32 oMainR, oMainL, oAuxR, oAuxL;
 
-    //envmixcnt++;
-
-    //fprintf (dfile, "\n----------------------------------------------------\n");
     if (flags & A_INIT) {
         LVol = ((audio.env_vol[0] * (s32)audio.env_ramp[0]));
         RVol = ((audio.env_vol[1] * (s32)audio.env_ramp[1]));
@@ -441,42 +536,14 @@ static void ENVMIXER (u32 inst1, u32 inst2) {
             }
         }
 
-        //fprintf (dfile, "%04X ", (LAcc>>16));
-
-        /*MainL = (((s64)Dry*2 * (s64)(LAcc>>16)) + 0x8000) >> 16;
-        MainR = (((s64)Dry*2 * (s64)(RAcc>>16)) + 0x8000) >> 16;
-        AuxL  = (((s64)Wet*2 * (s64)(LAcc>>16)) + 0x8000) >> 16;
-        AuxR  = (((s64)Wet*2 * (s64)(RAcc>>16)) + 0x8000) >> 16;*/
-/*
-        if (MainL>32767) MainL = 32767;
-        else if (MainL<-32768) MainL = -32768;
-        if (MainR>32767) MainR = 32767;
-        else if (MainR<-32768) MainR = -32768;
-        if (AuxL>32767) AuxL = 32767;
-        else if (AuxL<-32768) AuxR = -32768;
-        if (AuxR>32767) AuxR = 32767;
-        else if (AuxR<-32768) AuxR = -32768;*/
-        /*
-        MainR = (Dry * RTrg + 0x10000) >> 15;
-        MainL = (Dry * LTrg + 0x10000) >> 15;
-        AuxR  = (Wet * RTrg + 0x8000)  >> 16;
-        AuxL  = (Wet * LTrg + 0x8000)  >> 16;*/
-
-        o1+=(/*(o1*0x7fff)+*/(i1*MainR)+0x4000)>>15;
-        a1+=(/*(a1*0x7fff)+*/(i1*MainL)+0x4000)>>15;
-
-/*      o1=((s64)(((s64)o1*0xfffe)+((s64)i1*MainR*2)+0x8000)>>16);
-
-        a1=((s64)(((s64)a1*0xfffe)+((s64)i1*MainL*2)+0x8000)>>16);*/
+        o1+=((i1*MainR)+0x4000)>>15;
+        a1+=((i1*MainL)+0x4000)>>15;
 
         out[ptr^S]  = clamp_s16(o1);
         aux1[ptr^S] = clamp_s16(a1);
         if (AuxIncRate) {
-            //a2=((s64)(((s64)a2*0xfffe)+((s64)i1*AuxR*2)+0x8000)>>16);
-
-            //a3=((s64)(((s64)a3*0xfffe)+((s64)i1*AuxL*2)+0x8000)>>16);
-            a2+=(/*(a2*0x7fff)+*/(i1*AuxR)+0x4000)>>15;
-            a3+=(/*(a3*0x7fff)+*/(i1*AuxL)+0x4000)>>15;
+            a2+=((i1*AuxR)+0x4000)>>15;
+            a3+=((i1*AuxL)+0x4000)>>15;
 
             aux2[ptr^S] = clamp_s16(a2);
             aux3[ptr^S] = clamp_s16(a3);
@@ -484,9 +551,6 @@ static void ENVMIXER (u32 inst1, u32 inst2) {
         ptr++;
     }
     }
-
-    /*LAcc = LAdderEnd;
-    RAcc = RAdderEnd;*/
 
     *(s16 *)(state_buffer +  0) = Wet; // 0-1
     *(s16 *)(state_buffer +  2) = Dry; // 2-3
@@ -507,7 +571,7 @@ static void RESAMPLE (u32 inst1, u32 inst2) {
     u32 addy = parse_address(inst2);
     unsigned int Accum=0;
     unsigned int location;
-    s16 *lut/*, *lut2*/;
+    s16 *lut;
     short *dst;
     s16 *src;
     dst=(short *)(BufferSpace);
@@ -519,17 +583,12 @@ static void RESAMPLE (u32 inst1, u32 inst2) {
     int count = align(audio.count, 16) >> 1;
     int i;
 
-/*
-    if (addy > (1024*1024*8))
-        addy = (inst2 & 0xffffff);
-*/
     srcPtr -= 4;
 
     if (flags & A_INIT) {
         for (i=0; i < 4; i++)
-            src[(srcPtr+i)^S] = 0;//*(u16 *)(rsp.RDRAM+((addy+i)^2));
+            src[(srcPtr+i)^S] = 0;
     } else {
-        //memcpy (src+srcPtr, rsp.RDRAM+addy, 0x8);
         for (i=0; i < 4; i++)
             src[(srcPtr+i)^S] = ((u16 *)rsp.RDRAM)[((addy/2)+i)^S];
         Accum = *(u16 *)(rsp.RDRAM+addy+10);
@@ -537,23 +596,10 @@ static void RESAMPLE (u32 inst1, u32 inst2) {
 
     for(i=0; i < count; i++)
     {
-        //location = (((Accum * 0x40) >> 0x10) * 8);
        // location is the fractional position between two samples
         location = (Accum >> 0xa) * 4;
-        lut = (s16*)ResampleLUT + location;
+        lut = (s16*)RESAMPLE_LUT + location;
 
-        // mov eax, dword ptr [src+srcPtr];
-        // movsx edx, word ptr [lut];
-        // shl edx, 1
-        // imul edx
-        // test eax, 08000h
-        // setz ecx
-        // shl ecx, 16
-        // xor eax, 08000h
-        // add eax, ecx
-        // and edx, 0f000h
-
-        // imul
         temp =  ((s32)*(s16*)(src+((srcPtr+0)^S))*((s32)((s16)lut[0])));
         accum = (s32)(temp >> 15);
 
@@ -574,71 +620,50 @@ static void RESAMPLE (u32 inst1, u32 inst2) {
     }
     for (i=0; i < 4; i++)
         ((u16 *)rsp.RDRAM)[((addy/2)+i)^S] = src[(srcPtr+i)^S];
-    //memcpy (RSWORK, src+srcPtr, 0x8);
     *(u16 *)(rsp.RDRAM+addy+10) = Accum;
 }
 
 static void SETVOL (u32 inst1, u32 inst2) {
-// Might be better to unpack these depending on the flags...
     unsigned flags = parse_flags(inst1);
     s16 vol = (s16)parse_lo(inst1);
-    //u16 voltarg =(u16)((inst2 >> 16)&0xffff);
     s16 volrate = (s16)parse_lo(inst2);
 
     if (flags & A_AUX) {
-        audio.dry = vol;         // m_MainVol
-        audio.wet = volrate;     // m_AuxVol
+        audio.dry = vol;
+        audio.wet = volrate;
         return;
     }
 
-    if (flags & A_VOL) { // Set the Source(start) Volumes
+    if (flags & A_VOL) {
         if (flags & A_LEFT) {
-            audio.env_vol[0] = vol;    // m_LeftVolume
-        } else { // A_RIGHT
-            audio.env_vol[1] = vol;   // m_RightVolume
+            audio.env_vol[0] = vol;
+        } else {
+            audio.env_vol[1] = vol;
         }
         return;
     }
 
-//0x370             Loop Value (shared location)
-//0x370             Target Volume (Left)
-//u16 env_ramp[0]; // 0x0012(T8)
-    if (flags & A_LEFT) { // Set the Ramping values Target, Ramp
-        //loopval = (((u32)vol << 0x10) | (u32)voltarg);
-        audio.env_target[0]  = (s16)inst1;      // m_LeftVol
-        //env_ramp[0] = (s32)inst2;
-        audio.env_ramp[0] = (s32)inst2;//(u16)(inst2) | (s32)(s16)(inst2 << 0x10);
-        //fprintf (dfile, "Ramp Left: %f\n", (float)env_ramp[0]/65536.0);
-        //fprintf (dfile, "Ramp Left: %08X\n", inst2);
-        //env_ramp[0] = (s16)voltarg;  // m_LeftVolTarget
-        //VolRate_Left = (s16)volrate;  // m_LeftVolRate
+    if (flags & A_LEFT) {
+        audio.env_target[0]  = (s16)inst1;
+        audio.env_ramp[0] = (s32)inst2;
     } else { // A_RIGHT
-        audio.env_target[1]  = (s16)inst1;     // m_RightVol
-        //env_ramp[1] = (s32)inst2;
-        audio.env_ramp[1] = (s32)inst2;//(u16)(inst2 >> 0x10) | (s32)(s16)(inst2 << 0x10);
-        //fprintf (dfile, "Ramp Right: %f\n", (float)env_ramp[1]/65536.0);
-        //fprintf (dfile, "Ramp Right: %08X\n", inst2);
-        //env_ramp[1] = (s16)voltarg; // m_RightVolTarget
-        //VolRate_Right = (s16)volrate; // m_RightVolRate
+        audio.env_target[1]  = (s16)inst1;
+        audio.env_ramp[1] = (s32)inst2;
     }
 }
 
 static void UNKNOWN (u32 inst1, u32 inst2) {}
 
-static void SETLOOP (u32 inst1, u32 inst2) {
+static void SETLOOP (u32 inst1, u32 inst2)
+{
     audio.loop = parse_address(inst2);
-    //env_target[0]  = (s16)(loopval>>16);        // m_LeftVol
-    //env_ramp[0] = (s16)(loopval);    // m_LeftVolTarget
 }
 
 static void ADPCM (u32 inst1, u32 inst2) { // Work in progress! :)
     unsigned flags = parse_flags(inst1);
-    //unsigned short Gain=(u16)(inst1&0xffff);
     u32 Address = parse_address(inst2);
     unsigned short inPtr=0;
-    //short *out=(s16 *)(testbuff+(audio.out>>2));
     short *out=(short *)(BufferSpace+audio.out);
-    //unsigned char *in=(unsigned char *)(BufferSpace+audio.in);
     short count=(short)audio.count;
     unsigned char icode;
     unsigned char code;
@@ -647,10 +672,7 @@ static void ADPCM (u32 inst1, u32 inst2) { // Work in progress! :)
     unsigned short j;
     int a[8];
     short *book1,*book2;
-/*
-    if (Address > (1024*1024*8))
-        Address = (inst2 & 0xffffff);
-*/
+    
     memset(out,0,32);
 
     if (!(flags & A_INIT))
@@ -698,15 +720,11 @@ static void ADPCM (u32 inst1, u32 inst2) { // Work in progress! :)
             inp1[j]=(s16)((icode&0xf0)<<8);         // this will in effect be signed
             if(code<12)
                 inp1[j]=((int)((int)inp1[j]*(int)vscale)>>16);
-            /*else
-                int catchme=1;*/
             j++;
 
             inp1[j]=(s16)((icode&0xf)<<12);
             if(code<12)
                 inp1[j]=((int)((int)inp1[j]*(int)vscale)>>16);
-            /*else
-                int catchme=1;*/
             j++;
         }
         j=0;
@@ -718,15 +736,11 @@ static void ADPCM (u32 inst1, u32 inst2) { // Work in progress! :)
             inp2[j]=(short)((icode&0xf0)<<8);           // this will in effect be signed
             if(code<12)
                 inp2[j]=((int)((int)inp2[j]*(int)vscale)>>16);
-            /*else
-                int catchme=1;*/
             j++;
 
             inp2[j]=(short)((icode&0xf)<<12);
             if(code<12)
                 inp2[j]=((int)((int)inp2[j]*(int)vscale)>>16);
-            /*else
-                int catchme=1;*/
             j++;
         }
 
@@ -872,7 +886,6 @@ static void ADPCM (u32 inst1, u32 inst2) { // Work in progress! :)
 
 static void LOADBUFF (u32 inst1, u32 inst2) { // memcpy causes static... endianess issue :(
     u32 v0;
-    //u32 cnt;
     if (audio.count == 0)
         return;
     v0 = parse_address(inst2) & ~3;
@@ -881,7 +894,6 @@ static void LOADBUFF (u32 inst1, u32 inst2) { // memcpy causes static... endiane
 
 static void SAVEBUFF (u32 inst1, u32 inst2) { // memcpy causes static... endianess issue :(
     u32 v0;
-    //u32 cnt;
     if (audio.count == 0)
         return;
     v0 = parse_address(inst2) & ~3;
@@ -912,13 +924,7 @@ static void DMEMMOVE (u32 inst1, u32 inst2) { // Doesn't sound just right?... wi
         return;
     v0 = parse_lo(inst1);
     v1 = parse_hi(inst2);
-    //assert ((v1 & 0x3) == 0);
-    //assert ((v0 & 0x3) == 0);
     count = align(count, 4);
-    //v0 = (v0) & 0xfffc;
-    //v1 = (v1) & 0xfffc;
-
-    //memcpy (BufferSpace+v1, BufferSpace+v0, count-1);
     for (cnt = 0; cnt < count; cnt++) {
         *(u8 *)(BufferSpace+((cnt+v1)^S8)) = *(u8 *)(BufferSpace+((cnt+v0)^S8));
     }
@@ -928,10 +934,7 @@ static void LOADADPCM (u32 inst1, u32 inst2) { // Loads an ADPCM table - Works 1
     u32 x;
     u32 v0 = parse_address(inst2);
     u16 iter_max = parse_lo(inst1) >> 4;
-/*  if (v0 > (1024*1024*8))
-        v0 = (inst2 & 0xffffff);*/
-    //memcpy (dmem+0x4c0, rsp.RDRAM+v0, inst1&0xffff); // Could prolly get away with not putting this in dmem
-    //assert ((inst1&0xffff) <= 0x80);
+    
     u16 *table = (u16 *)(rsp.RDRAM+v0);
     for (x = 0; x < iter_max; x++) {
         audio.adpcm_table[(0x0+(x<<3))^S] = table[0];
@@ -1003,100 +1006,6 @@ static void MIXER (u32 inst1, u32 inst2) { // Fixed a sign issue... 03-14-01
     }
 }
 
-// TOP Performance Hogs:
-//Command: ADPCM    - Calls:  48 - Total Time: 331226 - Avg Time:  6900.54 - Percent: 31.53%
-//Command: ENVMIXER - Calls:  48 - Total Time: 408563 - Avg Time:  8511.73 - Percent: 38.90%
-//Command: LOADBUFF - Calls:  56 - Total Time:  21551 - Avg Time:   384.84 - Percent:  2.05%
-//Command: RESAMPLE - Calls:  48 - Total Time: 225922 - Avg Time:  4706.71 - Percent: 21.51%
-
-//Command: ADPCM    - Calls:  48 - Total Time: 391600 - Avg Time:  8158.33 - Percent: 32.52%
-//Command: ENVMIXER - Calls:  48 - Total Time: 444091 - Avg Time:  9251.90 - Percent: 36.88%
-//Command: LOADBUFF - Calls:  58 - Total Time:  29945 - Avg Time:   516.29 - Percent:  2.49%
-//Command: RESAMPLE - Calls:  48 - Total Time: 276354 - Avg Time:  5757.38 - Percent: 22.95%
-
-
-static const acmd_callback_t ABI1[0x10] = { // TOP Performace Hogs: MIXER, RESAMPLE, ENVMIXER
-    SPNOOP , ADPCM , CLEARBUFF, ENVMIXER  , LOADBUFF, RESAMPLE  , SAVEBUFF, UNKNOWN,
-    SETBUFF, SETVOL, DMEMMOVE , LOADADPCM , MIXER   , INTERLEAVE, UNKNOWN , SETLOOP
-};
-
-/*  BACKUPS
-void MIXER (u32 inst1, u32 inst2) { // Fixed a sign issue... 03-14-01
-    u16 dmemin  = (u16)(inst2 >> 0x10);
-    u16 dmemout = (u16)(inst2 & 0xFFFF);
-    u16 gain    = (u16)(inst1 & 0xFFFF);
-    u8  flags   = (u8)((inst1 >> 16) & 0xff);
-    u64 temp;
-
-    if (audio.count == 0)
-        return;
-
-    for (int x=0; x < audio.count; x+=2) { // I think I can do this a lot easier
-        temp = (s64)(*(s16 *)(BufferSpace+dmemout+x)) * (s64)((s16)(0x7FFF)*2);
-
-        if (temp & 0x8000)
-            temp = (temp^0x8000) + 0x10000;
-        else
-            temp = (temp^0x8000);
-
-        temp = (temp & 0xFFFFFFFFFFFF);
-
-        temp += ((*(s16 *)(BufferSpace+dmemin+x) * (s64)((s16)gain*2))) & 0xFFFFFFFFFFFF;
-            
-        temp = (s32)(temp >> 16);
-        if ((s32)temp > 32767) 
-            temp = 32767;
-        if ((s32)temp < -32768) 
-            temp = -32768;
-
-        *(u16 *)(BufferSpace+dmemout+x) = (u16)(temp & 0xFFFF);
-    }
-}
-*/
-
-/* naudio ucode */
-static struct naudio_t
-{
-    // loop
-    u32 loop;           // 0x0010(t8)
-
-    // envmixer gains
-    s16 dry;            // 0x001c(t8)
-    s16 wet;            // 0x001e(t8)
-
-    // envmixer envelopes (0: left, 1: right)
-    s16 env_vol[2];
-    s16 env_target[2];
-    s32 env_ramp[2];
-
-    // adpcm
-    u16 adpcm_table[0x80];
-
-    // TODO: add mp3 related variables
-} naudio;
-
-extern const u16 ResampleLUT [0x200];
-
-extern u8 BufferSpace[0x10000];
-
-/*
-static void SETVOL3 (u32 inst1, u32 inst2) { // Swapped Rate_Left and Vol
-    u8 Flags = (u8)(inst1 >> 0x10);
-    if (Flags & 0x4) { // 288
-        if (Flags & 0x2) { // 290
-            naudio.env_target[0]  = *(s16*)&inst1;
-            naudio.env_ramp[0] = *(s32*)&inst2;
-        } else {
-            naudio.env_target[1]  = *(s16*)&inst1;
-            naudio.env_ramp[1] = *(s32*)&inst2;
-        }
-    } else {
-        naudio.env_vol[0]    = *(s16*)&inst1;
-        naudio.dry     = (s16)(*(s32*)&inst2 >> 0x10);
-        naudio.wet     = *(s16*)&inst2;
-    }
-}
-*/
 static void SETVOL3 (u32 inst1, u32 inst2) {
     u8 Flags = (u8)(inst1 >> 0x10);
     if (Flags & 0x4) { // 288
@@ -1170,15 +1079,7 @@ static void ENVMIXER3 (u32 inst1, u32 inst2) {
         RVol   = *(s32 *)(state_buffer + 18); // 18-19
         LSig   = *(s16 *)(state_buffer + 20); // 20-21
         RSig   = *(s16 *)(state_buffer + 22); // 22-23
-        //u32 test  = *(s32 *)(state_buffer + 24); // 22-23
-        //if (test != 0x13371337)
     }
-
-
-    //if(!(flags&A_AUX)) {
-    //  AuxIncRate=0;
-    //  aux2=aux3=zero;
-    //}
 
     for (y = 0; y < (0x170/2); y++) {
 
@@ -1271,7 +1172,6 @@ static void ENVMIXER3 (u32 inst1, u32 inst2) {
     *(s32 *)(state_buffer + 18) = RVol; // 18-19
     *(s16 *)(state_buffer + 20) = LSig; // 20-21
     *(s16 *)(state_buffer + 22) = RSig; // 22-23
-    //*(u32 *)(state_buffer + 24) = 0x13371337; // 22-23
     memcpy(rsp.RDRAM+addy, (u8 *)state_buffer,80);
 }
 
@@ -1284,7 +1184,6 @@ static void CLEARBUFF3 (u32 inst1, u32 inst2) {
 static void MIXER3 (u32 inst1, u32 inst2) { // Needs accuracy verification...
     u16 dmemin  = (u16)(inst2 >> 0x10)  + 0x4f0;
     u16 dmemout = (u16)(inst2 & 0xFFFF) + 0x4f0;
-    //u8  flags   = (u8)((inst1 >> 16) & 0xff);
     s32 gain    = (s16)(inst1 & 0xFFFF);
     s32 temp;
     int x;
@@ -1322,8 +1221,6 @@ static void LOADADPCM3 (u32 inst1, u32 inst2) { // Loads an ADPCM table - Works 
     u32 v0;
     u32 x;
     v0 = (inst2 & 0xffffff);
-    //memcpy (dmem+0x3f0, rsp.RDRAM+v0, inst1&0xffff); 
-    //assert ((inst1&0xffff) <= 0x80);
     u16 *table = (u16 *)(rsp.RDRAM+v0);
     for (x = 0; x < ((inst1&0xffff)>>0x4); x++) {
         naudio.adpcm_table[(0x0+(x<<3))^S] = table[0];
@@ -1348,7 +1245,6 @@ static void DMEMMOVE3 (u32 inst1, u32 inst2) { // Needs accuracy verification...
     v1 = (inst2 >> 0x10) + 0x4f0;
     u32 count = ((inst2+3) & 0xfffc);
 
-    //memcpy (dmem+v1, dmem+v0, count-1);
     for (cnt = 0; cnt < count; cnt++) {
         *(u8 *)(BufferSpace+((cnt+v1)^S8)) = *(u8 *)(BufferSpace+((cnt+v0)^S8));
     }
@@ -1360,12 +1256,9 @@ static void SETLOOP3 (u32 inst1, u32 inst2) {
 
 static void ADPCM3 (u32 inst1, u32 inst2) { // Verified to be 100% Accurate...
     unsigned char Flags=(u8)(inst2>>0x1c)&0xff;
-    //unsigned short Gain=(u16)(inst1&0xffff);
     unsigned int Address=(inst1 & 0xffffff);// + SEGMENTS[(inst2>>24)&0xf];
     unsigned short inPtr=(inst2>>12)&0xf;
-    //short *out=(s16 *)(testbuff+(AudioOutBuffer>>2));
     short *out=(short *)(BufferSpace+(inst2&0xfff)+0x4f0);
-    //unsigned char *in=(unsigned char *)(BufferSpace+((inst2>>12)&0xf)+0x4f0);
     short count=(short)((inst2 >> 16)&0xfff);
     unsigned char icode;
     unsigned char code;
@@ -1380,19 +1273,11 @@ static void ADPCM3 (u32 inst1, u32 inst2) { // Verified to be 100% Accurate...
     if(!(Flags&0x1))
     {
         if(Flags&0x2)
-        {/*
-            for(int i=0;i<16;i++)
-            {
-                out[i]=*(short *)&rsp.RDRAM[(naudio.loop+i*2)^2];
-            }*/
+        {
             memcpy(out,&rsp.RDRAM[naudio.loop],32);
         }
         else
-        {/*
-            for(int i=0;i<16;i++)
-            {
-                out[i]=*(short *)&rsp.RDRAM[(Address+i*2)^2];
-            }*/
+        {
             memcpy(out,&rsp.RDRAM[Address],32);
         }
     }
@@ -1433,15 +1318,11 @@ static void ADPCM3 (u32 inst1, u32 inst2) { // Verified to be 100% Accurate...
             inp1[j]=(s16)((icode&0xf0)<<8);         // this will in effect be signed
             if(code<12)
                 inp1[j]=((int)((int)inp1[j]*(int)vscale)>>16);
-            /*else
-                int catchme=1;*/
             j++;
 
             inp1[j]=(s16)((icode&0xf)<<12);
             if(code<12)
                 inp1[j]=((int)((int)inp1[j]*(int)vscale)>>16);
-            /*else
-                int catchme=1;*/
             j++;
         }
         j=0;
@@ -1453,15 +1334,11 @@ static void ADPCM3 (u32 inst1, u32 inst2) { // Verified to be 100% Accurate...
             inp2[j]=(short)((icode&0xf0)<<8);           // this will in effect be signed
             if(code<12)
                 inp2[j]=((int)((int)inp2[j]*(int)vscale)>>16);
-            /*else
-                int catchme=1;*/
             j++;
 
             inp2[j]=(short)((icode&0xf)<<12);
             if(code<12)
                 inp2[j]=((int)((int)inp2[j]*(int)vscale)>>16);
-            /*else
-                int catchme=1;*/
             j++;
         }
 
@@ -1531,9 +1408,7 @@ static void ADPCM3 (u32 inst1, u32 inst2) { // Verified to be 100% Accurate...
             if(a[j^S]>32767) a[j^S]=32767;
             else if(a[j^S]<-32768) a[j^S]=-32768;
             *(out++)=a[j^S];
-            //*(out+j)=a[j^S];
         }
-        //out += 0x10;
         l1=a[6];
         l2=a[7];
 
@@ -1603,7 +1478,6 @@ static void ADPCM3 (u32 inst1, u32 inst2) { // Verified to be 100% Accurate...
             if(a[j^S]>32767) a[j^S]=32767;
             else if(a[j^S]<-32768) a[j^S]=-32768;
             *(out++)=a[j^S];
-            //*(out+j+0x1f8)=a[j^S];
         }
         l1=a[6];
         l2=a[7];
@@ -1626,13 +1500,10 @@ static void RESAMPLE3 (u32 inst1, u32 inst2) {
     dst=(short *)(BufferSpace);
     src=(s16 *)(BufferSpace);
     u32 srcPtr=((((inst2>>2)&0xfff)+0x4f0)/2);
-    u32 dstPtr;//=(AudioOutBuffer/2);
+    u32 dstPtr;
     s32 temp;
     s32 accum;
     int i;
-
-    //if (addy > (1024*1024*8))
-    //  addy = (inst2 & 0xffffff);
 
     srcPtr -= 4;
 
@@ -1643,18 +1514,17 @@ static void RESAMPLE3 (u32 inst1, u32 inst2) {
     }
 
     if ((Flags & 0x1) == 0) {   
-        for (i=0; i < 4; i++) //memcpy (src+srcPtr, rsp.RDRAM+addy, 0i8);
+        for (i=0; i < 4; i++)
             src[(srcPtr+i)^S] = ((u16 *)rsp.RDRAM)[((addy/2)+i)^S];
         Accum = *(u16 *)(rsp.RDRAM+addy+10);
     } else {
         for (i=0; i < 4; i++)
-            src[(srcPtr+i)^S] = 0;//*(u16 *)(rsp.RDRAM+((addy+i)^2));
+            src[(srcPtr+i)^S] = 0;
     }
 
     for(i=0;i < 0x170/2;i++)    {
         location = (((Accum * 0x40) >> 0x10) * 8);
-        //location = (Accum >> 0xa) << 0x3;
-        lut = (s16 *)(((u8 *)ResampleLUT) + location);
+        lut = (s16 *)(((u8 *)RESAMPLE_LUT) + location);
 
         temp =  ((s32)*(s16*)(src+((srcPtr+0)^S))*((s32)((s16)lut[0])));
         accum = (s32)(temp >> 15);
@@ -1667,37 +1537,6 @@ static void RESAMPLE3 (u32 inst1, u32 inst2) {
         
         temp = ((s32)*(s16*)(src+((srcPtr+3)^S))*((s32)((s16)lut[3])));
         accum += (s32)(temp >> 15);
-/*      temp =  ((s64)*(s16*)(src+((srcPtr+0)^S))*((s64)((s16)lut[0]<<1)));
-        if (temp & 0x8000) temp = (temp^0x8000) + 0x10000;
-        else temp = (temp^0x8000);
-        temp = (s32)(temp >> 16);
-        if ((s32)temp > 32767) temp = 32767;
-        if ((s32)temp < -32768) temp = -32768;
-        accum = (s32)(s16)temp;
-
-        temp = ((s64)*(s16*)(src+((srcPtr+1)^S))*((s64)((s16)lut[1]<<1)));
-        if (temp & 0x8000) temp = (temp^0x8000) + 0x10000;
-        else temp = (temp^0x8000);
-        temp = (s32)(temp >> 16);
-        if ((s32)temp > 32767) temp = 32767;
-        if ((s32)temp < -32768) temp = -32768;
-        accum += (s32)(s16)temp;
-
-        temp = ((s64)*(s16*)(src+((srcPtr+2)^S))*((s64)((s16)lut[2]<<1)));
-        if (temp & 0x8000) temp = (temp^0x8000) + 0x10000;
-        else temp = (temp^0x8000);
-        temp = (s32)(temp >> 16);
-        if ((s32)temp > 32767) temp = 32767;
-        if ((s32)temp < -32768) temp = -32768;
-        accum += (s32)(s16)temp;
-
-        temp = ((s64)*(s16*)(src+((srcPtr+3)^S))*((s64)((s16)lut[3]<<1)));
-        if (temp & 0x8000) temp = (temp^0x8000) + 0x10000;
-        else temp = (temp^0x8000);
-        temp = (s32)(temp >> 16);
-        if ((s32)temp > 32767) temp = 32767;
-        if ((s32)temp < -32768) temp = -32768;
-        accum += (s32)(s16)temp;*/
 
         if (accum > 32767) accum = 32767;
         if (accum < -32768) accum = -32768;
@@ -1714,15 +1553,11 @@ static void RESAMPLE3 (u32 inst1, u32 inst2) {
 }
 
 static void INTERLEAVE3 (u32 inst1, u32 inst2) { // Needs accuracy verification...
-    //u32 inL, inR;
-    u16 *outbuff = (u16 *)(BufferSpace + 0x4f0);//(u16 *)(AudioOutBuffer+dmem);
+    u16 *outbuff = (u16 *)(BufferSpace + 0x4f0);
     u16 *inSrcR;
     u16 *inSrcL;
     u16 Left, Right, Left2, Right2;
     int x;
-
-    //inR = inst2 & 0xFFFF;
-    //inL = (inst2 >> 16) & 0xFFFF;
 
     inSrcR = (u16 *)(BufferSpace+0xb40);
     inSrcL = (u16 *)(BufferSpace+0x9d0);
@@ -1744,166 +1579,15 @@ static void INTERLEAVE3 (u32 inst1, u32 inst2) { // Needs accuracy verification.
         *(outbuff++)=Right;
         *(outbuff++)=Left;
 #endif
-/*
-        Left=*(inSrcL++);
-        Right=*(inSrcR++);
-        *(outbuff++)=(u16)Left;
-        Left >>= 16;
-        *(outbuff++)=(u16)Right;
-        Right >>= 16;
-        *(outbuff++)=(u16)Left;
-        *(outbuff++)=(u16)Right;*/
     }
 }
 
 static void WHATISTHIS (u32 inst1, u32 inst2) {
 }
 
-u32 setaddr;
 static void MP3ADDY (u32 inst1, u32 inst2) {
         setaddr = (inst2 & 0xffffff);
 }
-
-static const u16 DeWindowLUT [0x420] = {
-    0x0000, 0xFFF3, 0x005D, 0xFF38, 0x037A, 0xF736, 0x0B37, 0xC00E,
-    0x7FFF, 0x3FF2, 0x0B37, 0x08CA, 0x037A, 0x00C8, 0x005D, 0x000D,
-    0x0000, 0xFFF3, 0x005D, 0xFF38, 0x037A, 0xF736, 0x0B37, 0xC00E,
-    0x7FFF, 0x3FF2, 0x0B37, 0x08CA, 0x037A, 0x00C8, 0x005D, 0x000D,
-    0x0000, 0xFFF2, 0x005F, 0xFF1D, 0x0369, 0xF697, 0x0A2A, 0xBCE7,
-    0x7FEB, 0x3CCB, 0x0C2B, 0x082B, 0x0385, 0x00AF, 0x005B, 0x000B,
-    0x0000, 0xFFF2, 0x005F, 0xFF1D, 0x0369, 0xF697, 0x0A2A, 0xBCE7,
-    0x7FEB, 0x3CCB, 0x0C2B, 0x082B, 0x0385, 0x00AF, 0x005B, 0x000B,
-    0x0000, 0xFFF1, 0x0061, 0xFF02, 0x0354, 0xF5F9, 0x0905, 0xB9C4,
-    0x7FB0, 0x39A4, 0x0D08, 0x078C, 0x038C, 0x0098, 0x0058, 0x000A,
-    0x0000, 0xFFF1, 0x0061, 0xFF02, 0x0354, 0xF5F9, 0x0905, 0xB9C4,
-    0x7FB0, 0x39A4, 0x0D08, 0x078C, 0x038C, 0x0098, 0x0058, 0x000A,
-    0x0000, 0xFFEF, 0x0062, 0xFEE6, 0x033B, 0xF55C, 0x07C8, 0xB6A4,
-    0x7F4D, 0x367E, 0x0DCE, 0x06EE, 0x038F, 0x0080, 0x0056, 0x0009,
-    0x0000, 0xFFEF, 0x0062, 0xFEE6, 0x033B, 0xF55C, 0x07C8, 0xB6A4,
-    0x7F4D, 0x367E, 0x0DCE, 0x06EE, 0x038F, 0x0080, 0x0056, 0x0009,
-    0x0000, 0xFFEE, 0x0063, 0xFECA, 0x031C, 0xF4C3, 0x0671, 0xB38C,
-    0x7EC2, 0x335D, 0x0E7C, 0x0652, 0x038E, 0x006B, 0x0053, 0x0008,
-    0x0000, 0xFFEE, 0x0063, 0xFECA, 0x031C, 0xF4C3, 0x0671, 0xB38C,
-    0x7EC2, 0x335D, 0x0E7C, 0x0652, 0x038E, 0x006B, 0x0053, 0x0008,
-    0x0000, 0xFFEC, 0x0064, 0xFEAC, 0x02F7, 0xF42C, 0x0502, 0xB07C,
-    0x7E12, 0x3041, 0x0F14, 0x05B7, 0x038A, 0x0056, 0x0050, 0x0007,
-    0x0000, 0xFFEC, 0x0064, 0xFEAC, 0x02F7, 0xF42C, 0x0502, 0xB07C,
-    0x7E12, 0x3041, 0x0F14, 0x05B7, 0x038A, 0x0056, 0x0050, 0x0007,
-    0x0000, 0xFFEB, 0x0064, 0xFE8E, 0x02CE, 0xF399, 0x037A, 0xAD75,
-    0x7D3A, 0x2D2C, 0x0F97, 0x0520, 0x0382, 0x0043, 0x004D, 0x0007,
-    0x0000, 0xFFEB, 0x0064, 0xFE8E, 0x02CE, 0xF399, 0x037A, 0xAD75,
-    0x7D3A, 0x2D2C, 0x0F97, 0x0520, 0x0382, 0x0043, 0x004D, 0x0007,
-    0xFFFF, 0xFFE9, 0x0063, 0xFE6F, 0x029E, 0xF30B, 0x01D8, 0xAA7B,
-    0x7C3D, 0x2A1F, 0x1004, 0x048B, 0x0377, 0x0030, 0x004A, 0x0006,
-    0xFFFF, 0xFFE9, 0x0063, 0xFE6F, 0x029E, 0xF30B, 0x01D8, 0xAA7B,
-    0x7C3D, 0x2A1F, 0x1004, 0x048B, 0x0377, 0x0030, 0x004A, 0x0006,
-    0xFFFF, 0xFFE7, 0x0062, 0xFE4F, 0x0269, 0xF282, 0x001F, 0xA78D,
-    0x7B1A, 0x271C, 0x105D, 0x03F9, 0x036A, 0x001F, 0x0046, 0x0006,
-    0xFFFF, 0xFFE7, 0x0062, 0xFE4F, 0x0269, 0xF282, 0x001F, 0xA78D,
-    0x7B1A, 0x271C, 0x105D, 0x03F9, 0x036A, 0x001F, 0x0046, 0x0006,
-    0xFFFF, 0xFFE4, 0x0061, 0xFE2F, 0x022F, 0xF1FF, 0xFE4C, 0xA4AF,
-    0x79D3, 0x2425, 0x10A2, 0x036C, 0x0359, 0x0010, 0x0043, 0x0005,
-    0xFFFF, 0xFFE4, 0x0061, 0xFE2F, 0x022F, 0xF1FF, 0xFE4C, 0xA4AF,
-    0x79D3, 0x2425, 0x10A2, 0x036C, 0x0359, 0x0010, 0x0043, 0x0005,
-    0xFFFF, 0xFFE2, 0x005E, 0xFE10, 0x01EE, 0xF184, 0xFC61, 0xA1E1,
-    0x7869, 0x2139, 0x10D3, 0x02E3, 0x0346, 0x0001, 0x0040, 0x0004,
-    0xFFFF, 0xFFE2, 0x005E, 0xFE10, 0x01EE, 0xF184, 0xFC61, 0xA1E1,
-    0x7869, 0x2139, 0x10D3, 0x02E3, 0x0346, 0x0001, 0x0040, 0x0004,
-    0xFFFF, 0xFFE0, 0x005B, 0xFDF0, 0x01A8, 0xF111, 0xFA5F, 0x9F27,
-    0x76DB, 0x1E5C, 0x10F2, 0x025E, 0x0331, 0xFFF3, 0x003D, 0x0004,
-    0xFFFF, 0xFFE0, 0x005B, 0xFDF0, 0x01A8, 0xF111, 0xFA5F, 0x9F27,
-    0x76DB, 0x1E5C, 0x10F2, 0x025E, 0x0331, 0xFFF3, 0x003D, 0x0004,
-    0xFFFF, 0xFFDE, 0x0057, 0xFDD0, 0x015B, 0xF0A7, 0xF845, 0x9C80,
-    0x752C, 0x1B8E, 0x1100, 0x01DE, 0x0319, 0xFFE7, 0x003A, 0x0003,
-    0xFFFF, 0xFFDE, 0x0057, 0xFDD0, 0x015B, 0xF0A7, 0xF845, 0x9C80,
-    0x752C, 0x1B8E, 0x1100, 0x01DE, 0x0319, 0xFFE7, 0x003A, 0x0003,
-    0xFFFE, 0xFFDB, 0x0053, 0xFDB0, 0x0108, 0xF046, 0xF613, 0x99EE,
-    0x735C, 0x18D1, 0x10FD, 0x0163, 0x0300, 0xFFDC, 0x0037, 0x0003,
-    0xFFFE, 0xFFDB, 0x0053, 0xFDB0, 0x0108, 0xF046, 0xF613, 0x99EE,
-    0x735C, 0x18D1, 0x10FD, 0x0163, 0x0300, 0xFFDC, 0x0037, 0x0003,
-    0xFFFE, 0xFFD8, 0x004D, 0xFD90, 0x00B0, 0xEFF0, 0xF3CC, 0x9775,
-    0x716C, 0x1624, 0x10EA, 0x00EE, 0x02E5, 0xFFD2, 0x0033, 0x0003,
-    0xFFFE, 0xFFD8, 0x004D, 0xFD90, 0x00B0, 0xEFF0, 0xF3CC, 0x9775,
-    0x716C, 0x1624, 0x10EA, 0x00EE, 0x02E5, 0xFFD2, 0x0033, 0x0003,
-    0xFFFE, 0xFFD6, 0x0047, 0xFD72, 0x0051, 0xEFA6, 0xF16F, 0x9514,
-    0x6F5E, 0x138A, 0x10C8, 0x007E, 0x02CA, 0xFFC9, 0x0030, 0x0003,
-    0xFFFE, 0xFFD6, 0x0047, 0xFD72, 0x0051, 0xEFA6, 0xF16F, 0x9514,
-    0x6F5E, 0x138A, 0x10C8, 0x007E, 0x02CA, 0xFFC9, 0x0030, 0x0003,
-    0xFFFE, 0xFFD3, 0x0040, 0xFD54, 0xFFEC, 0xEF68, 0xEEFC, 0x92CD,
-    0x6D33, 0x1104, 0x1098, 0x0014, 0x02AC, 0xFFC0, 0x002D, 0x0002,
-    0xFFFE, 0xFFD3, 0x0040, 0xFD54, 0xFFEC, 0xEF68, 0xEEFC, 0x92CD,
-    0x6D33, 0x1104, 0x1098, 0x0014, 0x02AC, 0xFFC0, 0x002D, 0x0002,
-    0x0030, 0xFFC9, 0x02CA, 0x007E, 0x10C8, 0x138A, 0x6F5E, 0x9514,
-    0xF16F, 0xEFA6, 0x0051, 0xFD72, 0x0047, 0xFFD6, 0xFFFE, 0x0003,
-    0x0030, 0xFFC9, 0x02CA, 0x007E, 0x10C8, 0x138A, 0x6F5E, 0x9514,
-    0xF16F, 0xEFA6, 0x0051, 0xFD72, 0x0047, 0xFFD6, 0xFFFE, 0x0003,
-    0x0033, 0xFFD2, 0x02E5, 0x00EE, 0x10EA, 0x1624, 0x716C, 0x9775,
-    0xF3CC, 0xEFF0, 0x00B0, 0xFD90, 0x004D, 0xFFD8, 0xFFFE, 0x0003,
-    0x0033, 0xFFD2, 0x02E5, 0x00EE, 0x10EA, 0x1624, 0x716C, 0x9775,
-    0xF3CC, 0xEFF0, 0x00B0, 0xFD90, 0x004D, 0xFFD8, 0xFFFE, 0x0003,
-    0x0037, 0xFFDC, 0x0300, 0x0163, 0x10FD, 0x18D1, 0x735C, 0x99EE,
-    0xF613, 0xF046, 0x0108, 0xFDB0, 0x0053, 0xFFDB, 0xFFFE, 0x0003,
-    0x0037, 0xFFDC, 0x0300, 0x0163, 0x10FD, 0x18D1, 0x735C, 0x99EE,
-    0xF613, 0xF046, 0x0108, 0xFDB0, 0x0053, 0xFFDB, 0xFFFE, 0x0003,
-    0x003A, 0xFFE7, 0x0319, 0x01DE, 0x1100, 0x1B8E, 0x752C, 0x9C80,
-    0xF845, 0xF0A7, 0x015B, 0xFDD0, 0x0057, 0xFFDE, 0xFFFF, 0x0003,
-    0x003A, 0xFFE7, 0x0319, 0x01DE, 0x1100, 0x1B8E, 0x752C, 0x9C80,
-    0xF845, 0xF0A7, 0x015B, 0xFDD0, 0x0057, 0xFFDE, 0xFFFF, 0x0004,
-    0x003D, 0xFFF3, 0x0331, 0x025E, 0x10F2, 0x1E5C, 0x76DB, 0x9F27,
-    0xFA5F, 0xF111, 0x01A8, 0xFDF0, 0x005B, 0xFFE0, 0xFFFF, 0x0004,
-    0x003D, 0xFFF3, 0x0331, 0x025E, 0x10F2, 0x1E5C, 0x76DB, 0x9F27,
-    0xFA5F, 0xF111, 0x01A8, 0xFDF0, 0x005B, 0xFFE0, 0xFFFF, 0x0004,
-    0x0040, 0x0001, 0x0346, 0x02E3, 0x10D3, 0x2139, 0x7869, 0xA1E1,
-    0xFC61, 0xF184, 0x01EE, 0xFE10, 0x005E, 0xFFE2, 0xFFFF, 0x0004,
-    0x0040, 0x0001, 0x0346, 0x02E3, 0x10D3, 0x2139, 0x7869, 0xA1E1,
-    0xFC61, 0xF184, 0x01EE, 0xFE10, 0x005E, 0xFFE2, 0xFFFF, 0x0005,
-    0x0043, 0x0010, 0x0359, 0x036C, 0x10A2, 0x2425, 0x79D3, 0xA4AF,
-    0xFE4C, 0xF1FF, 0x022F, 0xFE2F, 0x0061, 0xFFE4, 0xFFFF, 0x0005,
-    0x0043, 0x0010, 0x0359, 0x036C, 0x10A2, 0x2425, 0x79D3, 0xA4AF,
-    0xFE4C, 0xF1FF, 0x022F, 0xFE2F, 0x0061, 0xFFE4, 0xFFFF, 0x0006,
-    0x0046, 0x001F, 0x036A, 0x03F9, 0x105D, 0x271C, 0x7B1A, 0xA78D,
-    0x001F, 0xF282, 0x0269, 0xFE4F, 0x0062, 0xFFE7, 0xFFFF, 0x0006,
-    0x0046, 0x001F, 0x036A, 0x03F9, 0x105D, 0x271C, 0x7B1A, 0xA78D,
-    0x001F, 0xF282, 0x0269, 0xFE4F, 0x0062, 0xFFE7, 0xFFFF, 0x0006,
-    0x004A, 0x0030, 0x0377, 0x048B, 0x1004, 0x2A1F, 0x7C3D, 0xAA7B,
-    0x01D8, 0xF30B, 0x029E, 0xFE6F, 0x0063, 0xFFE9, 0xFFFF, 0x0006,
-    0x004A, 0x0030, 0x0377, 0x048B, 0x1004, 0x2A1F, 0x7C3D, 0xAA7B,
-    0x01D8, 0xF30B, 0x029E, 0xFE6F, 0x0063, 0xFFE9, 0xFFFF, 0x0007,
-    0x004D, 0x0043, 0x0382, 0x0520, 0x0F97, 0x2D2C, 0x7D3A, 0xAD75,
-    0x037A, 0xF399, 0x02CE, 0xFE8E, 0x0064, 0xFFEB, 0x0000, 0x0007,
-    0x004D, 0x0043, 0x0382, 0x0520, 0x0F97, 0x2D2C, 0x7D3A, 0xAD75,
-    0x037A, 0xF399, 0x02CE, 0xFE8E, 0x0064, 0xFFEB, 0x0000, 0x0007,
-    0x0050, 0x0056, 0x038A, 0x05B7, 0x0F14, 0x3041, 0x7E12, 0xB07C,
-    0x0502, 0xF42C, 0x02F7, 0xFEAC, 0x0064, 0xFFEC, 0x0000, 0x0007,
-    0x0050, 0x0056, 0x038A, 0x05B7, 0x0F14, 0x3041, 0x7E12, 0xB07C,
-    0x0502, 0xF42C, 0x02F7, 0xFEAC, 0x0064, 0xFFEC, 0x0000, 0x0008,
-    0x0053, 0x006B, 0x038E, 0x0652, 0x0E7C, 0x335D, 0x7EC2, 0xB38C,
-    0x0671, 0xF4C3, 0x031C, 0xFECA, 0x0063, 0xFFEE, 0x0000, 0x0008,
-    0x0053, 0x006B, 0x038E, 0x0652, 0x0E7C, 0x335D, 0x7EC2, 0xB38C,
-    0x0671, 0xF4C3, 0x031C, 0xFECA, 0x0063, 0xFFEE, 0x0000, 0x0009,
-    0x0056, 0x0080, 0x038F, 0x06EE, 0x0DCE, 0x367E, 0x7F4D, 0xB6A4,
-    0x07C8, 0xF55C, 0x033B, 0xFEE6, 0x0062, 0xFFEF, 0x0000, 0x0009,
-    0x0056, 0x0080, 0x038F, 0x06EE, 0x0DCE, 0x367E, 0x7F4D, 0xB6A4,
-    0x07C8, 0xF55C, 0x033B, 0xFEE6, 0x0062, 0xFFEF, 0x0000, 0x000A,
-    0x0058, 0x0098, 0x038C, 0x078C, 0x0D08, 0x39A4, 0x7FB0, 0xB9C4,
-    0x0905, 0xF5F9, 0x0354, 0xFF02, 0x0061, 0xFFF1, 0x0000, 0x000A,
-    0x0058, 0x0098, 0x038C, 0x078C, 0x0D08, 0x39A4, 0x7FB0, 0xB9C4,
-    0x0905, 0xF5F9, 0x0354, 0xFF02, 0x0061, 0xFFF1, 0x0000, 0x000B,
-    0x005B, 0x00AF, 0x0385, 0x082B, 0x0C2B, 0x3CCB, 0x7FEB, 0xBCE7,
-    0x0A2A, 0xF697, 0x0369, 0xFF1D, 0x005F, 0xFFF2, 0x0000, 0x000B,
-    0x005B, 0x00AF, 0x0385, 0x082B, 0x0C2B, 0x3CCB, 0x7FEB, 0xBCE7,
-    0x0A2A, 0xF697, 0x0369, 0xFF1D, 0x005F, 0xFFF2, 0x0000, 0x000D,
-    0x005D, 0x00C8, 0x037A, 0x08CA, 0x0B37, 0x3FF2, 0x7FFF, 0xC00E,
-    0x0B37, 0xF736, 0x037A, 0xFF38, 0x005D, 0xFFF3, 0x0000, 0x000D,
-    0x005D, 0x00C8, 0x037A, 0x08CA, 0x0B37, 0x3FF2, 0x7FFF, 0xC00E,
-    0x0B37, 0xF736, 0x037A, 0xFF38, 0x005D, 0xFFF3, 0x0000, 0x0000
-};
-
-//static u16 myVector[32][8];
-
-static u8 mp3data[0x1000];
-
-static s32 v[32];
 
 static void MP3AB0 () {
     // Part 2 - 100% Accurate
@@ -1939,12 +1623,6 @@ static void MP3AB0 () {
 }
 
 static void InnerLoop ();
-
-static u32 inPtr, outPtr;
-
-static u32 t6;// = 0x08A0; // I think these are temporary storage buffers
-static u32 t5;// = 0x0AC0;
-static u32 t4;// = (inst1 & 0x1E);
 
 static void MP3 (u32 inst1, u32 inst2) {
     // Initialization Code
@@ -2227,7 +1905,7 @@ static void InnerLoop () {
 
                 // Step 8 - Dewindowing
     
-                //u64 *DW = (u64 *)&DeWindowLUT[0x10-(t4>>1)];
+                //u64 *DW = (u64 *)&DEWINDOW_LUT[0x10-(t4>>1)];
                 u32 offset = 0x10-(t4>>1);
 
                 u32 addptr = t6 & 0xFFE0;
@@ -2244,10 +1922,10 @@ static void InnerLoop () {
                     //addptr = t1;
                 
                     for (i = 7; i >= 0; i--) {
-                        v2 += ((int)*(s16 *)(mp3data+(addptr)+0x00) * (short)DeWindowLUT[offset+0x00] + 0x4000) >> 0xF;
-                        v4 += ((int)*(s16 *)(mp3data+(addptr)+0x10) * (short)DeWindowLUT[offset+0x08] + 0x4000) >> 0xF;
-                        v6 += ((int)*(s16 *)(mp3data+(addptr)+0x20) * (short)DeWindowLUT[offset+0x20] + 0x4000) >> 0xF;
-                        v8 += ((int)*(s16 *)(mp3data+(addptr)+0x30) * (short)DeWindowLUT[offset+0x28] + 0x4000) >> 0xF;
+                        v2 += ((int)*(s16 *)(mp3data+(addptr)+0x00) * (short)DEWINDOW_LUT[offset+0x00] + 0x4000) >> 0xF;
+                        v4 += ((int)*(s16 *)(mp3data+(addptr)+0x10) * (short)DEWINDOW_LUT[offset+0x08] + 0x4000) >> 0xF;
+                        v6 += ((int)*(s16 *)(mp3data+(addptr)+0x20) * (short)DEWINDOW_LUT[offset+0x20] + 0x4000) >> 0xF;
+                        v8 += ((int)*(s16 *)(mp3data+(addptr)+0x30) * (short)DEWINDOW_LUT[offset+0x28] + 0x4000) >> 0xF;
                         addptr+=2; offset++;
                     }
                     s32 v0  = v2 + v4;
@@ -2265,11 +1943,11 @@ static void InnerLoop () {
                 offset = 0x10-(t4>>1) + 8*0x40;
                 v2 = v4 = 0;
                 for (i = 0; i < 4; i++) {
-                    v2 += ((int)*(s16 *)(mp3data+(addptr)+0x00) * (short)DeWindowLUT[offset+0x00] + 0x4000) >> 0xF;
-                    v2 += ((int)*(s16 *)(mp3data+(addptr)+0x10) * (short)DeWindowLUT[offset+0x08] + 0x4000) >> 0xF;
+                    v2 += ((int)*(s16 *)(mp3data+(addptr)+0x00) * (short)DEWINDOW_LUT[offset+0x00] + 0x4000) >> 0xF;
+                    v2 += ((int)*(s16 *)(mp3data+(addptr)+0x10) * (short)DEWINDOW_LUT[offset+0x08] + 0x4000) >> 0xF;
                     addptr+=2; offset++;
-                    v4 += ((int)*(s16 *)(mp3data+(addptr)+0x00) * (short)DeWindowLUT[offset+0x00] + 0x4000) >> 0xF;
-                    v4 += ((int)*(s16 *)(mp3data+(addptr)+0x10) * (short)DeWindowLUT[offset+0x08] + 0x4000) >> 0xF;
+                    v4 += ((int)*(s16 *)(mp3data+(addptr)+0x00) * (short)DEWINDOW_LUT[offset+0x00] + 0x4000) >> 0xF;
+                    v4 += ((int)*(s16 *)(mp3data+(addptr)+0x10) * (short)DEWINDOW_LUT[offset+0x08] + 0x4000) >> 0xF;
                     addptr+=2; offset++;
                 }
                 s32 mult6 = *(s32 *)(mp3data+0xCE8);
@@ -2290,14 +1968,14 @@ static void InnerLoop () {
                     offset = (0x22F-(t4>>1) + x*0x40);
                 
                     for (i = 0; i < 4; i++) {
-                        v2 += ((int)*(s16 *)(mp3data+(addptr    )+0x20) * (short)DeWindowLUT[offset+0x00] + 0x4000) >> 0xF;
-                        v2 -= ((int)*(s16 *)(mp3data+((addptr+2))+0x20) * (short)DeWindowLUT[offset+0x01] + 0x4000) >> 0xF;
-                        v4 += ((int)*(s16 *)(mp3data+(addptr    )+0x30) * (short)DeWindowLUT[offset+0x08] + 0x4000) >> 0xF;
-                        v4 -= ((int)*(s16 *)(mp3data+((addptr+2))+0x30) * (short)DeWindowLUT[offset+0x09] + 0x4000) >> 0xF;
-                        v6 += ((int)*(s16 *)(mp3data+(addptr    )+0x00) * (short)DeWindowLUT[offset+0x20] + 0x4000) >> 0xF;
-                        v6 -= ((int)*(s16 *)(mp3data+((addptr+2))+0x00) * (short)DeWindowLUT[offset+0x21] + 0x4000) >> 0xF;
-                        v8 += ((int)*(s16 *)(mp3data+(addptr    )+0x10) * (short)DeWindowLUT[offset+0x28] + 0x4000) >> 0xF;
-                        v8 -= ((int)*(s16 *)(mp3data+((addptr+2))+0x10) * (short)DeWindowLUT[offset+0x29] + 0x4000) >> 0xF;
+                        v2 += ((int)*(s16 *)(mp3data+(addptr    )+0x20) * (short)DEWINDOW_LUT[offset+0x00] + 0x4000) >> 0xF;
+                        v2 -= ((int)*(s16 *)(mp3data+((addptr+2))+0x20) * (short)DEWINDOW_LUT[offset+0x01] + 0x4000) >> 0xF;
+                        v4 += ((int)*(s16 *)(mp3data+(addptr    )+0x30) * (short)DEWINDOW_LUT[offset+0x08] + 0x4000) >> 0xF;
+                        v4 -= ((int)*(s16 *)(mp3data+((addptr+2))+0x30) * (short)DEWINDOW_LUT[offset+0x09] + 0x4000) >> 0xF;
+                        v6 += ((int)*(s16 *)(mp3data+(addptr    )+0x00) * (short)DEWINDOW_LUT[offset+0x20] + 0x4000) >> 0xF;
+                        v6 -= ((int)*(s16 *)(mp3data+((addptr+2))+0x00) * (short)DEWINDOW_LUT[offset+0x21] + 0x4000) >> 0xF;
+                        v8 += ((int)*(s16 *)(mp3data+(addptr    )+0x10) * (short)DEWINDOW_LUT[offset+0x28] + 0x4000) >> 0xF;
+                        v8 -= ((int)*(s16 *)(mp3data+((addptr+2))+0x10) * (short)DEWINDOW_LUT[offset+0x29] + 0x4000) >> 0xF;
                         addptr+=4; offset+=2;
                     }
                     s32 v0  = v2 + v4;
@@ -2345,38 +2023,6 @@ static void DISABLE (u32 inst1, u32 inst2) {
 }
 
 
-static const acmd_callback_t ABI3[0x10] = {
-    DISABLE , ADPCM3 , CLEARBUFF3,  ENVMIXER3  , LOADBUFF3, RESAMPLE3  , SAVEBUFF3, MP3,
-    MP3ADDY, SETVOL3, DMEMMOVE3 , LOADADPCM3 , MIXER3   , INTERLEAVE3, WHATISTHIS   , SETLOOP3
-};
-
-
-/* others audio ucodes */
-
-static struct audio2_t
-{
-    // segments
-    u32 segments[0x10]; // 0x320
-
-    // main buffers
-    u16 in;             // 0x0000(t8)
-    u16 out;            // 0x0002(t8)
-    u16 count;          // 0x0004(t8)
-
-    // loop
-    u32 loop;           // 0x0010(t8)
-
-    // adpcm
-    u16 adpcm_table[0x80];
-
-    // TODO: add envsetup state values here
-} audio2;
-
-int isMKABI = 0;
-int isZeldaABI = 0;
-
-void init_ucode2() { isMKABI = isZeldaABI = 0; }
-
 static void LOADADPCM2 (u32 inst1, u32 inst2) { // Loads an ADPCM table - Works 100% Now 03-13-01
     u32 v0;
     u32 x;
@@ -2411,12 +2057,9 @@ static void SETBUFF2 (u32 inst1, u32 inst2) {
 
 static void ADPCM2 (u32 inst1, u32 inst2) { // Verified to be 100% Accurate...
     unsigned char Flags=(u8)(inst1>>16)&0xff;
-    //unsigned short Gain=(u16)(inst1&0xffff);
     unsigned int Address=(inst2 & 0xffffff);// + SEGMENTS[(inst2>>24)&0xf];
     unsigned short inPtr=0;
-    //short *out=(s16 *)(testbuff+(audio2.out>>2));
     short *out=(short *)(BufferSpace+audio2.out);
-    //unsigned char *in=(unsigned char *)(BufferSpace+audio2.in);
     short count=(short)audio2.count;
     unsigned char icode;
     unsigned char code;
@@ -2448,19 +2091,11 @@ static void ADPCM2 (u32 inst1, u32 inst2) { // Verified to be 100% Accurate...
     if(!(Flags&0x1))
     {
         if(Flags&0x2)
-        {/*
-            for(int i=0;i<16;i++)
-            {
-                out[i]=*(short *)&rsp.RDRAM[(audio2.loop+i*2)^2];
-            }*/
+        {
             memcpy(out,&rsp.RDRAM[audio2.loop],32);
         }
         else
-        {/*
-            for(int i=0;i<16;i++)
-            {
-                out[i]=*(short *)&rsp.RDRAM[(Address+i*2)^2];
-            }*/
+        {
             memcpy(out,&rsp.RDRAM[Address],32);
         }
     }
@@ -2488,23 +2123,19 @@ static void ADPCM2 (u32 inst1, u32 inst2) { // Verified to be 100% Accurate...
 
             inp1[j]=(s16)((icode&mask1) << 8);          // this will in effect be signed
             if(code<srange) inp1[j]=((int)((int)inp1[j]*(int)vscale)>>16);
-            //else int catchme=1;
             j++;
 
             inp1[j]=(s16)((icode&mask2)<<shifter);
             if(code<srange) inp1[j]=((int)((int)inp1[j]*(int)vscale)>>16);
-            //else int catchme=1;
             j++;
 
             if (Flags & 4) {
                 inp1[j]=(s16)((icode&0xC) << 12);           // this will in effect be signed
                 if(code < 0xE) inp1[j]=((int)((int)inp1[j]*(int)vscale)>>16);
-                //else int catchme=1;
                 j++;
 
                 inp1[j]=(s16)((icode&0x3) << 14);
                 if(code < 0xE) inp1[j]=((int)((int)inp1[j]*(int)vscale)>>16);
-                //else int catchme=1;
                 j++;
             } // end flags
         } // end while
@@ -2518,23 +2149,19 @@ static void ADPCM2 (u32 inst1, u32 inst2) { // Verified to be 100% Accurate...
 
             inp2[j]=(s16)((icode&mask1) << 8);
             if(code<srange) inp2[j]=((int)((int)inp2[j]*(int)vscale)>>16);
-            //else int catchme=1;
             j++;
 
             inp2[j]=(s16)((icode&mask2)<<shifter);
             if(code<srange) inp2[j]=((int)((int)inp2[j]*(int)vscale)>>16);
-            //else int catchme=1;
             j++;
 
             if (Flags & 4) {
                 inp2[j]=(s16)((icode&0xC) << 12);
                 if(code < 0xE) inp2[j]=((int)((int)inp2[j]*(int)vscale)>>16);
-                //else int catchme=1;
                 j++;
 
                 inp2[j]=(s16)((icode&0x3) << 14);
                 if(code < 0xE) inp2[j]=((int)((int)inp2[j]*(int)vscale)>>16);
-                //else int catchme=1;
                 j++;
             } // end flags
         }
@@ -2763,8 +2390,7 @@ static void RESAMPLE2 (u32 inst1, u32 inst2) {
 
     for(i=0;i < ((audio2.count+0xf)&0xFFF0)/2;i++)    {
         location = (((Accum * 0x40) >> 0x10) * 8);
-        //location = (Accum >> 0xa) << 0x3;
-        lut = (s16 *)(((u8 *)ResampleLUT) + location);
+        lut = (s16 *)(((u8 *)RESAMPLE_LUT) + location);
 
         temp =  ((s32)*(s16*)(src+((srcPtr+0)^S))*((s32)((s16)lut[0])));
         accum = (s32)(temp >> 15);
@@ -2790,7 +2416,6 @@ static void RESAMPLE2 (u32 inst1, u32 inst2) {
     for (i=0; i < 4; i++)
         ((u16 *)rsp.RDRAM)[((addy/2)+i)^S] = src[(srcPtr+i)^S];
     *(u16 *)(rsp.RDRAM+addy+10) = (u16)Accum;
-    //memcpy (RSWORK, src+srcPtr, 0x8);
 }
 
 static void DMEMMOVE2 (u32 inst1, u32 inst2) { // Needs accuracy verification...
@@ -2800,25 +2425,15 @@ static void DMEMMOVE2 (u32 inst1, u32 inst2) { // Needs accuracy verification...
         return;
     v0 = (inst1 & 0xFFFF);
     v1 = (inst2 >> 0x10);
-    //assert ((v1 & 0x3) == 0);
-    //assert ((v0 & 0x3) == 0);
     u32 count = ((inst2+3) & 0xfffc);
-    //v0 = (v0) & 0xfffc;
-    //v1 = (v1) & 0xfffc;
-
-    //memcpy (dmem+v1, dmem+v0, count-1);
     for (cnt = 0; cnt < count; cnt++) {
         *(u8 *)(BufferSpace+((cnt+v1)^S8)) = *(u8 *)(BufferSpace+((cnt+v0)^S8));
     }
 }
 
-static u32 t3, s5, s6;
-static u16 env[8];
-
 static void ENVSETUP1 (u32 inst1, u32 inst2) {
     u32 tmp;
 
-    //fprintf (dfile, "ENVSETUP1: inst1 = %08X, inst2 = %08X\n", inst1, inst2);
     t3 = inst1 & 0xFFFF;
     tmp = (inst1 >> 0x8) & 0xFF00;
     env[4] = (u16)tmp;
@@ -2826,13 +2441,11 @@ static void ENVSETUP1 (u32 inst1, u32 inst2) {
     env[5] = (u16)tmp;
     s5 = inst2 >> 0x10;
     s6 = inst2 & 0xFFFF;
-    //fprintf (dfile, " t3 = %X / s5 = %X / s6 = %X / env[4] = %X / env[5] = %X\n", t3, s5, s6, env[4], env[5]);
 }
 
 static void ENVSETUP2 (u32 inst1, u32 inst2) {
     u32 tmp;
 
-    //fprintf (dfile, "ENVSETUP2: inst1 = %08X, inst2 = %08X\n", inst1, inst2);
     tmp = (inst2 >> 0x10);
     env[0] = (u16)tmp;
     tmp += s5;
@@ -2841,11 +2454,9 @@ static void ENVSETUP2 (u32 inst1, u32 inst2) {
     env[2] = (u16)tmp;
     tmp += s6;
     env[3] = (u16)tmp;
-    //fprintf (dfile, " env[0] = %X / env[1] = %X / env[2] = %X / env[3] = %X\n", env[0], env[1], env[2], env[3]);
 }
 
 static void ENVMIXER2 (u32 inst1, u32 inst2) {
-    //fprintf (dfile, "ENVMIXER: inst1 = %08X, inst2 = %08X\n", inst1, inst2);
 
     s16 *bufft6, *bufft7, *buffs0, *buffs1;
     s16 *buffs3;
@@ -2962,44 +2573,13 @@ static void DUPLICATE2(u32 inst1, u32 inst2) {
         Count--;
     }
 }
-/*
-static void INTERL2 (u32 inst1, u32 inst2) { // Make your own...
-    short Count = inst1 & 0xffff;
-    unsigned short  Out   = inst2 & 0xffff;
-    unsigned short In     = (inst2 >> 16);
-
-    short *src,*dst,tmp;
-    src=(short *)&BufferSpace[In];
-    dst=(short *)&BufferSpace[Out];
-    while(Count)
-    {
-        *(dst++)=*(src++);
-        src++;
-        *(dst++)=*(src++);
-        src++;
-        *(dst++)=*(src++);
-        src++;
-        *(dst++)=*(src++);
-        src++;
-        *(dst++)=*(src++);
-        src++;
-        *(dst++)=*(src++);
-        src++;
-        *(dst++)=*(src++);
-        src++;
-        *(dst++)=*(src++);
-        src++;
-        Count-=8;
-    }
-}
-*/
 
 static void INTERL2 (u32 inst1, u32 inst2) {
     short Count = inst1 & 0xffff;
     unsigned short  Out   = inst2 & 0xffff;
     unsigned short In     = (inst2 >> 16);
 
-    unsigned char *src,*dst/*,tmp*/;
+    unsigned char *src,*dst;
     src=(unsigned char *)(BufferSpace);//[In];
     dst=(unsigned char *)(BufferSpace);//[Out];
     while(Count) {
@@ -3083,7 +2663,6 @@ static void HILOGAIN (u32 inst1, u32 inst2) {
 
     while(cnt) {
         val = (s32)*src;
-        //tmp = ((val * (s32)hi) + ((u64)(val * lo) << 16) >> 16);
         tmp = ((val * (s32)hi) >> 16) + (u32)(val * lo);
         if ((s32)tmp > 32767) tmp = 32767;
         else if ((s32)tmp < -32768) tmp = -32768;
@@ -3104,19 +2683,15 @@ static void FILTER2 (u32 inst1, u32 inst2) {
             if (t4 > 1) { // Then set the cnt variable
                 cnt = (inst1 & 0xFFFF);
                 lutt6 = (s16 *)save;
-//              memcpy (dmem+0xFE0, rsp.RDRAM+(inst2&0xFFFFFF), 0x10);
                 return;
             }
 
             if (t4 == 0) {
-//              memcpy (dmem+0xFB0, rsp.RDRAM+(inst2&0xFFFFFF), 0x20);
                 lutt5 = (short *)(save+0x10);
             }
 
             lutt5 = (short *)(save+0x10);
 
-//          lutt5 = (short *)(dmem + 0xFC0);
-//          lutt6 = (short *)(dmem + 0xFE0);
             for (x = 0; x < 8; x++) {
                 s32 a;
                 a = (lutt5[x] + lutt6[x]) >> 1;
@@ -3233,32 +2808,59 @@ static void SEGMENT2 (u32 inst1, u32 inst2) {
     }
 }
 
-/*
-void (*ABI2[0x20])(void) = {
-    SPNOOP, ADPCM2, CLEARBUFF2, SPNOOP, SPNOOP, RESAMPLE2, SPNOOP, SEGMENT2,
-    SETBUFF2, SPNOOP, DMEMMOVE2, LOADADPCM2, MIXER2, INTERLEAVE2, HILOGAIN, SETLOOP2,
-    SPNOOP, INTERL2, ENVSETUP1, ENVMIXER2, LOADBUFF2, SAVEBUFF2, ENVSETUP2, SPNOOP,
-    SPNOOP, SPNOOP, SPNOOP, SPNOOP, SPNOOP, SPNOOP, SPNOOP, SPNOOP
-};*/
 
-static const acmd_callback_t ABI2[0x20] = {
-    SPNOOP , ADPCM2, CLEARBUFF2, UNKNOWN, ADDMIXER, RESAMPLE2, UNKNOWN, SEGMENT2,
-    SETBUFF2 , DUPLICATE2, DMEMMOVE2, LOADADPCM2, MIXER2, INTERLEAVE2, HILOGAIN, SETLOOP2,
-    SPNOOP, INTERL2 , ENVSETUP1, ENVMIXER2, LOADBUFF2, SAVEBUFF2, ENVSETUP2, SPNOOP,
-    HILOGAIN , SPNOOP, DUPLICATE2 , UNKNOWN    , SPNOOP  , SPNOOP    , SPNOOP  , SPNOOP
+
+
+
+
+/* Audio Binary Interface tables */
+static const acmd_callback_t ABI1[0x10] =
+{
+    SPNOOP,     ADPCM,      CLEARBUFF,  ENVMIXER,
+    LOADBUFF,   RESAMPLE,   SAVEBUFF,   UNKNOWN,
+    SETBUFF,    SETVOL,     DMEMMOVE,   LOADADPCM,
+    MIXER,      INTERLEAVE, UNKNOWN,    SETLOOP
 };
-/*
-void (*ABI2[0x20])(void) = {
-    SPNOOP , ADPCM2, CLEARBUFF2, SPNOOP, SPNOOP, RESAMPLE2  , SPNOOP  , SEGMENT2,
-    SETBUFF2 , DUPLICATE2, DMEMMOVE2, LOADADPCM2, MIXER2, INTERLEAVE2, SPNOOP, SETLOOP2,
-    SPNOOP, INTERL2 , ENVSETUP1, ENVMIXER2, LOADBUFF2, SAVEBUFF2, ENVSETUP2, SPNOOP,
-    SPNOOP , SPNOOP, SPNOOP , SPNOOP    , SPNOOP  , SPNOOP    , SPNOOP  , SPNOOP
-};*/
-/* NOTES:
 
-  FILTER/SEGMENT - Still needs to be finished up... add FILTER?
-  UNKNOWWN #27   - Is this worth doing?  Looks like a pain in the ass just for WaveRace64
-*/
+// FIXME: ABI2 in fact is a mix of at least 7 differents ABI which are mostly compatible
+// but not totally, that's why there is a isZeldaABI/isMKABI workaround.
+static const acmd_callback_t ABI2[0x20] =
+{
+    SPNOOP,     ADPCM2,         CLEARBUFF2, UNKNOWN,
+    ADDMIXER,   RESAMPLE2,      UNKNOWN,    SEGMENT2,
+    SETBUFF2,   DUPLICATE2,     DMEMMOVE2,  LOADADPCM2,
+    MIXER2,     INTERLEAVE2,    HILOGAIN,   SETLOOP2,
+    SPNOOP,     INTERL2,        ENVSETUP1,  ENVMIXER2,
+    LOADBUFF2,  SAVEBUFF2,      ENVSETUP2,  SPNOOP,
+    HILOGAIN,   SPNOOP,         DUPLICATE2, UNKNOWN,
+    SPNOOP,     SPNOOP,         SPNOOP,     SPNOOP
+};
+
+static const acmd_callback_t ABI3[0x10] = 
+{
+    DISABLE,    ADPCM3,         CLEARBUFF3, ENVMIXER3,
+    LOADBUFF3,  RESAMPLE3,      SAVEBUFF3,  MP3,
+    MP3ADDY,    SETVOL3,        DMEMMOVE3,  LOADADPCM3,
+    MIXER3,     INTERLEAVE3,    WHATISTHIS, SETLOOP3
+};
 
 
+/* global functions */
+void alist_process_ABI1()
+{
+    alist_process(ABI1, 0x10);
+}
+
+// FIXME: get rid of that function
+void init_ucode2() { isMKABI = isZeldaABI = 0; }
+
+void alist_process_ABI2()
+{
+    alist_process(ABI2, 0x20);
+}
+
+void alist_process_ABI3()
+{
+    alist_process(ABI3, 0x10);
+}
 
