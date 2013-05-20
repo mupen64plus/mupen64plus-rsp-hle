@@ -1,5 +1,5 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- *   Mupen64plus-rsp-hle - alist_internal.h                                *
+ *   Mupen64plus-rsp-hle - audio.h                                         *
  *   Mupen64Plus homepage: http://code.google.com/p/mupen64plus/           *
  *   Copyright (C) 2002 Hacktarux                                          *
  *                                                                         *
@@ -19,28 +19,15 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-#ifndef ALIST_INTERNAL_H
-#define ALIST_INTERNAL_H
+#ifndef AUDIO_H
+#define AUDIO_H
 
-#include "hle.h"
+void alist_process_ABI1();
+void alist_process_ABI2();
+void alist_process_ABI3();
 
-typedef void (*acmd_callback_t)(u32 inst1, u32 inst2);
-
-/*
- * Audio flags
- */
-
-#define A_INIT          0x01
-#define A_CONTINUE      0x00
-#define A_LOOP          0x02
-#define A_OUT           0x02
-#define A_LEFT          0x02
-#define A_RIGHT         0x00
-#define A_VOL           0x04
-#define A_RATE          0x00
-#define A_AUX           0x08
-#define A_NOAUX         0x00
-#define A_MAIN          0x00
-#define A_MIX           0x10
+// FIXME: to remove when isZeldaABI/isMKABI workaround is gone
+void init_ucode2();
 
 #endif
+

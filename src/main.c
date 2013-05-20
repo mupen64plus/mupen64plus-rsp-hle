@@ -30,7 +30,7 @@
 #include "m64p_common.h"
 #include "m64p_plugin.h"
 #include "hle.h"
-#include "alist.h"
+#include "audio.h"
 #include "cicx105.h"
 #include "jpeg.h"
 

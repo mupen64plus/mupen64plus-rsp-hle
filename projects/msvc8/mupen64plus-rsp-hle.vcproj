@@ -179,7 +179,7 @@
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
 			>
 			<File
-				RelativePath="..\..\src\alist.c"
+				RelativePath="..\..\src\audio.c"
 				>
 			</File>
 			<File
@@ -194,22 +194,6 @@
 				RelativePath="..\..\src\main.c"
 				>
 			</File>
-			<File
-				RelativePath="..\..\src\ucode1.cpp"
-				>
-			</File>
-			<File
-				RelativePath="..\..\src\ucode2.cpp"
-				>
-			</File>
-			<File
-				RelativePath="..\..\src\ucode3.cpp"
-				>
-			</File>
-			<File
-				RelativePath="..\..\src\ucode3mp3.cpp"
-				>
-			</File>
 		</Filter>
 		<Filter
 			Name="Header Files"
@@ -217,11 +201,7 @@
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
 			<File
-				RelativePath="..\..\src\alist.h"
-				>
-			</File>
-			<File
-				RelativePath="..\..\src\alist_internal.h"
+				RelativePath="..\..\src\audio.h"
 				>
 			</File>
 			<File
