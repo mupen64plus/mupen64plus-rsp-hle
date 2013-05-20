@@ -57,7 +57,6 @@ static struct audio_t
 
 extern const u16 ResampleLUT [0x200];
 
-extern short hleMixerWorkArea[256];
 extern u8 BufferSpace[0x10000];
 
 /*
@@ -97,6 +96,7 @@ static void SETVOL3 (u32 inst1, u32 inst2) {
 }
 
 static void ENVMIXER3 (u32 inst1, u32 inst2) {
+    short state_buffer[40];
     u8 flags = (u8)((inst1 >> 16) & 0xff);
     u32 addy = (inst2 & 0xFFFFFF);
 
@@ -136,20 +136,20 @@ static void ENVMIXER3 (u32 inst1, u32 inst2) {
         Wet = (s16)audio.wet; Dry = (s16)audio.dry; // Save Wet/Dry values
         LTrg = audio.env_target[0]; RTrg = audio.env_target[1]; // Save Current Left/Right Targets
     } else {
-        memcpy((u8 *)hleMixerWorkArea, rsp.RDRAM+addy, 80);
-        Wet    = *(s16 *)(hleMixerWorkArea +  0); // 0-1
-        Dry    = *(s16 *)(hleMixerWorkArea +  2); // 2-3
-        LTrg   = *(s16 *)(hleMixerWorkArea +  4); // 4-5
-        RTrg   = *(s16 *)(hleMixerWorkArea +  6); // 6-7
-        LAdder = *(s32 *)(hleMixerWorkArea +  8); // 8-9 (hleMixerWorkArea is a 16bit pointer)
-        RAdder = *(s32 *)(hleMixerWorkArea + 10); // 10-11
-        LAcc   = *(s32 *)(hleMixerWorkArea + 12); // 12-13
-        RAcc   = *(s32 *)(hleMixerWorkArea + 14); // 14-15
-        LVol   = *(s32 *)(hleMixerWorkArea + 16); // 16-17
-        RVol   = *(s32 *)(hleMixerWorkArea + 18); // 18-19
-        LSig   = *(s16 *)(hleMixerWorkArea + 20); // 20-21
-        RSig   = *(s16 *)(hleMixerWorkArea + 22); // 22-23
-        //u32 test  = *(s32 *)(hleMixerWorkArea + 24); // 22-23
+        memcpy((u8 *)state_buffer, rsp.RDRAM+addy, 80);
+        Wet    = *(s16 *)(state_buffer +  0); // 0-1
+        Dry    = *(s16 *)(state_buffer +  2); // 2-3
+        LTrg   = *(s16 *)(state_buffer +  4); // 4-5
+        RTrg   = *(s16 *)(state_buffer +  6); // 6-7
+        LAdder = *(s32 *)(state_buffer +  8); // 8-9 (state_buffer is a 16bit pointer)
+        RAdder = *(s32 *)(state_buffer + 10); // 10-11
+        LAcc   = *(s32 *)(state_buffer + 12); // 12-13
+        RAcc   = *(s32 *)(state_buffer + 14); // 14-15
+        LVol   = *(s32 *)(state_buffer + 16); // 16-17
+        RVol   = *(s32 *)(state_buffer + 18); // 18-19
+        LSig   = *(s16 *)(state_buffer + 20); // 20-21
+        RSig   = *(s16 *)(state_buffer + 22); // 22-23
+        //u32 test  = *(s32 *)(state_buffer + 24); // 22-23
         //if (test != 0x13371337)
     }
 
@@ -238,20 +238,20 @@ static void ENVMIXER3 (u32 inst1, u32 inst2) {
         }
     //}
 
-    *(s16 *)(hleMixerWorkArea +  0) = Wet; // 0-1
-    *(s16 *)(hleMixerWorkArea +  2) = Dry; // 2-3
-    *(s16 *)(hleMixerWorkArea +  4) = LTrg; // 4-5
-    *(s16 *)(hleMixerWorkArea +  6) = RTrg; // 6-7
-    *(s32 *)(hleMixerWorkArea +  8) = LAdder; // 8-9 (hleMixerWorkArea is a 16bit pointer)
-    *(s32 *)(hleMixerWorkArea + 10) = RAdder; // 10-11
-    *(s32 *)(hleMixerWorkArea + 12) = LAcc; // 12-13
-    *(s32 *)(hleMixerWorkArea + 14) = RAcc; // 14-15
-    *(s32 *)(hleMixerWorkArea + 16) = LVol; // 16-17
-    *(s32 *)(hleMixerWorkArea + 18) = RVol; // 18-19
-    *(s16 *)(hleMixerWorkArea + 20) = LSig; // 20-21
-    *(s16 *)(hleMixerWorkArea + 22) = RSig; // 22-23
-    //*(u32 *)(hleMixerWorkArea + 24) = 0x13371337; // 22-23
-    memcpy(rsp.RDRAM+addy, (u8 *)hleMixerWorkArea,80);
+    *(s16 *)(state_buffer +  0) = Wet; // 0-1
+    *(s16 *)(state_buffer +  2) = Dry; // 2-3
+    *(s16 *)(state_buffer +  4) = LTrg; // 4-5
+    *(s16 *)(state_buffer +  6) = RTrg; // 6-7
+    *(s32 *)(state_buffer +  8) = LAdder; // 8-9 (state_buffer is a 16bit pointer)
+    *(s32 *)(state_buffer + 10) = RAdder; // 10-11
+    *(s32 *)(state_buffer + 12) = LAcc; // 12-13
+    *(s32 *)(state_buffer + 14) = RAcc; // 14-15
+    *(s32 *)(state_buffer + 16) = LVol; // 16-17
+    *(s32 *)(state_buffer + 18) = RVol; // 18-19
+    *(s16 *)(state_buffer + 20) = LSig; // 20-21
+    *(s16 *)(state_buffer + 22) = RSig; // 22-23
+    //*(u32 *)(state_buffer + 24) = 0x13371337; // 22-23
+    memcpy(rsp.RDRAM+addy, (u8 *)state_buffer,80);
 }
 
 static void CLEARBUFF3 (u32 inst1, u32 inst2) {

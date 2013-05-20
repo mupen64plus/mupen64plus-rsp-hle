@@ -164,7 +164,6 @@ static struct audio_t
 } audio;
 
 u8 BufferSpace[0x10000];
-short hleMixerWorkArea[256];
 
 extern const u16 ResampleLUT [0x200] = {
     0x0C39, 0x66AD, 0x0D46, 0xFFDF, 0x0B39, 0x6696, 0x0E5F, 0xFFD8,
@@ -211,6 +210,7 @@ static void CLEARBUFF (u32 inst1, u32 inst2) {
 //FILE *dfile = fopen ("d:\\envmix.txt", "wt");
 
 static void ENVMIXER (u32 inst1, u32 inst2) {
+    short state_buffer[40];
     //static int envmixcnt = 0;
     unsigned flags = parse_flags(inst1);
     u32 addy = parse_address(inst2);
@@ -261,17 +261,17 @@ static void ENVMIXER (u32 inst1, u32 inst2) {
     } else {
         // Load LVol, RVol, LAcc, and RAcc (all 32bit)
         // Load Wet, Dry, LTrg, RTrg
-        memcpy((u8 *)hleMixerWorkArea, (rsp.RDRAM+addy), 80);
-        Wet  = *(s16 *)(hleMixerWorkArea +  0); // 0-1
-        Dry  = *(s16 *)(hleMixerWorkArea +  2); // 2-3
-        LTrg = *(s32 *)(hleMixerWorkArea +  4); // 4-5
-        RTrg = *(s32 *)(hleMixerWorkArea +  6); // 6-7
-        LRamp= *(s32 *)(hleMixerWorkArea +  8); // 8-9 (hleMixerWorkArea is a 16bit pointer)
-        RRamp= *(s32 *)(hleMixerWorkArea + 10); // 10-11
-        LAdderEnd = *(s32 *)(hleMixerWorkArea + 12); // 12-13
-        RAdderEnd = *(s32 *)(hleMixerWorkArea + 14); // 14-15
-        LAdderStart = *(s32 *)(hleMixerWorkArea + 16); // 12-13
-        RAdderStart = *(s32 *)(hleMixerWorkArea + 18); // 14-15
+        memcpy((u8 *)state_buffer, (rsp.RDRAM+addy), 80);
+        Wet  = *(s16 *)(state_buffer +  0); // 0-1
+        Dry  = *(s16 *)(state_buffer +  2); // 2-3
+        LTrg = *(s32 *)(state_buffer +  4); // 4-5
+        RTrg = *(s32 *)(state_buffer +  6); // 6-7
+        LRamp= *(s32 *)(state_buffer +  8); // 8-9 (state_buffer is a 16bit pointer)
+        RRamp= *(s32 *)(state_buffer + 10); // 10-11
+        LAdderEnd = *(s32 *)(state_buffer + 12); // 12-13
+        RAdderEnd = *(s32 *)(state_buffer + 14); // 14-15
+        LAdderStart = *(s32 *)(state_buffer + 16); // 12-13
+        RAdderStart = *(s32 *)(state_buffer + 18); // 14-15
     }
 
     if (!(flags & A_AUX)) {
@@ -412,17 +412,17 @@ static void ENVMIXER (u32 inst1, u32 inst2) {
     /*LAcc = LAdderEnd;
     RAcc = RAdderEnd;*/
 
-    *(s16 *)(hleMixerWorkArea +  0) = Wet; // 0-1
-    *(s16 *)(hleMixerWorkArea +  2) = Dry; // 2-3
-    *(s32 *)(hleMixerWorkArea +  4) = LTrg; // 4-5
-    *(s32 *)(hleMixerWorkArea +  6) = RTrg; // 6-7
-    *(s32 *)(hleMixerWorkArea +  8) = LRamp; // 8-9 (hleMixerWorkArea is a 16bit pointer)
-    *(s32 *)(hleMixerWorkArea + 10) = RRamp; // 10-11
-    *(s32 *)(hleMixerWorkArea + 12) = LAdderEnd; // 12-13
-    *(s32 *)(hleMixerWorkArea + 14) = RAdderEnd; // 14-15
-    *(s32 *)(hleMixerWorkArea + 16) = LAdderStart; // 12-13
-    *(s32 *)(hleMixerWorkArea + 18) = RAdderStart; // 14-15
-    memcpy(rsp.RDRAM+addy, (u8 *)hleMixerWorkArea,80);
+    *(s16 *)(state_buffer +  0) = Wet; // 0-1
+    *(s16 *)(state_buffer +  2) = Dry; // 2-3
+    *(s32 *)(state_buffer +  4) = LTrg; // 4-5
+    *(s32 *)(state_buffer +  6) = RTrg; // 6-7
+    *(s32 *)(state_buffer +  8) = LRamp; // 8-9 (state_buffer is a 16bit pointer)
+    *(s32 *)(state_buffer + 10) = RRamp; // 10-11
+    *(s32 *)(state_buffer + 12) = LAdderEnd; // 12-13
+    *(s32 *)(state_buffer + 14) = RAdderEnd; // 14-15
+    *(s32 *)(state_buffer + 16) = LAdderStart; // 12-13
+    *(s32 *)(state_buffer + 18) = RAdderStart; // 14-15
+    memcpy(rsp.RDRAM+addy, (u8 *)state_buffer,80);
 }
 
 static void RESAMPLE (u32 inst1, u32 inst2) {
