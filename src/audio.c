@@ -404,6 +404,27 @@ static void alist_process(const acmd_callback_t abi[], unsigned int abi_size)
     }
 }
 
+static void load_adpcm_table(u16 *dst, u32 address, int count)
+{
+    int i;
+    u16 *table = (u16 *)(rsp.RDRAM+address);
+
+    count >>= 4;
+
+    for (i = 0; i < count; ++i)
+    {
+        dst[(0x0+(i<<3))^S] = table[0];
+        dst[(0x1+(i<<3))^S] = table[1];
+        dst[(0x2+(i<<3))^S] = table[2];
+        dst[(0x3+(i<<3))^S] = table[3];
+        dst[(0x4+(i<<3))^S] = table[4];
+        dst[(0x5+(i<<3))^S] = table[5];
+        dst[(0x6+(i<<3))^S] = table[6];
+        dst[(0x7+(i<<3))^S] = table[7];
+        table += 8;
+    }
+}
+
 
 static void decode_adpcm(
         int init,
@@ -1094,26 +1115,12 @@ static void DMEMMOVE (u32 inst1, u32 inst2) { // Doesn't sound just right?... wi
     }
 }
 
-static void LOADADPCM (u32 inst1, u32 inst2) { // Loads an ADPCM table - Works 100% Now 03-13-01
-    u32 x;
-    u32 v0 = parse_address(inst2);
-    u16 iter_max = parse_lo(inst1) >> 4;
-    
-    u16 *table = (u16 *)(rsp.RDRAM+v0);
-    for (x = 0; x < iter_max; x++) {
-        audio.adpcm_table[(0x0+(x<<3))^S] = table[0];
-        audio.adpcm_table[(0x1+(x<<3))^S] = table[1];
-
-        audio.adpcm_table[(0x2+(x<<3))^S] = table[2];
-        audio.adpcm_table[(0x3+(x<<3))^S] = table[3];
-
-        audio.adpcm_table[(0x4+(x<<3))^S] = table[4];
-        audio.adpcm_table[(0x5+(x<<3))^S] = table[5];
-
-        audio.adpcm_table[(0x6+(x<<3))^S] = table[6];
-        audio.adpcm_table[(0x7+(x<<3))^S] = table[7];
-        table += 8;
-    }
+static void LOADADPCM (u32 w1, u32 w2)
+{
+    load_adpcm_table(
+            audio.adpcm_table,
+            parse_address(w2 & 0xffffff),
+            parse_lo(w1));
 }
 
 
@@ -1336,25 +1343,12 @@ static void SAVEBUFF3 (u32 w1, u32 w2)
     dma_write_fast((w2 & 0xfffff8), (w1 + 0x4f0) & 0xff8, length - 1);
 }
 
-static void LOADADPCM3 (u32 inst1, u32 inst2) { // Loads an ADPCM table - Works 100% Now 03-13-01
-    u32 v0;
-    u32 x;
-    v0 = (inst2 & 0xffffff);
-    u16 *table = (u16 *)(rsp.RDRAM+v0);
-    for (x = 0; x < ((inst1&0xffff)>>0x4); x++) {
-        naudio.adpcm_table[(0x0+(x<<3))^S] = table[0];
-        naudio.adpcm_table[(0x1+(x<<3))^S] = table[1];
-
-        naudio.adpcm_table[(0x2+(x<<3))^S] = table[2];
-        naudio.adpcm_table[(0x3+(x<<3))^S] = table[3];
-
-        naudio.adpcm_table[(0x4+(x<<3))^S] = table[4];
-        naudio.adpcm_table[(0x5+(x<<3))^S] = table[5];
-
-        naudio.adpcm_table[(0x6+(x<<3))^S] = table[6];
-        naudio.adpcm_table[(0x7+(x<<3))^S] = table[7];
-        table += 8;
-    }
+static void LOADADPCM3 (u32 w1, u32 w2)
+{
+    load_adpcm_table(
+            naudio.adpcm_table,
+            w2 & 0xffffff,
+            w1 & 0xffff);
 }
 
 static void DMEMMOVE3 (u32 inst1, u32 inst2) { // Needs accuracy verification...
@@ -1841,26 +1835,12 @@ static void InnerLoop () {
                 }
 }
 
-static void LOADADPCM2 (u32 inst1, u32 inst2) { // Loads an ADPCM table - Works 100% Now 03-13-01
-    u32 v0;
-    u32 x;
-    v0 = (inst2 & 0xffffff);// + SEGMENTS[(inst2>>24)&0xf];
-    u16 *table = (u16 *)(rsp.RDRAM+v0); // Zelda2 Specific...
-
-    for (x = 0; x < ((inst1&0xffff)>>0x4); x++) {
-        audio2.adpcm_table[(0x0+(x<<3))^S] = table[0];
-        audio2.adpcm_table[(0x1+(x<<3))^S] = table[1];
-
-        audio2.adpcm_table[(0x2+(x<<3))^S] = table[2];
-        audio2.adpcm_table[(0x3+(x<<3))^S] = table[3];
-
-        audio2.adpcm_table[(0x4+(x<<3))^S] = table[4];
-        audio2.adpcm_table[(0x5+(x<<3))^S] = table[5];
-
-        audio2.adpcm_table[(0x6+(x<<3))^S] = table[6];
-        audio2.adpcm_table[(0x7+(x<<3))^S] = table[7];
-        table += 8;
-    }
+static void LOADADPCM2 (u32 w1, u32 w2)
+{
+    load_adpcm_table(
+            audio2.adpcm_table,
+            w2 & 0xffffff,
+            w1 & 0xffff);
 }
 
 static void SETLOOP2 (u32 inst1, u32 inst2) {
