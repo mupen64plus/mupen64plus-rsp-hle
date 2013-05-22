@@ -21,6 +21,7 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
+#include <assert.h>
 #include <stdio.h>
 #include <string.h>
 #include "hle.h"
@@ -122,8 +123,6 @@ static u16 env[8];
 // FIXME: remove these flags
 int isMKABI = 0;
 int isZeldaABI = 0;
-
-static u8 BufferSpace[0x10000];
 
 /*
  * Audio flags
@@ -353,6 +352,30 @@ static u16 parse_hi(u32 x)
     return (x >> 16) & 0xffff;
 }
 
+/* caller is responsible to ensure that size and alignment constrains are met */
+static void dma_read_fast(u16 mem, u32 dram, u16 length)
+{
+    // mem & dram should be 8 byte aligned
+    // length should encode a linear transfer
+    assert((mem & ~0x1ff8) == 0);
+    assert((dram & ~0xfffff8) == 0);
+    assert((length & ~0xfff) == 0);
+
+    memcpy(rsp.DMEM + mem, rsp.RDRAM + dram, align(length+1, 8));
+}
+
+/* caller is responsible to ensure that size and alignment constrains are met */
+static void dma_write_fast(u32 dram, u16 mem, u16 length)
+{
+    // mem & dram should be 8 byte aligned
+    // length should encode a linear transfer
+    assert((mem & ~0x1ff8) == 0);
+    assert((dram & ~0xfffff8) == 0);
+    assert((length & ~0xfff) == 0);
+
+    memcpy(rsp.RDRAM + dram, rsp.DMEM + mem, align(length+1, 8));
+}
+
 
 static void alist_process(const acmd_callback_t abi[], unsigned int abi_size)
 {
@@ -393,7 +416,7 @@ static void decode_adpcm(
         u16 out,
         int count)
 {
-    s16 *dst = (s16*)(BufferSpace + out);
+    s16 *dst = (s16*)(rsp.DMEM + out);
     unsigned char icode;
     unsigned char code;
     int vscale;
@@ -436,7 +459,7 @@ static void decode_adpcm(
     dst += 16;
     while(count>0)
     {
-        code=BufferSpace[in^S8];
+        code=rsp.DMEM[in^S8];
         index=code&0xf;
         index<<=4;
         book1 = codebook + index;
@@ -448,7 +471,7 @@ static void decode_adpcm(
         j=0;
         while(j<8)
         {
-            icode=BufferSpace[in^S8];
+            icode=rsp.DMEM[in^S8];
             ++in;
 
             inp1[j]=(s16)((icode&mask1)<<8);         // this will in effect be signed
@@ -475,7 +498,7 @@ static void decode_adpcm(
         j=0;
         while(j<8)
         {
-            icode=BufferSpace[in^S8];
+            icode=rsp.DMEM[in^S8];
             ++in;
 
             inp2[j]=(s16)((icode&mask1)<<8);         // this will in effect be signed
@@ -645,8 +668,8 @@ static void mix_buffers(u16 in, u16 out, int count, s16 gain)
     s32 accu;
     int i;
 
-    s16 *src = (s16*)(BufferSpace+in);
-    s16 *dst = (s16*)(BufferSpace+out);
+    s16 *src = (s16*)(rsp.DMEM+in);
+    s16 *dst = (s16*)(rsp.DMEM+out);
 
     for (i = 0; i < count; ++i)
     {
@@ -671,8 +694,8 @@ static void resample_buffer(
     s16 *lut;
     short *dst;
     s16 *src;
-    dst=(short *)(BufferSpace);
-    src=(s16 *)(BufferSpace);
+    dst=(short *)(rsp.DMEM);
+    src=(s16 *)(rsp.DMEM);
     u32 srcPtr = in;
     u32 dstPtr = out;
     s32 temp;
@@ -728,9 +751,9 @@ static void interleave_buffers(u16 right, u16 left, u16 out, int count)
     int i;
     u16 Left, Right, Left2, Right2;
 
-    u16 *srcR = (u16*)(BufferSpace + right);
-    u16 *srcL = (u16*)(BufferSpace + left);
-    u16 *dst = (u16*)(BufferSpace + out);
+    u16 *srcR = (u16*)(rsp.DMEM + right);
+    u16 *srcL = (u16*)(rsp.DMEM + left);
+    u16 *dst = (u16*)(rsp.DMEM + out);
 
     for (i = 0; i < count; ++i)
     {
@@ -788,7 +811,7 @@ static void CLEARBUFF (u32 inst1, u32 inst2) {
     u16 addr = parse_lo(inst1) & ~3;
     u16 count = align(parse_lo(inst2), 4);
     
-    memset(BufferSpace+addr, 0, count);
+    memset(rsp.DMEM+addr, 0, count);
 }
 
 static void ENVMIXER (u32 inst1, u32 inst2) {
@@ -796,11 +819,11 @@ static void ENVMIXER (u32 inst1, u32 inst2) {
     short state_buffer[40];
     unsigned flags = parse_flags(inst1);
     u32 addy = parse_address(inst2);
-    short *inp=(short *)(BufferSpace+audio.in);
-    short *out=(short *)(BufferSpace+audio.out);
-    short *aux1=(short *)(BufferSpace+audio.aux_dry_left);
-    short *aux2=(short *)(BufferSpace+audio.aux_wet_right);
-    short *aux3=(short *)(BufferSpace+audio.aux_wet_left);
+    short *inp=(short *)(rsp.DMEM+audio.in);
+    short *out=(short *)(rsp.DMEM+audio.out);
+    short *aux1=(short *)(rsp.DMEM+audio.aux_dry_left);
+    short *aux2=(short *)(rsp.DMEM+audio.aux_wet_right);
+    short *aux3=(short *)(rsp.DMEM+audio.aux_wet_left);
     s32 MainR;
     s32 MainL;
     s32 AuxR;
@@ -1029,20 +1052,16 @@ static void ADPCM (u32 w1, u32 w2)
             audio.count);
 }
 
-static void LOADBUFF (u32 inst1, u32 inst2) { // memcpy causes static... endianess issue :(
-    u32 v0;
-    if (audio.count == 0)
-        return;
-    v0 = parse_address(inst2) & ~3;
-    memcpy (BufferSpace+(audio.in&0xFFFC), rsp.RDRAM+v0, align(audio.count,4));
+static void LOADBUFF (u32 w1, u32 w2)
+{
+    if (audio.count == 0) { return; }
+    dma_read_fast(audio.in & 0xff8, parse_address(w2) & ~7, audio.count - 1);
 }
 
-static void SAVEBUFF (u32 inst1, u32 inst2) { // memcpy causes static... endianess issue :(
-    u32 v0;
-    if (audio.count == 0)
-        return;
-    v0 = parse_address(inst2) & ~3;
-    memcpy (rsp.RDRAM+v0, BufferSpace+(audio.out&0xFFFC), align(audio.count,4));
+static void SAVEBUFF (u32 w1, u32 w2)
+{
+    if (audio.count == 0) { return; }
+    dma_write_fast(parse_address(w2) & ~7, audio.out & 0xff8, audio.count - 1);
 }
 
 static void SETBUFF (u32 inst1, u32 inst2) { // Should work ;-)
@@ -1071,7 +1090,7 @@ static void DMEMMOVE (u32 inst1, u32 inst2) { // Doesn't sound just right?... wi
     v1 = parse_hi(inst2);
     count = align(count, 4);
     for (cnt = 0; cnt < count; cnt++) {
-        *(u8 *)(BufferSpace+((cnt+v1)^S8)) = *(u8 *)(BufferSpace+((cnt+v0)^S8));
+        *(u8 *)(rsp.DMEM+((cnt+v1)^S8)) = *(u8 *)(rsp.DMEM+((cnt+v0)^S8));
     }
 }
 
@@ -1141,11 +1160,11 @@ static void ENVMIXER3 (u32 inst1, u32 inst2) {
     u8 flags = (u8)((inst1 >> 16) & 0xff);
     u32 addy = (inst2 & 0xFFFFFF);
 
-    short *inp=(short *)(BufferSpace+0x4F0);
-    short *out=(short *)(BufferSpace+0x9D0);
-    short *aux1=(short *)(BufferSpace+0xB40);
-    short *aux2=(short *)(BufferSpace+0xCB0);
-    short *aux3=(short *)(BufferSpace+0xE20);
+    short *inp=(short *)(rsp.DMEM+0x4F0);
+    short *out=(short *)(rsp.DMEM+0x9D0);
+    short *aux1=(short *)(rsp.DMEM+0xB40);
+    short *aux2=(short *)(rsp.DMEM+0xCB0);
+    short *aux3=(short *)(rsp.DMEM+0xE20);
     s32 MainR;
     s32 MainL;
     s32 AuxR;
@@ -1289,7 +1308,7 @@ static void ENVMIXER3 (u32 inst1, u32 inst2) {
 static void CLEARBUFF3 (u32 inst1, u32 inst2) {
     u16 addr = (u16)(inst1 & 0xffff);
     u16 count = (u16)(inst2 & 0xffff);
-    memset(BufferSpace+addr+0x4f0, 0, count);
+    memset(rsp.DMEM+addr+0x4f0, 0, count);
 }
 
 static void MIXER3 (u32 w1, u32 w2)
@@ -1301,20 +1320,20 @@ static void MIXER3 (u32 w1, u32 w2)
             (s16)parse_lo(w1));
 }
 
-static void LOADBUFF3 (u32 inst1, u32 inst2) {
-    u32 v0;
-    u32 cnt = (((inst1 >> 0xC)+3)&0xFFC);
-    v0 = (inst2 & 0xfffffc);
-    u32 src = (inst1&0xffc)+0x4f0;
-    memcpy (BufferSpace+src, rsp.RDRAM+v0, cnt);
+static void LOADBUFF3 (u32 w1, u32 w2)
+ {
+    u16 length = (w1 >> 12) & 0xfff;
+    if (length == 0) { return; }
+
+    dma_read_fast((w1 + 0x4f0) & 0xff8, (w2 & 0xfffff8), length - 1);
 }
 
-static void SAVEBUFF3 (u32 inst1, u32 inst2) {
-    u32 v0;
-    u32 cnt = (((inst1 >> 0xC)+3)&0xFFC);
-    v0 = (inst2 & 0xfffffc);
-    u32 src = (inst1&0xffc)+0x4f0;
-    memcpy (rsp.RDRAM+v0, BufferSpace+src, cnt);
+static void SAVEBUFF3 (u32 w1, u32 w2)
+{
+    u16 length = (w1 >> 12) & 0xfff;
+    if (length == 0) { return; }
+
+    dma_write_fast((w2 & 0xfffff8), (w1 + 0x4f0) & 0xff8, length - 1);
 }
 
 static void LOADADPCM3 (u32 inst1, u32 inst2) { // Loads an ADPCM table - Works 100% Now 03-13-01
@@ -1346,7 +1365,7 @@ static void DMEMMOVE3 (u32 inst1, u32 inst2) { // Needs accuracy verification...
     u32 count = ((inst2+3) & 0xfffc);
 
     for (cnt = 0; cnt < count; cnt++) {
-        *(u8 *)(BufferSpace+((cnt+v1)^S8)) = *(u8 *)(BufferSpace+((cnt+v0)^S8));
+        *(u8 *)(rsp.DMEM+((cnt+v1)^S8)) = *(u8 *)(rsp.DMEM+((cnt+v0)^S8));
     }
 }
 
@@ -1874,21 +1893,17 @@ static void CLEARBUFF2 (u32 inst1, u32 inst2) {
     u16 addr = (u16)(inst1 & 0xffff);
     u16 count = (u16)(inst2 & 0xffff);
     if (count > 0)
-        memset(BufferSpace+addr, 0, count);
+        memset(rsp.DMEM+addr, 0, count);
 }
 
-static void LOADBUFF2 (u32 inst1, u32 inst2) { // Needs accuracy verification...
-    u32 v0;
-    u32 cnt = (((inst1 >> 0xC)+3)&0xFFC);
-    v0 = (inst2 & 0xfffffc);// + SEGMENTS[(inst2>>24)&0xf];
-    memcpy (BufferSpace+(inst1&0xfffc), rsp.RDRAM+v0, (cnt+3)&0xFFFC);
+static void LOADBUFF2 (u32 w1, u32 w2)
+{
+    dma_read_fast(w1 & 0xff8, parse_address(w2) & ~7, ((w1 >> 12) & 0xff0) - 1);
 }
 
-static void SAVEBUFF2 (u32 inst1, u32 inst2) { // Needs accuracy verification...
-    u32 v0;
-    u32 cnt = (((inst1 >> 0xC)+3)&0xFFC);
-    v0 = (inst2 & 0xfffffc);// + SEGMENTS[(inst2>>24)&0xf];
-    memcpy (rsp.RDRAM+v0, BufferSpace+(inst1&0xfffc), (cnt+3)&0xFFFC);
+static void SAVEBUFF2 (u32 w1, u32 w2)
+{
+    dma_write_fast(parse_address(w2) & ~7, w1 & 0xff8, ((w1 >> 12) & 0xff0) - 1);
 }
 
 
@@ -1921,7 +1936,7 @@ static void DMEMMOVE2 (u32 inst1, u32 inst2) { // Needs accuracy verification...
     v1 = (inst2 >> 0x10);
     u32 count = ((inst2+3) & 0xfffc);
     for (cnt = 0; cnt < count; cnt++) {
-        *(u8 *)(BufferSpace+((cnt+v1)^S8)) = *(u8 *)(BufferSpace+((cnt+v0)^S8));
+        *(u8 *)(rsp.DMEM+((cnt+v1)^S8)) = *(u8 *)(rsp.DMEM+((cnt+v0)^S8));
     }
 }
 
@@ -1961,11 +1976,11 @@ static void ENVMIXER2 (u32 inst1, u32 inst2) {
 
     s16 v2[8];
 
-    buffs3 = (s16 *)(BufferSpace + ((inst1 >> 0x0c)&0x0ff0));
-    bufft6 = (s16 *)(BufferSpace + ((inst2 >> 0x14)&0x0ff0));
-    bufft7 = (s16 *)(BufferSpace + ((inst2 >> 0x0c)&0x0ff0));
-    buffs0 = (s16 *)(BufferSpace + ((inst2 >> 0x04)&0x0ff0));
-    buffs1 = (s16 *)(BufferSpace + ((inst2 << 0x04)&0x0ff0));
+    buffs3 = (s16 *)(rsp.DMEM + ((inst1 >> 0x0c)&0x0ff0));
+    bufft6 = (s16 *)(rsp.DMEM + ((inst2 >> 0x14)&0x0ff0));
+    bufft7 = (s16 *)(rsp.DMEM + ((inst2 >> 0x0c)&0x0ff0));
+    buffs0 = (s16 *)(rsp.DMEM + ((inst2 >> 0x04)&0x0ff0));
+    buffs1 = (s16 *)(rsp.DMEM + ((inst2 << 0x04)&0x0ff0));
 
 
     v2[0] = 0 - (s16)((inst1 & 0x2) >> 1);
@@ -2059,10 +2074,10 @@ static void DUPLICATE2(u32 inst1, u32 inst2) {
 
     unsigned short buff[64];
     
-    memcpy(buff,BufferSpace+In,128);
+    memcpy(buff,rsp.DMEM+In,128);
 
     while(Count) {
-        memcpy(BufferSpace+Out,buff,128);
+        memcpy(rsp.DMEM+Out,buff,128);
         Out+=128;
         Count--;
     }
@@ -2074,8 +2089,8 @@ static void INTERL2 (u32 inst1, u32 inst2) {
     unsigned short In     = (inst2 >> 16);
 
     unsigned char *src,*dst;
-    src=(unsigned char *)(BufferSpace);//[In];
-    dst=(unsigned char *)(BufferSpace);//[Out];
+    src=(unsigned char *)(rsp.DMEM);//[In];
+    dst=(unsigned char *)(rsp.DMEM);//[Out];
     while(Count) {
         *(short *)(dst+(Out^S8)) = *(short *)(src+(In^S8));
         Out += 2;
@@ -2114,8 +2129,8 @@ static void ADDMIXER (u32 inst1, u32 inst2) {
 
     s16 *inp, *outp;
     s32 temp;
-    inp  = (s16 *)(BufferSpace + InBuffer);
-    outp = (s16 *)(BufferSpace + OutBuffer);
+    inp  = (s16 *)(rsp.DMEM + InBuffer);
+    outp = (s16 *)(rsp.DMEM + OutBuffer);
     for (cntr = 0; cntr < Count; cntr+=2) {
         temp = *outp + *inp;
         if (temp > 32767)  temp = 32767; if (temp < -32768) temp = -32768;
@@ -2131,7 +2146,7 @@ static void HILOGAIN (u32 inst1, u32 inst2) {
     u16 lo  = (inst1 >> 20) & 0xf;
     s16 *src;
 
-    src = (s16 *)(BufferSpace+out);
+    src = (s16 *)(rsp.DMEM+out);
     s32 tmp, val;
 
     while(cnt) {
@@ -2176,7 +2191,7 @@ static void FILTER2 (u32 inst1, u32 inst2) {
             u32 inPtr = (u32)(inst1&0xffff);
             inp1 = (short *)(save);
             outp = outbuff;
-            inp2 = (short *)(BufferSpace+inPtr);
+            inp2 = (short *)(rsp.DMEM+inPtr);
             for (x = 0; x < cnt; x+=0x10) {
                 out1[1] =  inp1[0]*lutt6[6];
                 out1[1] += inp1[3]*lutt6[7];
@@ -2263,7 +2278,7 @@ static void FILTER2 (u32 inst1, u32 inst2) {
             }
 //          memcpy (rsp.RDRAM+(inst2&0xFFFFFF), dmem+0xFB0, 0x20);
             memcpy (save, inp2-8, 0x10);
-            memcpy (BufferSpace+(inst1&0xffff), outbuff, cnt);
+            memcpy (rsp.DMEM+(inst1&0xffff), outbuff, cnt);
 }
 
 static void SEGMENT2 (u32 inst1, u32 inst2) {
