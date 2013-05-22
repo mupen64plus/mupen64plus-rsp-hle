@@ -640,6 +640,24 @@ static void decode_adpcm(
     memcpy(&rsp.RDRAM[state_address], dst, 32);
 }
 
+static void mix_buffers(u16 in, u16 out, int count, s16 gain)
+{
+    s32 accu;
+    int i;
+
+    s16 *src = (s16*)(BufferSpace+in);
+    s16 *dst = (s16*)(BufferSpace+out);
+
+    for (i = 0; i < count; ++i)
+    {
+        accu = ((s32)(*src) * (s32)gain) >> 15;
+        accu += (s32)(*dst);
+        *dst = clamp_s16(accu);
+
+        ++src; ++dst;
+    }
+}
+
 static void resample_buffer(
         int init,
         u32 state_address,
@@ -1087,22 +1105,13 @@ static void INTERLEAVE (u32 inst1, u32 inst2) { // Works... - 3-11-01
 }
 
 
-static void MIXER (u32 inst1, u32 inst2) { // Fixed a sign issue... 03-14-01
-    u32 dmemin  = parse_hi(inst2);
-    u32 dmemout = parse_lo(inst2);
-    s32 gain    = (s16)parse_lo(inst1);
-    s32 temp;
-    int x;
-
-    if (audio.count == 0)
-        return;
-
-    for (x=0; x < audio.count; x+=2) { // I think I can do this a lot easier
-        temp = (*(s16 *)(BufferSpace+dmemin+x) * gain) >> 15;
-        temp += *(s16 *)(BufferSpace+dmemout+x);
-
-        *(s16*)(BufferSpace+dmemout+x) = clamp_s16(temp);
-    }
+static void MIXER (u32 w1, u32 w2)
+{
+    mix_buffers(
+            parse_hi(w2),
+            parse_lo(w2),
+            audio.count >> 1,
+            (s16)parse_lo(w1));
 }
 
 static void SETVOL3 (u32 inst1, u32 inst2) {
@@ -1280,24 +1289,13 @@ static void CLEARBUFF3 (u32 inst1, u32 inst2) {
     memset(BufferSpace+addr+0x4f0, 0, count);
 }
 
-static void MIXER3 (u32 inst1, u32 inst2) { // Needs accuracy verification...
-    u16 dmemin  = (u16)(inst2 >> 0x10)  + 0x4f0;
-    u16 dmemout = (u16)(inst2 & 0xFFFF) + 0x4f0;
-    s32 gain    = (s16)(inst1 & 0xFFFF);
-    s32 temp;
-    int x;
-
-    for (x=0; x < 0x170; x+=2) { // I think I can do this a lot easier
-        temp = (*(s16 *)(BufferSpace+dmemin+x) * gain) >> 15;
-        temp += *(s16 *)(BufferSpace+dmemout+x);
-            
-        if ((s32)temp > 32767) 
-            temp = 32767;
-        if ((s32)temp < -32768) 
-            temp = -32768;
-
-        *(u16 *)(BufferSpace+dmemout+x) = (u16)(temp & 0xFFFF);
-    }
+static void MIXER3 (u32 w1, u32 w2)
+{
+    mix_buffers(
+            parse_hi(w2) + 0x4f0,
+            parse_lo(w2) + 0x4f0,
+            0x170 >> 1,
+            (s16)parse_lo(w1));
 }
 
 static void LOADBUFF3 (u32 inst1, u32 inst2) {
@@ -1912,26 +1910,13 @@ static void SAVEBUFF2 (u32 inst1, u32 inst2) { // Needs accuracy verification...
 }
 
 
-static void MIXER2 (u32 inst1, u32 inst2) { // Needs accuracy verification...
-    u16 dmemin  = (u16)(inst2 >> 0x10);
-    u16 dmemout = (u16)(inst2 & 0xFFFF);
-    u32 count   = ((inst1 >> 12) & 0xFF0);
-    s32 gain    = (s16)(inst1 & 0xFFFF);
-    s32 temp;
-    u32 x;
-
-    for (x=0; x < count; x+=2) { // I think I can do this a lot easier 
-
-        temp = (*(s16 *)(BufferSpace+dmemin+x) * gain) >> 15;
-        temp += *(s16 *)(BufferSpace+dmemout+x);
-            
-        if ((s32)temp > 32767) 
-            temp = 32767;
-        if ((s32)temp < -32768) 
-            temp = -32768;
-
-        *(u16 *)(BufferSpace+dmemout+x) = (u16)(temp & 0xFFFF);
-    }
+static void MIXER2 (u32 w1, u32 w2)
+{
+    mix_buffers(
+            parse_hi(w2),
+            parse_lo(w2),
+            ((w1 >> 12) & 0xff0) >> 1,
+            (s16)parse_lo(w1));
 }
 
 static void RESAMPLE2 (u32 w1, u32 w2)
