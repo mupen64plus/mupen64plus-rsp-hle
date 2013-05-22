@@ -382,18 +382,89 @@ static void alist_process(const acmd_callback_t abi[], unsigned int abi_size)
 }
 
 
+static void resample_buffer(
+        int init,
+        u32 state_address,
+        unsigned int pitch,
+        u16 in,
+        u16 out,
+        int count)
+{
+    unsigned int pitch_accu = 0;
+    unsigned int location;
+    s16 *lut;
+    short *dst;
+    s16 *src;
+    dst=(short *)(BufferSpace);
+    src=(s16 *)(BufferSpace);
+    u32 srcPtr = in;
+    u32 dstPtr = out;
+    s32 temp;
+    s32 accum;
+    int i;
+
+    srcPtr -= 4;
+
+    if (init)
+    {
+        for (i=0; i < 4; i++)
+            src[(srcPtr+i)^S] = 0;
+        pitch_accu = 0;
+    }
+    else
+    {
+        for (i=0; i < 4; i++)
+            src[(srcPtr+i)^S] = ((u16 *)rsp.RDRAM)[((state_address/2)+i)^S];
+        pitch_accu = (unsigned int)(*(u16 *)(rsp.RDRAM+state_address+10));
+    }
+
+    for(i=0; i < count; i++)
+    {
+       // location is the fractional position between two samples
+        location = (pitch_accu >> 10) << 2;
+        lut = (s16*)RESAMPLE_LUT + location;
+
+        temp =  ((s32)*(s16*)(src+((srcPtr+0)^S))*((s32)((s16)lut[0])));
+        accum = (s32)(temp >> 15);
+
+        temp = ((s32)*(s16*)(src+((srcPtr+1)^S))*((s32)((s16)lut[1])));
+        accum += (s32)(temp >> 15);
+
+        temp = ((s32)*(s16*)(src+((srcPtr+2)^S))*((s32)((s16)lut[2])));
+        accum += (s32)(temp >> 15);
+
+        temp = ((s32)*(s16*)(src+((srcPtr+3)^S))*((s32)((s16)lut[3])));
+        accum += (s32)(temp >> 15);
+
+        dst[dstPtr^S] = clamp_s16(accum);
+        dstPtr++;
+        pitch_accu += pitch;
+        srcPtr += (pitch_accu>>16);
+        pitch_accu &= 0xffff;
+    }
+    for (i=0; i < 4; i++)
+        ((u16 *)rsp.RDRAM)[((state_address/2)+i)^S] = src[(srcPtr+i)^S];
+    *(u16 *)(rsp.RDRAM+state_address+10) = pitch_accu;
+}
+
+
+
+
+
+
+
+
 /* Audio commands */
-static void SPNOOP(u32 inst1, u32 inst2)
+static void SPNOOP(u32 w1, u32 w2)
 {
 }
 
-static void UNKNOWN(u32 inst1, u32 inst2)
+static void UNKNOWN(u32 w1, u32 w2)
 {
     DebugMessage(M64MSG_WARNING,
             "Unknown audio command %d: %08x %08x",
-            parse_acmd(inst1), inst1, inst2);
+            parse_acmd(w1), w1, w2);
 }
-
 
 static void SEGMENT(u32 inst1, u32 inst2)
 {
@@ -588,62 +659,15 @@ static void ENVMIXER (u32 inst1, u32 inst2) {
     memcpy(rsp.RDRAM+addy, (u8 *)state_buffer,80);
 }
 
-static void RESAMPLE (u32 inst1, u32 inst2) {
-    unsigned flags = parse_flags(inst1);
-    unsigned int Pitch= parse_lo(inst1) << 1;
-    u32 addy = parse_address(inst2);
-    unsigned int Accum=0;
-    unsigned int location;
-    s16 *lut;
-    short *dst;
-    s16 *src;
-    dst=(short *)(BufferSpace);
-    src=(s16 *)(BufferSpace);
-    u32 srcPtr=(audio.in/2);
-    u32 dstPtr=(audio.out/2);
-    s32 temp;
-    s32 accum;
-    int count = align(audio.count, 16) >> 1;
-    int i;
-
-    srcPtr -= 4;
-
-    if (flags & A_INIT) {
-        for (i=0; i < 4; i++)
-            src[(srcPtr+i)^S] = 0;
-    } else {
-        for (i=0; i < 4; i++)
-            src[(srcPtr+i)^S] = ((u16 *)rsp.RDRAM)[((addy/2)+i)^S];
-        Accum = *(u16 *)(rsp.RDRAM+addy+10);
-    }
-
-    for(i=0; i < count; i++)
-    {
-       // location is the fractional position between two samples
-        location = (Accum >> 0xa) * 4;
-        lut = (s16*)RESAMPLE_LUT + location;
-
-        temp =  ((s32)*(s16*)(src+((srcPtr+0)^S))*((s32)((s16)lut[0])));
-        accum = (s32)(temp >> 15);
-
-        temp = ((s32)*(s16*)(src+((srcPtr+1)^S))*((s32)((s16)lut[1])));
-        accum += (s32)(temp >> 15);
-
-        temp = ((s32)*(s16*)(src+((srcPtr+2)^S))*((s32)((s16)lut[2])));
-        accum += (s32)(temp >> 15);
-
-        temp = ((s32)*(s16*)(src+((srcPtr+3)^S))*((s32)((s16)lut[3])));
-        accum += (s32)(temp >> 15);
-
-        dst[dstPtr^S] = clamp_s16(accum);
-        dstPtr++;
-        Accum += Pitch;
-        srcPtr += (Accum>>16);
-        Accum&=0xffff;
-    }
-    for (i=0; i < 4; i++)
-        ((u16 *)rsp.RDRAM)[((addy/2)+i)^S] = src[(srcPtr+i)^S];
-    *(u16 *)(rsp.RDRAM+addy+10) = Accum;
+static void RESAMPLE (u32 w1, u32 w2)
+{
+    resample_buffer(
+            parse_flags(w1) & A_INIT,
+            parse_address(w2),
+            (unsigned int)(parse_lo(w1)) << 1,
+            audio.in >> 1,
+            audio.out >> 1,
+            align(audio.count, 16) >> 1);
 }
 
 static void SETVOL (u32 inst1, u32 inst2) {
@@ -1510,68 +1534,15 @@ static void ADPCM3 (u32 inst1, u32 inst2) { // Verified to be 100% Accurate...
     memcpy(&rsp.RDRAM[Address],out,32);
 }
 
-static void RESAMPLE3 (u32 inst1, u32 inst2) {
-    unsigned char Flags=(u8)((inst2>>0x1e));
-    unsigned int Pitch=((inst2>>0xe)&0xffff)<<1;
-    u32 addy = (inst1 & 0xffffff);
-    unsigned int Accum=0;
-    unsigned int location;
-    s16 *lut;
-    short *dst;
-    s16 *src;
-    dst=(short *)(BufferSpace);
-    src=(s16 *)(BufferSpace);
-    u32 srcPtr=((((inst2>>2)&0xfff)+0x4f0)/2);
-    u32 dstPtr;
-    s32 temp;
-    s32 accum;
-    int i;
-
-    srcPtr -= 4;
-
-    if (inst2 & 0x3) {
-        dstPtr = 0x660/2;
-    } else {
-        dstPtr = 0x4f0/2;
-    }
-
-    if ((Flags & 0x1) == 0) {   
-        for (i=0; i < 4; i++)
-            src[(srcPtr+i)^S] = ((u16 *)rsp.RDRAM)[((addy/2)+i)^S];
-        Accum = *(u16 *)(rsp.RDRAM+addy+10);
-    } else {
-        for (i=0; i < 4; i++)
-            src[(srcPtr+i)^S] = 0;
-    }
-
-    for(i=0;i < 0x170/2;i++)    {
-        location = (((Accum * 0x40) >> 0x10) * 8);
-        lut = (s16 *)(((u8 *)RESAMPLE_LUT) + location);
-
-        temp =  ((s32)*(s16*)(src+((srcPtr+0)^S))*((s32)((s16)lut[0])));
-        accum = (s32)(temp >> 15);
-
-        temp = ((s32)*(s16*)(src+((srcPtr+1)^S))*((s32)((s16)lut[1])));
-        accum += (s32)(temp >> 15);
-
-        temp = ((s32)*(s16*)(src+((srcPtr+2)^S))*((s32)((s16)lut[2])));
-        accum += (s32)(temp >> 15);
-        
-        temp = ((s32)*(s16*)(src+((srcPtr+3)^S))*((s32)((s16)lut[3])));
-        accum += (s32)(temp >> 15);
-
-        if (accum > 32767) accum = 32767;
-        if (accum < -32768) accum = -32768;
-
-        dst[dstPtr^S] = (accum);
-        dstPtr++;
-        Accum += Pitch;
-        srcPtr += (Accum>>16);
-        Accum&=0xffff;
-    }
-    for (i=0; i < 4; i++)
-        ((u16 *)rsp.RDRAM)[((addy/2)+i)^S] = src[(srcPtr+i)^S];
-    *(u16 *)(rsp.RDRAM+addy+10) = Accum;
+static void RESAMPLE3 (u32 w1, u32 w2)
+{
+    resample_buffer(
+            ((w2 >> 30) & 0x3) & A_INIT,
+            w1 & 0xffffff,
+            ((w2 >> 14) & 0xffff) << 1,
+            (((w2 >> 2) & 0xfff) + 0x4f0) >> 1,
+            ((w2 & 0x3) ? 0x660 : 0x4f0) >> 1,
+            0x170 >> 1);
 }
 
 static void INTERLEAVE3 (u32 inst1, u32 inst2) { // Needs accuracy verification...
@@ -2369,66 +2340,15 @@ static void MIXER2 (u32 inst1, u32 inst2) { // Needs accuracy verification...
     }
 }
 
-
-static void RESAMPLE2 (u32 inst1, u32 inst2) {
-    unsigned char Flags=(u8)((inst1>>16)&0xff);
-    unsigned int Pitch=((inst1&0xffff))<<1;
-    u32 addy = (inst2 & 0xffffff);// + SEGMENTS[(inst2>>24)&0xf];
-    unsigned int Accum=0;
-    unsigned int location;
-    s16 *lut;
-    short *dst;
-    s16 *src;
-    dst=(short *)(BufferSpace);
-    src=(s16 *)(BufferSpace);
-    u32 srcPtr=(audio2.in/2);
-    u32 dstPtr=(audio2.out/2);
-    s32 temp;
-    s32 accum;
-    int i;
-
-    if (addy > (1024*1024*8))
-        addy = (inst2 & 0xffffff);
-
-    srcPtr -= 4;
-
-    if ((Flags & 0x1) == 0) {   
-        for (i=0; i < 4; i++) //memcpy (src+srcPtr, rsp.RDRAM+addy, 0x8);
-            src[(srcPtr+i)^S] = ((u16 *)rsp.RDRAM)[((addy/2)+i)^S];
-        Accum = *(u16 *)(rsp.RDRAM+addy+10);
-    } else {
-        for (i=0; i < 4; i++)
-            src[(srcPtr+i)^S] = 0;//*(u16 *)(rsp.RDRAM+((addy+i)^2));
-    }
-
-    for(i=0;i < ((audio2.count+0xf)&0xFFF0)/2;i++)    {
-        location = (((Accum * 0x40) >> 0x10) * 8);
-        lut = (s16 *)(((u8 *)RESAMPLE_LUT) + location);
-
-        temp =  ((s32)*(s16*)(src+((srcPtr+0)^S))*((s32)((s16)lut[0])));
-        accum = (s32)(temp >> 15);
-
-        temp = ((s32)*(s16*)(src+((srcPtr+1)^S))*((s32)((s16)lut[1])));
-        accum += (s32)(temp >> 15);
-
-        temp = ((s32)*(s16*)(src+((srcPtr+2)^S))*((s32)((s16)lut[2])));
-        accum += (s32)(temp >> 15);
-        
-        temp = ((s32)*(s16*)(src+((srcPtr+3)^S))*((s32)((s16)lut[3])));
-        accum += (s32)(temp >> 15);
-
-        if (accum > 32767) accum = 32767;
-        if (accum < -32768) accum = -32768;
-
-        dst[dstPtr^S] = (s16)(accum);
-        dstPtr++;
-        Accum += Pitch;
-        srcPtr += (Accum>>16);
-        Accum&=0xffff;
-    }
-    for (i=0; i < 4; i++)
-        ((u16 *)rsp.RDRAM)[((addy/2)+i)^S] = src[(srcPtr+i)^S];
-    *(u16 *)(rsp.RDRAM+addy+10) = (u16)Accum;
+static void RESAMPLE2 (u32 w1, u32 w2)
+{
+    resample_buffer(
+            parse_flags(w1) & A_INIT,
+            parse_address(w2),
+            (unsigned int)(parse_lo(w1)) << 1,
+            audio2.in >> 1,
+            audio2.out >> 1,
+            align(audio2.count, 16) >> 1);
 }
 
 static void DMEMMOVE2 (u32 inst1, u32 inst2) { // Needs accuracy verification...
