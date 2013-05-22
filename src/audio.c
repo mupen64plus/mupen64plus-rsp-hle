@@ -723,7 +723,35 @@ static void resample_buffer(
     *(u16 *)(rsp.RDRAM+state_address+10) = pitch_accu;
 }
 
+static void interleave_buffers(u16 right, u16 left, u16 out, int count)
+{
+    int i;
+    u16 Left, Right, Left2, Right2;
 
+    u16 *srcR = (u16*)(BufferSpace + right);
+    u16 *srcL = (u16*)(BufferSpace + left);
+    u16 *dst = (u16*)(BufferSpace + out);
+
+    for (i = 0; i < count; ++i)
+    {
+        Left=*(srcL++);
+        Right=*(srcR++);
+        Left2=*(srcL++);
+        Right2=*(srcR++);
+
+#ifdef M64P_BIG_ENDIAN
+        *(dst++)=Right;
+        *(dst++)=Left;
+        *(dst++)=Right2;
+        *(dst++)=Left2;
+#else
+        *(dst++)=Right2;
+        *(dst++)=Left2;
+        *(dst++)=Right;
+        *(dst++)=Left;
+#endif
+    }
+}
 
 
 
@@ -1070,38 +1098,13 @@ static void LOADADPCM (u32 inst1, u32 inst2) { // Loads an ADPCM table - Works 1
 }
 
 
-static void INTERLEAVE (u32 inst1, u32 inst2) { // Works... - 3-11-01
-    int x;
-    u32 inL, inR;
-    u16 *outbuff = (u16 *)(audio.out+BufferSpace);
-    u16 *inSrcR;
-    u16 *inSrcL;
-    u16 Left, Right, Left2, Right2;
-
-    inL = parse_lo(inst2);
-    inR = parse_hi(inst2);
-
-    inSrcR = (u16 *)(BufferSpace+inR);
-    inSrcL = (u16 *)(BufferSpace+inL);
-
-    for (x = 0; x < (audio.count/4); x++) {
-        Left=*(inSrcL++);
-        Right=*(inSrcR++);
-        Left2=*(inSrcL++);
-        Right2=*(inSrcR++);
-
-#ifdef M64P_BIG_ENDIAN
-        *(outbuff++)=Right;
-        *(outbuff++)=Left;
-        *(outbuff++)=Right2;
-        *(outbuff++)=Left2;
-#else
-        *(outbuff++)=Right2;
-        *(outbuff++)=Left2;
-        *(outbuff++)=Right;
-        *(outbuff++)=Left;
-#endif
-    }
+static void INTERLEAVE (u32 w1, u32 w2)
+{
+    interleave_buffers(
+            parse_hi(w2),
+            parse_lo(w2),
+            audio.out,
+            audio.count >> 2);
 }
 
 
@@ -1378,34 +1381,13 @@ static void RESAMPLE3 (u32 w1, u32 w2)
             0x170 >> 1);
 }
 
-static void INTERLEAVE3 (u32 inst1, u32 inst2) { // Needs accuracy verification...
-    u16 *outbuff = (u16 *)(BufferSpace + 0x4f0);
-    u16 *inSrcR;
-    u16 *inSrcL;
-    u16 Left, Right, Left2, Right2;
-    int x;
-
-    inSrcR = (u16 *)(BufferSpace+0xb40);
-    inSrcL = (u16 *)(BufferSpace+0x9d0);
-
-    for (x = 0; x < (0x170/4); x++) {
-        Left=*(inSrcL++);
-        Right=*(inSrcR++);
-        Left2=*(inSrcL++);
-        Right2=*(inSrcR++);
-
-#ifdef M64P_BIG_ENDIAN
-        *(outbuff++)=Right;
-        *(outbuff++)=Left;
-        *(outbuff++)=Right2;
-        *(outbuff++)=Left2;
-#else
-        *(outbuff++)=Right2;
-        *(outbuff++)=Left2;
-        *(outbuff++)=Right;
-        *(outbuff++)=Left;
-#endif
-    }
+static void INTERLEAVE3 (u32 w1, u32 w2)
+{
+    interleave_buffers(
+            0xb40,
+            0x9d0,
+            0x4f0,
+            0x170 >> 2);
 }
 
 static void MP3ADDY (u32 inst1, u32 inst2) {
@@ -2102,47 +2084,26 @@ static void INTERL2 (u32 inst1, u32 inst2) {
     }
 }
 
-static void INTERLEAVE2 (u32 inst1, u32 inst2) { // Needs accuracy verification...
-    u32 inL, inR;
-    u16 *outbuff;
-    u16 *inSrcR;
-    u16 *inSrcL;
-    u16 Left, Right, Left2, Right2;
-    u32 count;
-    u32 x;
-
-    count   = ((inst1 >> 12) & 0xFF0);
-    if (count == 0) {
-        outbuff = (u16 *)(audio2.out+BufferSpace);
+static void INTERLEAVE2 (u32 w1, u32 w2)
+{
+    u16 out;
+    int count = ((w1 >> 12) & 0xff0);
+    if (count == 0)
+    {
+        out = audio2.out;
         count = audio2.count;
-    } else {
-        outbuff = (u16 *)((inst1&0xFFFF)+BufferSpace);
+    }
+    else
+    {
+        out = parse_lo(w1);
     }
 
-    inR = inst2 & 0xFFFF;
-    inL = (inst2 >> 16) & 0xFFFF;
-
-    inSrcR = (u16 *)(BufferSpace+inR);
-    inSrcL = (u16 *)(BufferSpace+inL);
-
-    for (x = 0; x < (count/4); x++) {
-        Left=*(inSrcL++);
-        Right=*(inSrcR++);
-        Left2=*(inSrcL++);
-        Right2=*(inSrcR++);
-
-#ifdef M64P_BIG_ENDIAN
-        *(outbuff++)=Right;
-        *(outbuff++)=Left;
-        *(outbuff++)=Right2;
-        *(outbuff++)=Left2;
-#else
-        *(outbuff++)=Right2;
-        *(outbuff++)=Left2;
-        *(outbuff++)=Right;
-        *(outbuff++)=Left;
-#endif
-    }
+    // TODO: verify L/R order ?
+    interleave_buffers(
+            parse_lo(w2),
+            parse_hi(w2),
+            out,
+            count >> 2);
 }
 
 static void ADDMIXER (u32 inst1, u32 inst2) {
