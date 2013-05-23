@@ -797,6 +797,17 @@ static void interleave_buffers(u16 right, u16 left, u16 out, int count)
     }
 }
 
+static void dmem_move(u16 dst, u16 src, int count)
+{
+    int i;
+
+    for(i = 0; i < count; ++i)
+    {
+        *(u8*)(rsp.DMEM+(dst^S8)) = *(u8*)(rsp.DMEM+(src^S8));
+        ++src;
+        ++dst;
+    }
+}
 
 
 
@@ -1101,18 +1112,16 @@ static void SETBUFF (u32 inst1, u32 inst2) { // Should work ;-)
     }
 }
 
-static void DMEMMOVE (u32 inst1, u32 inst2) { // Doesn't sound just right?... will fix when HLE is ready - 03-11-01
-    u32 v0, v1;
-    u32 cnt;
-    u32 count = parse_lo(inst2);
-    if (count == 0)
-        return;
-    v0 = parse_lo(inst1);
-    v1 = parse_hi(inst2);
-    count = align(count, 4);
-    for (cnt = 0; cnt < count; cnt++) {
-        *(u8 *)(rsp.DMEM+((cnt+v1)^S8)) = *(u8 *)(rsp.DMEM+((cnt+v0)^S8));
-    }
+static void DMEMMOVE(u32 w1, u32 w2)
+{
+    int count = (int)parse_lo(w2);
+
+    if (count == 0) { return; }
+
+    dmem_move(
+        parse_hi(w2),
+        parse_lo(w1),
+        align(count, 4));
 }
 
 static void LOADADPCM (u32 w1, u32 w2)
@@ -1351,16 +1360,12 @@ static void LOADADPCM3 (u32 w1, u32 w2)
             w1 & 0xffff);
 }
 
-static void DMEMMOVE3 (u32 inst1, u32 inst2) { // Needs accuracy verification...
-    u32 v0, v1;
-    u32 cnt;
-    v0 = (inst1 & 0xFFFF) + 0x4f0;
-    v1 = (inst2 >> 0x10) + 0x4f0;
-    u32 count = ((inst2+3) & 0xfffc);
-
-    for (cnt = 0; cnt < count; cnt++) {
-        *(u8 *)(rsp.DMEM+((cnt+v1)^S8)) = *(u8 *)(rsp.DMEM+((cnt+v0)^S8));
-    }
+static void DMEMMOVE3 (u32 w1, u32 w2)
+{
+    dmem_move(
+            0x4f0 + parse_hi(w2),
+            0x4f0 + parse_lo(w1),
+            align(parse_lo(w2), 4));
 }
 
 static void SETLOOP3 (u32 inst1, u32 inst2) {
@@ -1907,17 +1912,16 @@ static void RESAMPLE2 (u32 w1, u32 w2)
             align(audio2.count, 16) >> 1);
 }
 
-static void DMEMMOVE2 (u32 inst1, u32 inst2) { // Needs accuracy verification...
-    u32 v0, v1;
-    u32 cnt;
-    if ((inst2 & 0xffff)==0)
-        return;
-    v0 = (inst1 & 0xFFFF);
-    v1 = (inst2 >> 0x10);
-    u32 count = ((inst2+3) & 0xfffc);
-    for (cnt = 0; cnt < count; cnt++) {
-        *(u8 *)(rsp.DMEM+((cnt+v1)^S8)) = *(u8 *)(rsp.DMEM+((cnt+v0)^S8));
-    }
+static void DMEMMOVE2 (u32 w1, u32 w2)
+{
+    int count = (int)parse_lo(w2);
+
+    if (count == 0) { return; }
+
+    dmem_move(
+        parse_hi(w2),
+        parse_lo(w1),
+        align(count, 4));
 }
 
 static void ENVSETUP1 (u32 inst1, u32 inst2) {
