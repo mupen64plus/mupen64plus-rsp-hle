@@ -27,12 +27,6 @@
 #include "hle.h"
 #include "m64p_types.h"
 
-#ifdef USE_EXPANSION
-    #define MEMMASK 0x7FFFFF
-#else
-    #define MEMMASK 0x3FFFFF
-#endif
-
 /* types defintions */
 typedef void (*acmd_callback_t)(u32 inst1, u32 inst2);
 
