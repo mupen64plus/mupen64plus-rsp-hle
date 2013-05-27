@@ -326,6 +326,17 @@ static s16 clamp_s16(s32 x)
     return x;
 }
 
+static s32 dmul(s16 x, s16 y)
+{
+    return ((s32)x * (s32)y) >> 15;
+}
+
+static s32 dmul_round(s16 x, s16 y)
+{
+    return ((s32)x * (s32)y + 0x4000) >> 15;
+}
+
+
 static unsigned parse_acmd(u32 w1)
 {
     return (w1 >> 24) & 0xff;
@@ -605,7 +616,6 @@ static void decode_adpcm(
 
 static void mix_buffers(u16 in, u16 out, int count, s16 gain)
 {
-    s32 accu;
     int i;
 
     s16 *src = (s16*)(rsp.DMEM+in);
@@ -613,10 +623,7 @@ static void mix_buffers(u16 in, u16 out, int count, s16 gain)
 
     for (i = 0; i < count; ++i)
     {
-        accu = ((s32)(*src) * (s32)gain) >> 15;
-        accu += (s32)(*dst);
-        *dst = clamp_s16(accu);
-
+        *dst = clamp_s16((s32)*dst + dmul(*src, gain));
         ++src; ++dst;
     }
 }
@@ -638,7 +645,6 @@ static void resample_buffer(
     src=(s16 *)(rsp.DMEM);
     u32 srcPtr = in;
     u32 dstPtr = out;
-    s32 temp;
     s32 accum;
     int i;
 
@@ -663,17 +669,10 @@ static void resample_buffer(
         location = (pitch_accu >> 10) << 2;
         lut = (s16*)RESAMPLE_LUT + location;
 
-        temp =  ((s32)*(s16*)(src+((srcPtr+0)^S))*((s32)((s16)lut[0])));
-        accum = (s32)(temp >> 15);
-
-        temp = ((s32)*(s16*)(src+((srcPtr+1)^S))*((s32)((s16)lut[1])));
-        accum += (s32)(temp >> 15);
-
-        temp = ((s32)*(s16*)(src+((srcPtr+2)^S))*((s32)((s16)lut[2])));
-        accum += (s32)(temp >> 15);
-
-        temp = ((s32)*(s16*)(src+((srcPtr+3)^S))*((s32)((s16)lut[3])));
-        accum += (s32)(temp >> 15);
+        accum  = dmul(src[(srcPtr+0)^S], lut[0]);
+        accum += dmul(src[(srcPtr+1)^S], lut[1]);
+        accum += dmul(src[(srcPtr+2)^S], lut[2]);
+        accum += dmul(src[(srcPtr+3)^S], lut[3]);
 
         dst[dstPtr^S] = clamp_s16(accum);
         dstPtr++;
@@ -826,10 +825,10 @@ static void ENVMIXER (u32 inst1, u32 inst2) {
         aux2=aux3=zero;
     }
 
-    oMainL = (Dry * (LTrg>>16) + 0x4000) >> 15;
-    oAuxL  = (Wet * (LTrg>>16) + 0x4000)  >> 15;
-    oMainR = (Dry * (RTrg>>16) + 0x4000) >> 15;
-    oAuxR  = (Wet * (RTrg>>16) + 0x4000)  >> 15;
+    oMainL = dmul_round(Dry, LTrg >> 16);
+    oAuxL  = dmul_round(Wet, LTrg >> 16);
+    oMainR = dmul_round(Dry, RTrg >> 16);
+    oAuxR  = dmul_round(Wet, RTrg >> 16);
 
     for (y = 0; y < audio.count; y += 0x10) {
 
@@ -875,8 +874,8 @@ static void ENVMIXER (u32 inst1, u32 inst2) {
                 MainL = oMainL;
                 AuxL  = oAuxL;
             } else {
-                MainL = (Dry * ((s32)LAcc>>16) + 0x4000) >> 15;
-                AuxL  = (Wet * ((s32)LAcc>>16) + 0x4000)  >> 15;
+                MainL = dmul_round(Dry, LAcc >> 16);
+                AuxL  = dmul_round(Wet, LAcc >> 16);
             }
         } else {
             if (LAcc > LTrg) {
@@ -885,8 +884,8 @@ static void ENVMIXER (u32 inst1, u32 inst2) {
                 MainL = oMainL;
                 AuxL  = oAuxL;
             } else {
-                MainL = (Dry * ((s32)LAcc>>16) + 0x4000) >> 15;
-                AuxL  = (Wet * ((s32)LAcc>>16) + 0x4000)  >> 15;
+                MainL = dmul_round(Dry, LAcc >> 16);
+                AuxL  = dmul_round(Wet, LAcc >> 16);
             }
         }
 
@@ -897,8 +896,8 @@ static void ENVMIXER (u32 inst1, u32 inst2) {
                 MainR = oMainR;
                 AuxR  = oAuxR;
             } else {
-                MainR = (Dry * ((s32)RAcc>>16) + 0x4000) >> 15;
-                AuxR  = (Wet * ((s32)RAcc>>16) + 0x4000)  >> 15;
+                MainR = dmul_round(Dry, RAcc >> 16);
+                AuxR  = dmul_round(Wet, RAcc >> 16);
             }
         } else {
             if (RAcc > RTrg) {
@@ -907,19 +906,19 @@ static void ENVMIXER (u32 inst1, u32 inst2) {
                 MainR = oMainR;
                 AuxR  = oAuxR;
             } else {
-                MainR = (Dry * ((s32)RAcc>>16) + 0x4000) >> 15;
-                AuxR  = (Wet * ((s32)RAcc>>16) + 0x4000)  >> 15;
+                MainR = dmul_round(Dry, RAcc >> 16);
+                AuxR  = dmul_round(Wet, RAcc >> 16);
             }
         }
 
-        o1+=((i1*MainR)+0x4000)>>15;
-        a1+=((i1*MainL)+0x4000)>>15;
+        o1 += dmul_round(i1, MainR);
+        a1 += dmul_round(i1, MainL);
 
         out[ptr^S]  = clamp_s16(o1);
         aux1[ptr^S] = clamp_s16(a1);
         if (AuxIncRate) {
-            a2+=((i1*AuxR)+0x4000)>>15;
-            a3+=((i1*AuxL)+0x4000)>>15;
+            a2 += dmul_round(i1, AuxR);
+            a3 += dmul_round(i1, AuxL);
 
             aux2[ptr^S] = clamp_s16(a2);
             aux3[ptr^S] = clamp_s16(a3);
@@ -1180,15 +1179,15 @@ static void ENVMIXER3 (u32 inst1, u32 inst2) {
             }
         }
 // ****************************************************************
-        MainL = ((Dry * LVol) + 0x4000) >> 15;
-        MainR = ((Dry * RVol) + 0x4000) >> 15;
+        MainL = dmul_round(Dry, LVol);
+        MainR = dmul_round(Dry, RVol);
 
         o1 = out [y^S];
         a1 = aux1[y^S];
         i1 = inp [y^S];
 
-        o1+=((i1*MainL)+0x4000)>>15;
-        a1+=((i1*MainR)+0x4000)>>15;
+        o1 += dmul_round(i1, MainL);
+        a1 += dmul_round(i1, MainR);
 
 // ****************************************************************
 
@@ -1200,11 +1199,11 @@ static void ENVMIXER3 (u32 inst1, u32 inst2) {
             a2 = aux2[y^S];
             a3 = aux3[y^S];
 
-            AuxL  = ((Wet * LVol) + 0x4000) >> 15;
-            AuxR  = ((Wet * RVol) + 0x4000) >> 15;
+            AuxL = dmul_round(Wet, LVol);
+            AuxR = dmul_round(Wet, RVol);
 
-            a2+=((i1*AuxL)+0x4000)>>15;
-            a3+=((i1*AuxR)+0x4000)>>15;
+            a2 += dmul_round(i1, AuxL);
+            a3 += dmul_round(i1, AuxR);
             
             aux2[y^S] = clamp_s16(a2);
             aux3[y^S] = clamp_s16(a3);
@@ -1650,10 +1649,11 @@ static void InnerLoop () {
                     //addptr = t1;
                 
                     for (i = 7; i >= 0; i--) {
-                        v2 += ((int)*(s16 *)(mp3data+(addptr)+0x00) * (short)DEWINDOW_LUT[offset+0x00] + 0x4000) >> 0xF;
-                        v4 += ((int)*(s16 *)(mp3data+(addptr)+0x10) * (short)DEWINDOW_LUT[offset+0x08] + 0x4000) >> 0xF;
-                        v6 += ((int)*(s16 *)(mp3data+(addptr)+0x20) * (short)DEWINDOW_LUT[offset+0x20] + 0x4000) >> 0xF;
-                        v8 += ((int)*(s16 *)(mp3data+(addptr)+0x30) * (short)DEWINDOW_LUT[offset+0x28] + 0x4000) >> 0xF;
+
+                        v2 += dmul_round(*(s16*)(mp3data+addptr+0x00), DEWINDOW_LUT[offset+0x00]);
+                        v4 += dmul_round(*(s16*)(mp3data+addptr+0x10), DEWINDOW_LUT[offset+0x08]);
+                        v6 += dmul_round(*(s16*)(mp3data+addptr+0x20), DEWINDOW_LUT[offset+0x20]);
+                        v8 += dmul_round(*(s16*)(mp3data+addptr+0x30), DEWINDOW_LUT[offset+0x28]);
                         addptr+=2; offset++;
                     }
                     s32 v0  = v2 + v4;
@@ -1671,11 +1671,11 @@ static void InnerLoop () {
                 offset = 0x10-(t4>>1) + 8*0x40;
                 v2 = v4 = 0;
                 for (i = 0; i < 4; i++) {
-                    v2 += ((int)*(s16 *)(mp3data+(addptr)+0x00) * (short)DEWINDOW_LUT[offset+0x00] + 0x4000) >> 0xF;
-                    v2 += ((int)*(s16 *)(mp3data+(addptr)+0x10) * (short)DEWINDOW_LUT[offset+0x08] + 0x4000) >> 0xF;
+                    v2 += dmul_round(*(s16*)(mp3data+addptr+0x00), DEWINDOW_LUT[offset+0x00]);
+                    v2 += dmul_round(*(s16*)(mp3data+addptr+0x10), DEWINDOW_LUT[offset+0x08]);
                     addptr+=2; offset++;
-                    v4 += ((int)*(s16 *)(mp3data+(addptr)+0x00) * (short)DEWINDOW_LUT[offset+0x00] + 0x4000) >> 0xF;
-                    v4 += ((int)*(s16 *)(mp3data+(addptr)+0x10) * (short)DEWINDOW_LUT[offset+0x08] + 0x4000) >> 0xF;
+                    v4 += dmul_round(*(s16*)(mp3data+addptr+0x00), DEWINDOW_LUT[offset+0x00]);
+                    v4 += dmul_round(*(s16*)(mp3data+addptr+0x10), DEWINDOW_LUT[offset+0x08]);
                     addptr+=2; offset++;
                 }
                 s32 mult6 = *(s32 *)(mp3data+0xCE8);
@@ -1696,14 +1696,14 @@ static void InnerLoop () {
                     offset = (0x22F-(t4>>1) + x*0x40);
                 
                     for (i = 0; i < 4; i++) {
-                        v2 += ((int)*(s16 *)(mp3data+(addptr    )+0x20) * (short)DEWINDOW_LUT[offset+0x00] + 0x4000) >> 0xF;
-                        v2 -= ((int)*(s16 *)(mp3data+((addptr+2))+0x20) * (short)DEWINDOW_LUT[offset+0x01] + 0x4000) >> 0xF;
-                        v4 += ((int)*(s16 *)(mp3data+(addptr    )+0x30) * (short)DEWINDOW_LUT[offset+0x08] + 0x4000) >> 0xF;
-                        v4 -= ((int)*(s16 *)(mp3data+((addptr+2))+0x30) * (short)DEWINDOW_LUT[offset+0x09] + 0x4000) >> 0xF;
-                        v6 += ((int)*(s16 *)(mp3data+(addptr    )+0x00) * (short)DEWINDOW_LUT[offset+0x20] + 0x4000) >> 0xF;
-                        v6 -= ((int)*(s16 *)(mp3data+((addptr+2))+0x00) * (short)DEWINDOW_LUT[offset+0x21] + 0x4000) >> 0xF;
-                        v8 += ((int)*(s16 *)(mp3data+(addptr    )+0x10) * (short)DEWINDOW_LUT[offset+0x28] + 0x4000) >> 0xF;
-                        v8 -= ((int)*(s16 *)(mp3data+((addptr+2))+0x10) * (short)DEWINDOW_LUT[offset+0x29] + 0x4000) >> 0xF;
+                        v2 += dmul_round(*(s16*)(mp3data+addptr+0x20), DEWINDOW_LUT[offset+0x00]);
+                        v2 -= dmul_round(*(s16*)(mp3data+addptr+0x22), DEWINDOW_LUT[offset+0x01]);
+                        v4 += dmul_round(*(s16*)(mp3data+addptr+0x30), DEWINDOW_LUT[offset+0x08]);
+                        v4 -= dmul_round(*(s16*)(mp3data+addptr+0x32), DEWINDOW_LUT[offset+0x09]);
+                        v6 += dmul_round(*(s16*)(mp3data+addptr+0x00), DEWINDOW_LUT[offset+0x20]);
+                        v6 -= dmul_round(*(s16*)(mp3data+addptr+0x02), DEWINDOW_LUT[offset+0x21]);
+                        v8 += dmul_round(*(s16*)(mp3data+addptr+0x10), DEWINDOW_LUT[offset+0x28]);
+                        v8 -= dmul_round(*(s16*)(mp3data+addptr+0x12), DEWINDOW_LUT[offset+0x29]);
                         addptr+=4; offset+=2;
                     }
                     s32 v0  = v2 + v4;
