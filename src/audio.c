@@ -425,6 +425,136 @@ static void load_adpcm_table(u16 *dst, u32 address, int count)
     }
 }
 
+static unsigned int adpcm_get_vscale(unsigned char nibble, unsigned char range)
+{
+    return (nibble < range) ? range - nibble : 0;
+}
+
+static s16 adpcm_unpack_sample(u8 byte, u8 mask, unsigned shift, unsigned vscale)
+{
+    s16 sample = ((u16)byte & (u16)mask) << shift;
+    sample >>= vscale; /* signed */
+    return sample;
+}
+
+typedef u16 (*adpcm_unpack_16_samples_t)(s16 *samples, u16 src, unsigned char nibble);
+
+static u16 adpcm_unpack_16_samples_4bits(s16 *samples, u16 src,  unsigned char nibble)
+{
+    unsigned int i;
+    u8 byte;
+    
+    unsigned int vscale = adpcm_get_vscale(nibble, 12);
+
+    for(i = 0; i < 8; ++i)
+    {
+        byte = rsp.DMEM[(src++)^S8];
+
+        *(samples++) = adpcm_unpack_sample(byte, 0xf0,  8, vscale);
+        *(samples++) = adpcm_unpack_sample(byte, 0x0f, 12, vscale);
+    }
+
+    return src;
+}
+
+static int adpcm_unpack_16_samples_2bits(s16 *samples, u16 src, unsigned char nibble)
+{
+    unsigned int i;
+    u8 byte;
+
+    unsigned int vscale = adpcm_get_vscale(nibble, 14);
+
+    for(i = 0; i < 4; ++i)
+    {
+        byte = rsp.DMEM[(src++)^S8];
+
+        *(samples++) = adpcm_unpack_sample(byte, 0xc0,  8, vscale);
+        *(samples++) = adpcm_unpack_sample(byte, 0x30, 10, vscale);
+        *(samples++) = adpcm_unpack_sample(byte, 0x0c, 12, vscale);
+        *(samples++) = adpcm_unpack_sample(byte, 0x03, 14, vscale);
+    }
+
+    return src;
+}
+
+static void adpcm_decode_8_samples(s16 *dst, const s16 *src, const s16 * codebook)
+{
+    const s16 * const book1 = codebook;
+    const s16 * const book2 = codebook + 8;
+
+    const s16 l1 = dst[-2 ^ S];
+    const s16 l2 = dst[-1 ^ S];
+
+    int accu;
+
+    accu  = (int)book1[0]*(int)l1;
+    accu += (int)book2[0]*(int)l2;
+    accu += (int)src[0] << 11;
+    dst[0 ^ S] = clamp_s16(accu >> 11);
+
+    accu  = (int)book1[1]*(int)l1;
+    accu += (int)book2[1]*(int)l2;
+    accu += (int)book2[0]*(int)src[0];
+    accu += (int)src[1] << 11;
+    dst[1 ^ S] = clamp_s16(accu >> 11);
+
+    accu  = (int)book1[2]*(int)l1;
+    accu += (int)book2[2]*(int)l2;
+    accu += (int)book2[1]*(int)src[0];
+    accu += (int)book2[0]*(int)src[1];
+    accu += (int)src[2] << 11;
+    dst[2 ^ S] = clamp_s16(accu >> 11);
+
+    accu  = (int)book1[3]*(int)l1;
+    accu += (int)book2[3]*(int)l2;
+    accu += (int)book2[2]*(int)src[0];
+    accu += (int)book2[1]*(int)src[1];
+    accu += (int)book2[0]*(int)src[2];
+    accu += (int)src[3] << 11;
+    dst[3 ^ S] = clamp_s16(accu >> 11);
+
+    accu  = (int)book1[4]*(int)l1;
+    accu += (int)book2[4]*(int)l2;
+    accu += (int)book2[3]*(int)src[0];
+    accu += (int)book2[2]*(int)src[1];
+    accu += (int)book2[1]*(int)src[2];
+    accu += (int)book2[0]*(int)src[3];
+    accu += (int)src[4] << 11;
+    dst[4 ^ S] = clamp_s16(accu >> 11);
+
+    accu  = (int)book1[5]*(int)l1;
+    accu += (int)book2[5]*(int)l2;
+    accu += (int)book2[4]*(int)src[0];
+    accu += (int)book2[3]*(int)src[1];
+    accu += (int)book2[2]*(int)src[2];
+    accu += (int)book2[1]*(int)src[3];
+    accu += (int)book2[0]*(int)src[4];
+    accu += (int)src[5] << 11;
+    dst[5 ^ S] = clamp_s16(accu >> 11);
+
+    accu  = (int)book1[6]*(int)l1;
+    accu += (int)book2[6]*(int)l2;
+    accu += (int)book2[5]*(int)src[0];
+    accu += (int)book2[4]*(int)src[1];
+    accu += (int)book2[3]*(int)src[2];
+    accu += (int)book2[2]*(int)src[3];
+    accu += (int)book2[1]*(int)src[4];
+    accu += (int)book2[0]*(int)src[5];
+    accu += (int)src[6] << 11;
+    dst[6 ^ S] = clamp_s16(accu >> 11);
+
+    accu  = (int)book1[7]*(int)l1;
+    accu += (int)book2[7]*(int)l2;
+    accu += (int)book2[6]*(int)src[0];
+    accu += (int)book2[5]*(int)src[1];
+    accu += (int)book2[4]*(int)src[2];
+    accu += (int)book2[3]*(int)src[3];
+    accu += (int)book2[2]*(int)src[4];
+    accu += (int)book2[1]*(int)src[5];
+    accu += (int)book2[0]*(int)src[6];
+    accu += (int)src[7] << 11;
+    dst[7 ^ S] = clamp_s16(accu >> 11);
+}
 
 static void decode_adpcm(
         int init,
@@ -437,32 +567,12 @@ static void decode_adpcm(
         u16 out,
         int count)
 {
+    unsigned char byte;
+    s16 *code;
+    s16 samples[16];
+    
     s16 *dst = (s16*)(rsp.DMEM + out);
-    unsigned char icode;
-    unsigned char code;
-    int vscale;
-    unsigned short index;
-    unsigned short j;
-    int a[8];
-    short *book1,*book2;
   
-    u8 srange, mask1, mask2, shifter;
-
-    if (better_compression)
-    {
-        srange = 14;
-        mask1 = 0xc0;
-        mask2 = 0x30;
-        shifter = 10;
-    }
-    else
-    {
-        srange = 12;
-        mask1 = 0xf0;
-        mask2 = 0x0f;
-        shifter = 12;
-    }
-
     if (init)
     {
         memset(dst, 0, 32);
@@ -473,210 +583,19 @@ static void decode_adpcm(
         memcpy(dst, src, 32);
     }
 
-    int l1=dst[14^S];
-    int l2=dst[15^S];
-    int inp1[8];
-    int inp2[8];
     dst += 16;
     while(count>0)
     {
-        code=rsp.DMEM[in^S8];
-        index=code&0xf;
-        index<<=4;
-        book1 = codebook + index;
-        book2=book1+8;
-        code>>=4;
-        vscale=(0x8000>>((srange-code)-1));
-        
-        ++in;
-        j=0;
-        while(j<8)
-        {
-            icode=rsp.DMEM[in^S8];
-            ++in;
+        byte = rsp.DMEM[in^S8]; ++in;
+        code = codebook + ((byte & 0xf) << 4);
+        byte >>= 4;
 
-            inp1[j]=(s16)((icode&mask1)<<8);         // this will in effect be signed
-            if(code<srange)
-                inp1[j]=((int)((int)inp1[j]*(int)vscale)>>16);
-            j++;
+        in = (better_compression) 
+            ? adpcm_unpack_16_samples_2bits(samples, in, byte)
+            : adpcm_unpack_16_samples_4bits(samples, in, byte);
 
-            inp1[j]=(s16)((icode&mask2)<<shifter);
-            if(code<srange)
-                inp1[j]=((int)((int)inp1[j]*(int)vscale)>>16);
-            j++;
-
-            if (better_compression)
-            {
-                inp1[j]=(s16)((icode&0xC) << 12);           // this will in effect be signed
-                if(code < 0xE) inp1[j]=((int)((int)inp1[j]*(int)vscale)>>16);
-                j++;
-
-                inp1[j]=(s16)((icode&0x3) << 14);
-                if(code < 0xE) inp1[j]=((int)((int)inp1[j]*(int)vscale)>>16);
-                j++;
-            }
-        }
-        j=0;
-        while(j<8)
-        {
-            icode=rsp.DMEM[in^S8];
-            ++in;
-
-            inp2[j]=(s16)((icode&mask1)<<8);         // this will in effect be signed
-            if(code<srange)
-                inp2[j]=((int)((int)inp2[j]*(int)vscale)>>16);
-            j++;
-
-            inp2[j]=(s16)((icode&mask2)<<shifter);
-            if(code<srange)
-                inp2[j]=((int)((int)inp2[j]*(int)vscale)>>16);
-            j++;
-
-            if (better_compression)
-            {
-                inp2[j]=(s16)((icode&0xC) << 12);           // this will in effect be signed
-                if(code < 0xE) inp2[j]=((int)((int)inp2[j]*(int)vscale)>>16);
-                j++;
-
-                inp2[j]=(s16)((icode&0x3) << 14);
-                if(code < 0xE) inp2[j]=((int)((int)inp2[j]*(int)vscale)>>16);
-                j++;
-            }
-        }
-
-        a[0]= (int)book1[0]*(int)l1;
-        a[0]+=(int)book2[0]*(int)l2;
-        a[0]+=(int)inp1[0]*(int)2048;
-
-        a[1] =(int)book1[1]*(int)l1;
-        a[1]+=(int)book2[1]*(int)l2;
-        a[1]+=(int)book2[0]*inp1[0];
-        a[1]+=(int)inp1[1]*(int)2048;
-
-        a[2] =(int)book1[2]*(int)l1;
-        a[2]+=(int)book2[2]*(int)l2;
-        a[2]+=(int)book2[1]*inp1[0];
-        a[2]+=(int)book2[0]*inp1[1];
-        a[2]+=(int)inp1[2]*(int)2048;
-
-        a[3] =(int)book1[3]*(int)l1;
-        a[3]+=(int)book2[3]*(int)l2;
-        a[3]+=(int)book2[2]*inp1[0];
-        a[3]+=(int)book2[1]*inp1[1];
-        a[3]+=(int)book2[0]*inp1[2];
-        a[3]+=(int)inp1[3]*(int)2048;
-
-        a[4] =(int)book1[4]*(int)l1;
-        a[4]+=(int)book2[4]*(int)l2;
-        a[4]+=(int)book2[3]*inp1[0];
-        a[4]+=(int)book2[2]*inp1[1];
-        a[4]+=(int)book2[1]*inp1[2];
-        a[4]+=(int)book2[0]*inp1[3];
-        a[4]+=(int)inp1[4]*(int)2048;
-
-        a[5] =(int)book1[5]*(int)l1;
-        a[5]+=(int)book2[5]*(int)l2;
-        a[5]+=(int)book2[4]*inp1[0];
-        a[5]+=(int)book2[3]*inp1[1];
-        a[5]+=(int)book2[2]*inp1[2];
-        a[5]+=(int)book2[1]*inp1[3];
-        a[5]+=(int)book2[0]*inp1[4];
-        a[5]+=(int)inp1[5]*(int)2048;
-
-        a[6] =(int)book1[6]*(int)l1;
-        a[6]+=(int)book2[6]*(int)l2;
-        a[6]+=(int)book2[5]*inp1[0];
-        a[6]+=(int)book2[4]*inp1[1];
-        a[6]+=(int)book2[3]*inp1[2];
-        a[6]+=(int)book2[2]*inp1[3];
-        a[6]+=(int)book2[1]*inp1[4];
-        a[6]+=(int)book2[0]*inp1[5];
-        a[6]+=(int)inp1[6]*(int)2048;
-
-        a[7] =(int)book1[7]*(int)l1;
-        a[7]+=(int)book2[7]*(int)l2;
-        a[7]+=(int)book2[6]*inp1[0];
-        a[7]+=(int)book2[5]*inp1[1];
-        a[7]+=(int)book2[4]*inp1[2];
-        a[7]+=(int)book2[3]*inp1[3];
-        a[7]+=(int)book2[2]*inp1[4];
-        a[7]+=(int)book2[1]*inp1[5];
-        a[7]+=(int)book2[0]*inp1[6];
-        a[7]+=(int)inp1[7]*(int)2048;
-
-        for(j=0;j<8;j++)
-        {
-            *(dst++) = a[j^S] = clamp_s16(a[j^S] >> 11);
-        }
-        l1=a[6];
-        l2=a[7];
-
-        a[0]= (int)book1[0]*(int)l1;
-        a[0]+=(int)book2[0]*(int)l2;
-        a[0]+=(int)inp2[0]*(int)2048;
-
-        a[1] =(int)book1[1]*(int)l1;
-        a[1]+=(int)book2[1]*(int)l2;
-        a[1]+=(int)book2[0]*inp2[0];
-        a[1]+=(int)inp2[1]*(int)2048;
-
-        a[2] =(int)book1[2]*(int)l1;
-        a[2]+=(int)book2[2]*(int)l2;
-        a[2]+=(int)book2[1]*inp2[0];
-        a[2]+=(int)book2[0]*inp2[1];
-        a[2]+=(int)inp2[2]*(int)2048;
-
-        a[3] =(int)book1[3]*(int)l1;
-        a[3]+=(int)book2[3]*(int)l2;
-        a[3]+=(int)book2[2]*inp2[0];
-        a[3]+=(int)book2[1]*inp2[1];
-        a[3]+=(int)book2[0]*inp2[2];
-        a[3]+=(int)inp2[3]*(int)2048;
-
-        a[4] =(int)book1[4]*(int)l1;
-        a[4]+=(int)book2[4]*(int)l2;
-        a[4]+=(int)book2[3]*inp2[0];
-        a[4]+=(int)book2[2]*inp2[1];
-        a[4]+=(int)book2[1]*inp2[2];
-        a[4]+=(int)book2[0]*inp2[3];
-        a[4]+=(int)inp2[4]*(int)2048;
-
-        a[5] =(int)book1[5]*(int)l1;
-        a[5]+=(int)book2[5]*(int)l2;
-        a[5]+=(int)book2[4]*inp2[0];
-        a[5]+=(int)book2[3]*inp2[1];
-        a[5]+=(int)book2[2]*inp2[2];
-        a[5]+=(int)book2[1]*inp2[3];
-        a[5]+=(int)book2[0]*inp2[4];
-        a[5]+=(int)inp2[5]*(int)2048;
-
-        a[6] =(int)book1[6]*(int)l1;
-        a[6]+=(int)book2[6]*(int)l2;
-        a[6]+=(int)book2[5]*inp2[0];
-        a[6]+=(int)book2[4]*inp2[1];
-        a[6]+=(int)book2[3]*inp2[2];
-        a[6]+=(int)book2[2]*inp2[3];
-        a[6]+=(int)book2[1]*inp2[4];
-        a[6]+=(int)book2[0]*inp2[5];
-        a[6]+=(int)inp2[6]*(int)2048;
-
-        a[7] =(int)book1[7]*(int)l1;
-        a[7]+=(int)book2[7]*(int)l2;
-        a[7]+=(int)book2[6]*inp2[0];
-        a[7]+=(int)book2[5]*inp2[1];
-        a[7]+=(int)book2[4]*inp2[2];
-        a[7]+=(int)book2[3]*inp2[3];
-        a[7]+=(int)book2[2]*inp2[4];
-        a[7]+=(int)book2[1]*inp2[5];
-        a[7]+=(int)book2[0]*inp2[6];
-        a[7]+=(int)inp2[7]*(int)2048;
-
-        for(j=0;j<8;j++)
-        {
-            *(dst++) = a[j^S] = clamp_s16(a[j^S] >> 11);
-        }
-        l1=a[6];
-        l2=a[7];
+        adpcm_decode_8_samples(dst, samples    , code); dst += 8; 
+        adpcm_decode_8_samples(dst, samples + 8, code); dst += 8; 
 
         count -= 32;
     }
