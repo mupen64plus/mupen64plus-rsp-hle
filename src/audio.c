@@ -1192,16 +1192,8 @@ static void ENVMIXER3 (u32 inst1, u32 inst2) {
 
 // ****************************************************************
 
-        if(o1>32767) o1=32767;
-        else if(o1<-32768) o1=-32768;
-
-        if(a1>32767) a1=32767;
-        else if(a1<-32768) a1=-32768;
-
-// ****************************************************************
-
-        out[y^S]=o1;
-        aux1[y^S]=a1;
+        out[y^S]  = clamp_s16(o1);
+        aux1[y^S] = clamp_s16(a1);
 
 // ****************************************************************
         //if (!(flags&A_AUX)) {
@@ -1214,14 +1206,8 @@ static void ENVMIXER3 (u32 inst1, u32 inst2) {
             a2+=((i1*AuxL)+0x4000)>>15;
             a3+=((i1*AuxR)+0x4000)>>15;
             
-            if(a2>32767) a2=32767;
-            else if(a2<-32768) a2=-32768;
-
-            if(a3>32767) a3=32767;
-            else if(a3<-32768) a3=-32768;
-
-            aux2[y^S]=a2;
-            aux3[y^S]=a3;
+            aux2[y^S] = clamp_s16(a2);
+            aux3[y^S] = clamp_s16(a3);
         }
     //}
 
@@ -1741,20 +1727,16 @@ static void InnerLoop () {
                 for (i = 0; i < 8; i++) {
                     // v0
                     v = (*(s16 *)(mp3data+((tmp-0x40)^S16)) * hi0);
-                    if (v > 32767) v = 32767; else if (v < -32767) v = -32767;
-                    *(s16 *)((u8 *)mp3data+((tmp-0x40)^S16)) = (s16)v;
+                    *(s16 *)((u8 *)mp3data+((tmp-0x40)^S16)) = clamp_s16(v);
                     // v17
                     v = (*(s16 *)(mp3data+((tmp-0x30)^S16)) * hi0);
-                    if (v > 32767) v = 32767; else if (v < -32767) v = -32767;
-                    *(s16 *)((u8 *)mp3data+((tmp-0x30)^S16)) = v;
+                    *(s16 *)((u8 *)mp3data+((tmp-0x30)^S16)) = clamp_s16(v);
                     // v2
                     v = (*(s16 *)(mp3data+((tmp-0x1E)^S16)) * hi1);
-                    if (v > 32767) v = 32767; else if (v < -32767) v = -32767;
-                    *(s16 *)((u8 *)mp3data+((tmp-0x1E)^S16)) = v;
+                    *(s16 *)((u8 *)mp3data+((tmp-0x1E)^S16)) = clamp_s16(v);
                     // v4
                     v = (*(s16 *)(mp3data+((tmp-0xE)^S16)) * hi1);
-                    if (v > 32767) v = 32767; else if (v < -32767) v = -32767;
-                    *(s16 *)((u8 *)mp3data+((tmp-0xE)^S16)) = v;
+                    *(s16 *)((u8 *)mp3data+((tmp-0xE)^S16)) = clamp_s16(v);
                     tmp += 2;
                 }
 }
@@ -1909,27 +1891,21 @@ static void ENVMIXER2 (u32 inst1, u32 inst2) {
             vec9  = (s16)(((s32)buffs3[x^S] * (u32)env[0]) >> 0x10) ^ v2[0];
             vec10 = (s16)(((s32)buffs3[x^S] * (u32)env[2]) >> 0x10) ^ v2[1];
             temp = bufft6[x^S] + vec9;
-            if (temp > 32767)  temp = 32767; if (temp < -32768) temp = -32768;
-            bufft6[x^S] = temp;
+            bufft6[x^S] = clamp_s16(temp);
             temp = bufft7[x^S] + vec10;
-            if (temp > 32767)  temp = 32767; if (temp < -32768) temp = -32768;
-            bufft7[x^S] = temp;
+            bufft7[x^S] = clamp_s16(temp);
             vec9  = (s16)(((s32)vec9  * (u32)env[4]) >> 0x10) ^ v2[2];
             vec10 = (s16)(((s32)vec10 * (u32)env[4]) >> 0x10) ^ v2[3];
             if (inst1 & 0x10) {
                 temp = buffs0[x^S] + vec10;
-                if (temp > 32767)  temp = 32767; if (temp < -32768) temp = -32768;
-                buffs0[x^S] = temp;
+                buffs0[x^S] = clamp_s16(temp);
                 temp = buffs1[x^S] + vec9;
-                if (temp > 32767)  temp = 32767; if (temp < -32768) temp = -32768;
-                buffs1[x^S] = temp;
+                buffs1[x^S] = clamp_s16(temp);
             } else {
                 temp = buffs0[x^S] + vec9;
-                if (temp > 32767)  temp = 32767; if (temp < -32768) temp = -32768;
-                buffs0[x^S] = temp;
+                buffs0[x^S] = clamp_s16(temp);
                 temp = buffs1[x^S] + vec10;
-                if (temp > 32767)  temp = 32767; if (temp < -32768) temp = -32768;
-                buffs1[x^S] = temp;
+                buffs1[x^S] = clamp_s16(temp);
             }
         }
 
@@ -1938,27 +1914,21 @@ static void ENVMIXER2 (u32 inst1, u32 inst2) {
             vec9  = (s16)(((s32)buffs3[x^S] * (u32)env[1]) >> 0x10) ^ v2[0];
             vec10 = (s16)(((s32)buffs3[x^S] * (u32)env[3]) >> 0x10) ^ v2[1];
             temp = bufft6[x^S] + vec9;
-            if (temp > 32767)  temp = 32767; if (temp < -32768) temp = -32768;
-            bufft6[x^S] = temp;
-           temp = bufft7[x^S] + vec10;
-            if (temp > 32767)  temp = 32767; if (temp < -32768) temp = -32768;
-            bufft7[x^S] = temp;
+            bufft6[x^S] = clamp_s16(temp);
+            temp = bufft7[x^S] + vec10;
+            bufft7[x^S] = clamp_s16(temp);
             vec9  = (s16)(((s32)vec9  * (u32)env[5]) >> 0x10) ^ v2[2];
             vec10 = (s16)(((s32)vec10 * (u32)env[5]) >> 0x10) ^ v2[3];
             if (inst1 & 0x10) {
                 temp = buffs0[x^S] + vec10;
-                if (temp > 32767)  temp = 32767; if (temp < -32768) temp = -32768;
-                buffs0[x^S] = temp;
+                buffs0[x^S] = clamp_s16(temp);
                 temp = buffs1[x^S] + vec9;
-                if (temp > 32767)  temp = 32767; if (temp < -32768) temp = -32768;
-                buffs1[x^S] = temp;
+                buffs1[x^S] = clamp_s16(temp);
             } else {
                 temp = buffs0[x^S] + vec9;
-                if (temp > 32767)  temp = 32767; if (temp < -32768) temp = -32768;
-                buffs0[x^S] = temp;
+                buffs0[x^S] = clamp_s16(temp);
                 temp = buffs1[x^S] + vec10;
-                if (temp > 32767)  temp = 32767; if (temp < -32768) temp = -32768;
-                buffs1[x^S] = temp;
+                buffs1[x^S] = clamp_s16(temp);
             }
         }
         bufft6 += adder; bufft7 += adder;
@@ -2036,8 +2006,7 @@ static void ADDMIXER (u32 inst1, u32 inst2) {
     outp = (s16 *)(rsp.DMEM + OutBuffer);
     for (cntr = 0; cntr < Count; cntr+=2) {
         temp = *outp + *inp;
-        if (temp > 32767)  temp = 32767; if (temp < -32768) temp = -32768;
-        *(outp++) = temp;
+        *(outp++) = clamp_s16(temp);
         inp++;
     }
 }
@@ -2055,9 +2024,7 @@ static void HILOGAIN (u32 inst1, u32 inst2) {
     while(cnt) {
         val = (s32)*src;
         tmp = ((val * (s32)hi) >> 16) + (u32)(val * lo);
-        if ((s32)tmp > 32767) tmp = 32767;
-        else if ((s32)tmp < -32768) tmp = -32768;
-        *src = tmp;
+        *src = clamp_s16(tmp);
         src++;
         cnt -= 2;
     }
