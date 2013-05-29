@@ -93,12 +93,14 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\audio.c" />
+    <ClCompile Include="..\..\src\adpcm.c" />
     <ClCompile Include="..\..\src\cicx105.c" />
     <ClCompile Include="..\..\src\jpeg.c" />
     <ClCompile Include="..\..\src\main.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\audio.h" />
+    <ClInclude Include="..\..\src\adpcm.h" />
     <ClInclude Include="..\..\src\cicx105.h" />
     <ClInclude Include="..\..\src\hle.h" />
     <ClInclude Include="..\..\src\jpeg.h" />

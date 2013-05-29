@@ -27,6 +27,8 @@
 #include "hle.h"
 #include "m64p_types.h"
 
+#include "adpcm.h"
+
 /* types defintions */
 typedef void (*acmd_callback_t)(u32 inst1, u32 inst2);
 
@@ -59,7 +61,7 @@ static struct audio_t
     s32 env_ramp[2];
 
     // adpcm
-    u16 adpcm_table[0x80];
+    u16 adpcm_codebook[0x80];
 } audio;
 
 static struct naudio_t
@@ -77,7 +79,7 @@ static struct naudio_t
     s32 env_ramp[2];
 
     // adpcm
-    u16 adpcm_table[0x80];
+    u16 adpcm_codebook[0x80];
 
     // TODO: add mp3 related variables
 } naudio;
@@ -105,7 +107,7 @@ static struct audio2_t
     u32 loop;           // 0x0010(t8)
 
     // adpcm
-    u16 adpcm_table[0x80];
+    u16 adpcm_codebook[0x80];
 
     //envmixer2 related variables
     u32 t3;
@@ -407,205 +409,6 @@ static void alist_process(const acmd_callback_t abi[], unsigned int abi_size)
             DebugMessage(M64MSG_WARNING, "Invalid ABI command %u", acmd);
         }
     }
-}
-
-static void load_adpcm_table(u16 *dst, u32 address, int count)
-{
-    int i;
-    u16 *table = (u16 *)(rsp.RDRAM+address);
-
-    count >>= 4;
-
-    for (i = 0; i < count; ++i)
-    {
-        dst[(0x0+(i<<3))^S] = table[0];
-        dst[(0x1+(i<<3))^S] = table[1];
-        dst[(0x2+(i<<3))^S] = table[2];
-        dst[(0x3+(i<<3))^S] = table[3];
-        dst[(0x4+(i<<3))^S] = table[4];
-        dst[(0x5+(i<<3))^S] = table[5];
-        dst[(0x6+(i<<3))^S] = table[6];
-        dst[(0x7+(i<<3))^S] = table[7];
-        table += 8;
-    }
-}
-
-static unsigned int adpcm_get_vscale(unsigned char nibble, unsigned char range)
-{
-    return (nibble < range) ? range - nibble : 0;
-}
-
-static s16 adpcm_unpack_sample(u8 byte, u8 mask, unsigned shift, unsigned vscale)
-{
-    s16 sample = ((u16)byte & (u16)mask) << shift;
-    sample >>= vscale; /* signed */
-    return sample;
-}
-
-typedef u16 (*adpcm_unpack_16_samples_t)(s16 *samples, u16 src, unsigned char nibble);
-
-static u16 adpcm_unpack_16_samples_4bits(s16 *samples, u16 src,  unsigned char nibble)
-{
-    unsigned int i;
-    u8 byte;
-    
-    unsigned int vscale = adpcm_get_vscale(nibble, 12);
-
-    for(i = 0; i < 8; ++i)
-    {
-        byte = rsp.DMEM[(src++)^S8];
-
-        *(samples++) = adpcm_unpack_sample(byte, 0xf0,  8, vscale);
-        *(samples++) = adpcm_unpack_sample(byte, 0x0f, 12, vscale);
-    }
-
-    return src;
-}
-
-static int adpcm_unpack_16_samples_2bits(s16 *samples, u16 src, unsigned char nibble)
-{
-    unsigned int i;
-    u8 byte;
-
-    unsigned int vscale = adpcm_get_vscale(nibble, 14);
-
-    for(i = 0; i < 4; ++i)
-    {
-        byte = rsp.DMEM[(src++)^S8];
-
-        *(samples++) = adpcm_unpack_sample(byte, 0xc0,  8, vscale);
-        *(samples++) = adpcm_unpack_sample(byte, 0x30, 10, vscale);
-        *(samples++) = adpcm_unpack_sample(byte, 0x0c, 12, vscale);
-        *(samples++) = adpcm_unpack_sample(byte, 0x03, 14, vscale);
-    }
-
-    return src;
-}
-
-static void adpcm_decode_8_samples(s16 *dst, const s16 *src, const s16 * codebook)
-{
-    const s16 * const book1 = codebook;
-    const s16 * const book2 = codebook + 8;
-
-    const s16 l1 = dst[-2 ^ S];
-    const s16 l2 = dst[-1 ^ S];
-
-    int accu;
-
-    accu  = (int)book1[0]*(int)l1;
-    accu += (int)book2[0]*(int)l2;
-    accu += (int)src[0] << 11;
-    dst[0 ^ S] = clamp_s16(accu >> 11);
-
-    accu  = (int)book1[1]*(int)l1;
-    accu += (int)book2[1]*(int)l2;
-    accu += (int)book2[0]*(int)src[0];
-    accu += (int)src[1] << 11;
-    dst[1 ^ S] = clamp_s16(accu >> 11);
-
-    accu  = (int)book1[2]*(int)l1;
-    accu += (int)book2[2]*(int)l2;
-    accu += (int)book2[1]*(int)src[0];
-    accu += (int)book2[0]*(int)src[1];
-    accu += (int)src[2] << 11;
-    dst[2 ^ S] = clamp_s16(accu >> 11);
-
-    accu  = (int)book1[3]*(int)l1;
-    accu += (int)book2[3]*(int)l2;
-    accu += (int)book2[2]*(int)src[0];
-    accu += (int)book2[1]*(int)src[1];
-    accu += (int)book2[0]*(int)src[2];
-    accu += (int)src[3] << 11;
-    dst[3 ^ S] = clamp_s16(accu >> 11);
-
-    accu  = (int)book1[4]*(int)l1;
-    accu += (int)book2[4]*(int)l2;
-    accu += (int)book2[3]*(int)src[0];
-    accu += (int)book2[2]*(int)src[1];
-    accu += (int)book2[1]*(int)src[2];
-    accu += (int)book2[0]*(int)src[3];
-    accu += (int)src[4] << 11;
-    dst[4 ^ S] = clamp_s16(accu >> 11);
-
-    accu  = (int)book1[5]*(int)l1;
-    accu += (int)book2[5]*(int)l2;
-    accu += (int)book2[4]*(int)src[0];
-    accu += (int)book2[3]*(int)src[1];
-    accu += (int)book2[2]*(int)src[2];
-    accu += (int)book2[1]*(int)src[3];
-    accu += (int)book2[0]*(int)src[4];
-    accu += (int)src[5] << 11;
-    dst[5 ^ S] = clamp_s16(accu >> 11);
-
-    accu  = (int)book1[6]*(int)l1;
-    accu += (int)book2[6]*(int)l2;
-    accu += (int)book2[5]*(int)src[0];
-    accu += (int)book2[4]*(int)src[1];
-    accu += (int)book2[3]*(int)src[2];
-    accu += (int)book2[2]*(int)src[3];
-    accu += (int)book2[1]*(int)src[4];
-    accu += (int)book2[0]*(int)src[5];
-    accu += (int)src[6] << 11;
-    dst[6 ^ S] = clamp_s16(accu >> 11);
-
-    accu  = (int)book1[7]*(int)l1;
-    accu += (int)book2[7]*(int)l2;
-    accu += (int)book2[6]*(int)src[0];
-    accu += (int)book2[5]*(int)src[1];
-    accu += (int)book2[4]*(int)src[2];
-    accu += (int)book2[3]*(int)src[3];
-    accu += (int)book2[2]*(int)src[4];
-    accu += (int)book2[1]*(int)src[5];
-    accu += (int)book2[0]*(int)src[6];
-    accu += (int)src[7] << 11;
-    dst[7 ^ S] = clamp_s16(accu >> 11);
-}
-
-static void decode_adpcm(
-        int init,
-        int loop,
-        int better_compression, // some ucodes encodes 4 samples per byte instead of 2 per byte
-        s16* codebook,
-        u32 loop_address,
-        u32 state_address,
-        u16 in,
-        u16 out,
-        int count)
-{
-    unsigned char byte;
-    s16 *code;
-    s16 samples[16];
-    
-    s16 *dst = (s16*)(rsp.DMEM + out);
-  
-    if (init)
-    {
-        memset(dst, 0, 32);
-    }
-    else
-    {
-        void *src = (loop) ? &rsp.RDRAM[loop_address] : &rsp.RDRAM[state_address];
-        memcpy(dst, src, 32);
-    }
-
-    dst += 16;
-    while(count>0)
-    {
-        byte = rsp.DMEM[in^S8]; ++in;
-        code = codebook + ((byte & 0xf) << 4);
-        byte >>= 4;
-
-        in = (better_compression) 
-            ? adpcm_unpack_16_samples_2bits(samples, in, byte)
-            : adpcm_unpack_16_samples_4bits(samples, in, byte);
-
-        adpcm_decode_8_samples(dst, samples    , code); dst += 8; 
-        adpcm_decode_8_samples(dst, samples + 8, code); dst += 8; 
-
-        count -= 32;
-    }
-    dst -= 16;
-    memcpy(&rsp.RDRAM[state_address], dst, 32);
 }
 
 static void mix_buffers(u16 in, u16 out, int count, s16 gain)
@@ -984,11 +787,11 @@ static void ADPCM (u32 w1, u32 w2)
 {
     unsigned flags = parse_flags(w1);
    
-    decode_adpcm(
+    adpcm_decode(
             flags & A_INIT,
             flags & A_LOOP,
             0, // not supported in this version
-            (s16*)audio.adpcm_table,
+            (s16*)audio.adpcm_codebook,
             audio.loop,
             parse_address(w2),
             audio.in,
@@ -1038,8 +841,8 @@ static void DMEMMOVE(u32 w1, u32 w2)
 
 static void LOADADPCM (u32 w1, u32 w2)
 {
-    load_adpcm_table(
-            audio.adpcm_table,
+    adpcm_load_codebook(
+            audio.adpcm_codebook,
             parse_address(w2 & 0xffffff),
             parse_lo(w1));
 }
@@ -1252,8 +1055,8 @@ static void SAVEBUFF3 (u32 w1, u32 w2)
 
 static void LOADADPCM3 (u32 w1, u32 w2)
 {
-    load_adpcm_table(
-            naudio.adpcm_table,
+    adpcm_load_codebook(
+            naudio.adpcm_codebook,
             w2 & 0xffffff,
             w1 & 0xffff);
 }
@@ -1274,11 +1077,11 @@ static void ADPCM3 (u32 w1, u32 w2)
 {
     unsigned flags = (w2 >> 28) & 0x0f;
 
-    decode_adpcm(
+    adpcm_decode(
             flags & A_INIT,
             flags & A_LOOP,
             0, // not supported in this version
-            (s16*)naudio.adpcm_table,
+            (s16*)naudio.adpcm_codebook,
             naudio.loop,
             w1 & 0xffffff,
             0x4f0 + ((w2 >> 12) & 0xf),
@@ -1736,8 +1539,8 @@ static void InnerLoop () {
 
 static void LOADADPCM2 (u32 w1, u32 w2)
 {
-    load_adpcm_table(
-            audio2.adpcm_table,
+    adpcm_load_codebook(
+            audio2.adpcm_codebook,
             w2 & 0xffffff,
             w1 & 0xffff);
 }
@@ -1756,11 +1559,11 @@ static void ADPCM2 (u32 w1, u32 w2)
 {
     unsigned flags = parse_flags(w1);
 
-    decode_adpcm(
+    adpcm_decode(
             flags & A_INIT,
             flags & A_LOOP,
             flags & 0x4,
-            (s16*)audio2.adpcm_table,
+            (s16*)audio2.adpcm_codebook,
             audio2.loop,
             parse_address(w2),
             audio2.in,
