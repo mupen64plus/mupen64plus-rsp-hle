@@ -186,6 +186,11 @@ static s32 dmul_round(s16 x, s16 y)
     return ((s32)x * (s32)y + 0x4000) >> 15;
 }
 
+static void sadd(s16 *x, s32 y)
+{
+    *x = clamp_s16(*x + y);
+}
+
 
 static unsigned parse_acmd(u32 w1)
 {
@@ -274,7 +279,7 @@ static void mix_buffers(u16 in, u16 out, int count, s16 gain)
 
     for (i = 0; i < count; ++i)
     {
-        *dst = clamp_s16((s32)*dst + dmul(*src, gain));
+        sadd(dst, dmul(*src, gain));
         ++src; ++dst;
     }
 }
@@ -429,7 +434,7 @@ static void ENVMIXER (u32 inst1, u32 inst2) {
     s32 MainL;
     s32 AuxR;
     s32 AuxL;
-    int i1,o1,a1,a2=0,a3=0;
+    s32 i1;
     unsigned short AuxIncRate=1;
     short zero[8];
     memset(zero,0,16);
@@ -504,13 +509,6 @@ static void ENVMIXER (u32 inst1, u32 inst2) {
         }
 
     for (x = 0; x < 8; x++) {
-        i1=(int)inp[ptr^S];
-        o1=(int)out[ptr^S];
-        a1=(int)aux1[ptr^S];
-        if (AuxIncRate) {
-            a2=(int)aux2[ptr^S];
-            a3=(int)aux3[ptr^S];
-        }
         // TODO: here...
         //LAcc = LTrg;
         //RAcc = RTrg;
@@ -562,17 +560,14 @@ static void ENVMIXER (u32 inst1, u32 inst2) {
             }
         }
 
-        o1 += dmul_round(i1, MainR);
-        a1 += dmul_round(i1, MainL);
+        i1 = (s32)inp[ptr^S];
+        sadd(&out[ptr^S],  dmul_round(i1, MainR));
+        sadd(&aux1[ptr^S], dmul_round(i1, MainL));
 
-        out[ptr^S]  = clamp_s16(o1);
-        aux1[ptr^S] = clamp_s16(a1);
-        if (AuxIncRate) {
-            a2 += dmul_round(i1, AuxR);
-            a3 += dmul_round(i1, AuxL);
-
-            aux2[ptr^S] = clamp_s16(a2);
-            aux3[ptr^S] = clamp_s16(a3);
+        if (AuxIncRate)
+        {
+            sadd(&aux2[ptr^S], dmul_round(i1, AuxR));
+            sadd(&aux3[ptr^S], dmul_round(i1, AuxL));
         }
         ptr++;
     }
@@ -754,7 +749,7 @@ static void ENVMIXER3 (u32 inst1, u32 inst2) {
     s32 MainL;
     s32 AuxR;
     s32 AuxL;
-    int i1,o1,a1,a2,a3;
+    s32 i1;
     //unsigned short AuxIncRate=1;
     short zero[8];
     memset(zero,0,16);
@@ -832,34 +827,15 @@ static void ENVMIXER3 (u32 inst1, u32 inst2) {
 // ****************************************************************
         MainL = dmul_round(Dry, LVol);
         MainR = dmul_round(Dry, RVol);
-
-        o1 = out [y^S];
-        a1 = aux1[y^S];
-        i1 = inp [y^S];
-
-        o1 += dmul_round(i1, MainL);
-        a1 += dmul_round(i1, MainR);
-
-// ****************************************************************
-
-        out[y^S]  = clamp_s16(o1);
-        aux1[y^S] = clamp_s16(a1);
-
-// ****************************************************************
-        //if (!(flags&A_AUX)) {
-            a2 = aux2[y^S];
-            a3 = aux3[y^S];
-
-            AuxL = dmul_round(Wet, LVol);
-            AuxR = dmul_round(Wet, RVol);
-
-            a2 += dmul_round(i1, AuxL);
-            a3 += dmul_round(i1, AuxR);
-            
-            aux2[y^S] = clamp_s16(a2);
-            aux3[y^S] = clamp_s16(a3);
-        }
-    //}
+        AuxL = dmul_round(Wet, LVol);
+        AuxR = dmul_round(Wet, RVol);
+        
+        i1 = inp[y^S];
+        sadd(&out[y^S],  dmul_round(i1, MainL));
+        sadd(&aux1[y^S], dmul_round(i1, MainR));
+        sadd(&aux2[y^S], dmul_round(i1, AuxL));
+        sadd(&aux3[y^S], dmul_round(i1, AuxR));
+    }
 
     *(s16 *)(state_buffer +  0) = Wet; // 0-1
     *(s16 *)(state_buffer +  2) = Dry; // 2-3
@@ -1120,26 +1096,25 @@ static void ENVMIXER2 (u32 inst1, u32 inst2) {
 
 
     while (count > 0) {
-        int temp, x;
+        int x;
         for (x=0; x < 0x8; x++) {
             vec9  = (s16)(((s32)buffs3[x^S] * (u32)audio2.env[0]) >> 0x10) ^ v2[0];
             vec10 = (s16)(((s32)buffs3[x^S] * (u32)audio2.env[2]) >> 0x10) ^ v2[1];
-            temp = bufft6[x^S] + vec9;
-            bufft6[x^S] = clamp_s16(temp);
-            temp = bufft7[x^S] + vec10;
-            bufft7[x^S] = clamp_s16(temp);
+
+            sadd(&bufft6[x^S], vec9);
+            sadd(&bufft7[x^S], vec10);
+
             vec9  = (s16)(((s32)vec9  * (u32)audio2.env[4]) >> 0x10) ^ v2[2];
             vec10 = (s16)(((s32)vec10 * (u32)audio2.env[4]) >> 0x10) ^ v2[3];
-            if (inst1 & 0x10) {
-                temp = buffs0[x^S] + vec10;
-                buffs0[x^S] = clamp_s16(temp);
-                temp = buffs1[x^S] + vec9;
-                buffs1[x^S] = clamp_s16(temp);
-            } else {
-                temp = buffs0[x^S] + vec9;
-                buffs0[x^S] = clamp_s16(temp);
-                temp = buffs1[x^S] + vec10;
-                buffs1[x^S] = clamp_s16(temp);
+            if (inst1 & 0x10)
+            {
+                sadd(&buffs0[x^S], vec10);
+                sadd(&buffs1[x^S], vec9);
+            }
+            else
+            {
+                sadd(&buffs0[x^S], vec9);
+                sadd(&buffs1[x^S], vec10);
             }
         }
 
@@ -1147,24 +1122,24 @@ static void ENVMIXER2 (u32 inst1, u32 inst2) {
         for (x=0x8; x < 0x10; x++) {
             vec9  = (s16)(((s32)buffs3[x^S] * (u32)audio2.env[1]) >> 0x10) ^ v2[0];
             vec10 = (s16)(((s32)buffs3[x^S] * (u32)audio2.env[3]) >> 0x10) ^ v2[1];
-            temp = bufft6[x^S] + vec9;
-            bufft6[x^S] = clamp_s16(temp);
-            temp = bufft7[x^S] + vec10;
-            bufft7[x^S] = clamp_s16(temp);
+            
+            sadd(&bufft6[x^S], vec9);
+            sadd(&bufft7[x^S], vec10);
+
             vec9  = (s16)(((s32)vec9  * (u32)audio2.env[5]) >> 0x10) ^ v2[2];
             vec10 = (s16)(((s32)vec10 * (u32)audio2.env[5]) >> 0x10) ^ v2[3];
-            if (inst1 & 0x10) {
-                temp = buffs0[x^S] + vec10;
-                buffs0[x^S] = clamp_s16(temp);
-                temp = buffs1[x^S] + vec9;
-                buffs1[x^S] = clamp_s16(temp);
-            } else {
-                temp = buffs0[x^S] + vec9;
-                buffs0[x^S] = clamp_s16(temp);
-                temp = buffs1[x^S] + vec10;
-                buffs1[x^S] = clamp_s16(temp);
+            if (inst1 & 0x10)
+            {
+                sadd(&buffs0[x^S], vec10);
+                sadd(&buffs1[x^S], vec9);
+            }
+            else
+            {
+                sadd(&buffs0[x^S], vec9);
+                sadd(&buffs1[x^S], vec10);
             }
         }
+
         bufft6 += adder; bufft7 += adder;
         buffs0 += adder; buffs1 += adder;
         buffs3 += adder; count  -= adder;
@@ -1234,15 +1209,10 @@ static void ADDMIXER (u32 inst1, u32 inst2) {
     u16 OutBuffer = inst2 & 0xffff;
     int cntr;
 
-    s16 *inp, *outp;
-    s32 temp;
-    inp  = (s16 *)(rsp.DMEM + InBuffer);
-    outp = (s16 *)(rsp.DMEM + OutBuffer);
-    for (cntr = 0; cntr < Count; cntr+=2) {
-        temp = *outp + *inp;
-        *(outp++) = clamp_s16(temp);
-        inp++;
-    }
+    s16 *inp  = (s16 *)(rsp.DMEM + InBuffer);
+    s16 *outp = (s16 *)(rsp.DMEM + OutBuffer);
+    for (cntr = 0; cntr < Count; cntr+=2)
+        sadd(outp++, *(inp++));
 }
 
 static void HILOGAIN (u32 inst1, u32 inst2) {
