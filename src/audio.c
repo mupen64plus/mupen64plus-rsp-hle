@@ -107,12 +107,12 @@ static struct audio2_t
     // adpcm
     u16 adpcm_table[0x80];
 
-    // TODO: add envsetup state values here
+    //envmixer2 related variables
+    u32 t3;
+    u32 s5;
+    u32 s6;
+    u16 env[8];
 } audio2;
-
-// envmixer2 related variables
-static u32 t3, s5, s6;
-static u16 env[8];
 
 // FIXME: remove these flags
 int isMKABI = 0;
@@ -1643,7 +1643,6 @@ static void InnerLoop () {
                     //addptr = t1;
                 
                     for (i = 7; i >= 0; i--) {
-
                         v2 += dmul_round(*(s16*)(mp3data+addptr+0x00), DEWINDOW_LUT[offset+0x00]);
                         v4 += dmul_round(*(s16*)(mp3data+addptr+0x10), DEWINDOW_LUT[offset+0x08]);
                         v6 += dmul_round(*(s16*)(mp3data+addptr+0x20), DEWINDOW_LUT[offset+0x20]);
@@ -1822,26 +1821,26 @@ static void DMEMMOVE2 (u32 w1, u32 w2)
 static void ENVSETUP1 (u32 inst1, u32 inst2) {
     u32 tmp;
 
-    t3 = inst1 & 0xFFFF;
+    audio2.t3 = inst1 & 0xFFFF;
     tmp = (inst1 >> 0x8) & 0xFF00;
-    env[4] = (u16)tmp;
-    tmp += t3;
-    env[5] = (u16)tmp;
-    s5 = inst2 >> 0x10;
-    s6 = inst2 & 0xFFFF;
+    audio2.env[4] = (u16)tmp;
+    tmp += audio2.t3;
+    audio2.env[5] = (u16)tmp;
+    audio2.s5 = inst2 >> 0x10;
+    audio2.s6 = inst2 & 0xFFFF;
 }
 
 static void ENVSETUP2 (u32 inst1, u32 inst2) {
     u32 tmp;
 
     tmp = (inst2 >> 0x10);
-    env[0] = (u16)tmp;
-    tmp += s5;
-    env[1] = (u16)tmp;
+    audio2.env[0] = (u16)tmp;
+    tmp += audio2.s5;
+    audio2.env[1] = (u16)tmp;
     tmp = inst2 & 0xffff;
-    env[2] = (u16)tmp;
-    tmp += s6;
-    env[3] = (u16)tmp;
+    audio2.env[2] = (u16)tmp;
+    tmp += audio2.s6;
+    audio2.env[3] = (u16)tmp;
 }
 
 static void ENVMIXER2 (u32 inst1, u32 inst2) {
@@ -1870,26 +1869,26 @@ static void ENVMIXER2 (u32 inst1, u32 inst2) {
     count = (inst1 >> 8) & 0xff;
 
     if (!isMKABI) {
-        s5 *= 2; s6 *= 2; t3 *= 2;
+        audio2.s5 *= 2; audio2.s6 *= 2; audio2.t3 *= 2;
         adder = 0x10;
     } else {
         inst1 = 0;
         adder = 0x8;
-        t3 = 0;
+        audio2.t3 = 0;
     }
 
 
     while (count > 0) {
         int temp, x;
         for (x=0; x < 0x8; x++) {
-            vec9  = (s16)(((s32)buffs3[x^S] * (u32)env[0]) >> 0x10) ^ v2[0];
-            vec10 = (s16)(((s32)buffs3[x^S] * (u32)env[2]) >> 0x10) ^ v2[1];
+            vec9  = (s16)(((s32)buffs3[x^S] * (u32)audio2.env[0]) >> 0x10) ^ v2[0];
+            vec10 = (s16)(((s32)buffs3[x^S] * (u32)audio2.env[2]) >> 0x10) ^ v2[1];
             temp = bufft6[x^S] + vec9;
             bufft6[x^S] = clamp_s16(temp);
             temp = bufft7[x^S] + vec10;
             bufft7[x^S] = clamp_s16(temp);
-            vec9  = (s16)(((s32)vec9  * (u32)env[4]) >> 0x10) ^ v2[2];
-            vec10 = (s16)(((s32)vec10 * (u32)env[4]) >> 0x10) ^ v2[3];
+            vec9  = (s16)(((s32)vec9  * (u32)audio2.env[4]) >> 0x10) ^ v2[2];
+            vec10 = (s16)(((s32)vec10 * (u32)audio2.env[4]) >> 0x10) ^ v2[3];
             if (inst1 & 0x10) {
                 temp = buffs0[x^S] + vec10;
                 buffs0[x^S] = clamp_s16(temp);
@@ -1905,14 +1904,14 @@ static void ENVMIXER2 (u32 inst1, u32 inst2) {
 
         if (!isMKABI)
         for (x=0x8; x < 0x10; x++) {
-            vec9  = (s16)(((s32)buffs3[x^S] * (u32)env[1]) >> 0x10) ^ v2[0];
-            vec10 = (s16)(((s32)buffs3[x^S] * (u32)env[3]) >> 0x10) ^ v2[1];
+            vec9  = (s16)(((s32)buffs3[x^S] * (u32)audio2.env[1]) >> 0x10) ^ v2[0];
+            vec10 = (s16)(((s32)buffs3[x^S] * (u32)audio2.env[3]) >> 0x10) ^ v2[1];
             temp = bufft6[x^S] + vec9;
             bufft6[x^S] = clamp_s16(temp);
             temp = bufft7[x^S] + vec10;
             bufft7[x^S] = clamp_s16(temp);
-            vec9  = (s16)(((s32)vec9  * (u32)env[5]) >> 0x10) ^ v2[2];
-            vec10 = (s16)(((s32)vec10 * (u32)env[5]) >> 0x10) ^ v2[3];
+            vec9  = (s16)(((s32)vec9  * (u32)audio2.env[5]) >> 0x10) ^ v2[2];
+            vec10 = (s16)(((s32)vec10 * (u32)audio2.env[5]) >> 0x10) ^ v2[3];
             if (inst1 & 0x10) {
                 temp = buffs0[x^S] + vec10;
                 buffs0[x^S] = clamp_s16(temp);
@@ -1928,9 +1927,9 @@ static void ENVMIXER2 (u32 inst1, u32 inst2) {
         bufft6 += adder; bufft7 += adder;
         buffs0 += adder; buffs1 += adder;
         buffs3 += adder; count  -= adder;
-        env[0] += (u16)s5; env[1] += (u16)s5;
-        env[2] += (u16)s6; env[3] += (u16)s6;
-        env[4] += (u16)t3; env[5] += (u16)t3;
+        audio2.env[0] += (u16)audio2.s5; audio2.env[1] += (u16)audio2.s5;
+        audio2.env[2] += (u16)audio2.s6; audio2.env[3] += (u16)audio2.s6;
+        audio2.env[4] += (u16)audio2.t3; audio2.env[5] += (u16)audio2.t3;
     }
 }
 
