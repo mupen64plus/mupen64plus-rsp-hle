@@ -198,6 +198,10 @@
 				RelativePath="..\..\src\main.c"
 				>
 			</File>
+			<File
+				RelativePath="..\..\src\mp3.c"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="Header Files"
@@ -222,6 +226,10 @@
 			</File>
 			<File
 				RelativePath="..\..\src\jpeg.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\src\mp3.h"
 				>
 			</File>
 		</Filter>

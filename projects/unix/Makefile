@@ -242,7 +242,9 @@ SOURCE = \
 	$(SRCDIR)/adpcm.c \
 	$(SRCDIR)/audio.c \
 	$(SRCDIR)/cicx105.c \
-	$(SRCDIR)/jpeg.c
+	$(SRCDIR)/jpeg.c \
+	$(SRCDIR)/mp3.c
+
 
 # generate a list of object files build, make a temporary directory for them
 OBJECTS := $(patsubst $(SRCDIR)/%.c, $(OBJDIR)/%.o, $(filter %.c, $(SOURCE)))

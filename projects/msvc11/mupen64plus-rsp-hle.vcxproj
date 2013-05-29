@@ -97,6 +97,7 @@
     <ClCompile Include="..\..\src\cicx105.c" />
     <ClCompile Include="..\..\src\jpeg.c" />
     <ClCompile Include="..\..\src\main.c" />
+    <ClCompile Include="..\..\src\mp3.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\audio.h" />
@@ -104,6 +105,7 @@
     <ClInclude Include="..\..\src\cicx105.h" />
     <ClInclude Include="..\..\src\hle.h" />
     <ClInclude Include="..\..\src\jpeg.h" />
+    <ClInclude Include="..\..\src\mp3.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
