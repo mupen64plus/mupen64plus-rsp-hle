@@ -25,215 +25,170 @@
 
 #include "hle.h"
 
-static unsigned int get_vscale(unsigned char nibble, unsigned char range);
-static s16 unpack_sample(u8 byte, u8 mask, unsigned shift, unsigned vscale);
-static u16 unpack_16_samples_4bits(s16 *samples, u16 src,  unsigned char nibble);
-static u16 unpack_16_samples_2bits(s16 *samples, u16 src, unsigned char nibble);
-static void decode_8_samples(s16 *dst, const s16 *src, const s16 * codebook);
-
 static s16 clamp_s16(s32 x)
 {
     if (x > 32767) { x = 32767; } else if (x < -32768) { x = -32768; }
     return x;
 }
 
+/* types definition */
+typedef u16 (*get_predicted_frame_t)(s16 *dst, u16 src, unsigned char scale);
+
+/* local functions prototypes */
+static unsigned int get_scale_shift(unsigned char scale, unsigned char range);
+static s16 get_predicted_sample(u8 byte, u8 mask, unsigned lshift, unsigned rshift);
+static u16 get_predicted_frame_4bits(s16 *dst, u16 src, unsigned char scale);
+static u16 get_predicted_frame_2bits(s16 *dst, u16 src, unsigned char scale);
+static s32 compute_residuals(unsigned index, const s16 *src, const s16 *book1, const s16 *book2, s16 l1, s16 l2);
+static void decode_8_samples(s16 *dst, const s16 *src, const s16 *cb_entry);
+static s16* decode_frames(get_predicted_frame_t get_predicted_frame, s16 *dst, u16 src, int count, s16 *codebook);
+
 /* global functions */
 void adpcm_decode(
-        int init,
-        int loop,
-        int better_compression, // some ucodes encodes 4 samples per byte instead of 2 per byte
-        s16* codebook,
-        u32 loop_address,
-        u32 state_address,
-        u16 in,
-        u16 out,
-        int count)
+        int init, int loop, int two_bits_per_sample,
+        s16* codebook, u32 loop_address, u32 last_frame_address,
+        u16 in, u16 out, int count)
 {
-    unsigned char byte;
-    s16 *code;
-    s16 samples[16];
-    
     s16 *dst = (s16*)(rsp.DMEM + out);
-  
+
+    /* init/load last frame */
     if (init)
     {
         memset(dst, 0, 32);
     }
     else
     {
-        void *src = (loop) ? &rsp.RDRAM[loop_address] : &rsp.RDRAM[state_address];
+        void *src = (loop) ? &rsp.RDRAM[loop_address] : &rsp.RDRAM[last_frame_address];
         memcpy(dst, src, 32);
     }
-
     dst += 16;
-    while(count>0)
-    {
-        byte = rsp.DMEM[in^S8]; ++in;
-        code = codebook + ((byte & 0xf) << 4);
-        byte >>= 4;
+   
+    /* decode frames */
+    dst = (two_bits_per_sample)
+        ? decode_frames(get_predicted_frame_2bits, dst, in, count, codebook)
+        : decode_frames(get_predicted_frame_4bits, dst, in, count, codebook);
 
-        in = (better_compression) 
-            ? unpack_16_samples_2bits(samples, in, byte)
-            : unpack_16_samples_4bits(samples, in, byte);
-
-        decode_8_samples(dst, samples    , code); dst += 8; 
-        decode_8_samples(dst, samples + 8, code); dst += 8; 
-
-        count -= 32;
-    }
+    /* save last frame */
     dst -= 16;
-    memcpy(&rsp.RDRAM[state_address], dst, 32);
+    memcpy(&rsp.RDRAM[last_frame_address], dst, 32);
 }
 
 void adpcm_load_codebook(u16 *dst, u32 address, int count)
 {
-    int i;
-    u16 *table = (u16 *)(rsp.RDRAM+address);
+    unsigned int i;
 
-    count >>= 4;
+    const s16 *src = (s16*)(rsp.RDRAM + address);
+    count >>= 1;
 
     for (i = 0; i < count; ++i)
-    {
-        dst[(0x0+(i<<3))^S] = table[0];
-        dst[(0x1+(i<<3))^S] = table[1];
-        dst[(0x2+(i<<3))^S] = table[2];
-        dst[(0x3+(i<<3))^S] = table[3];
-        dst[(0x4+(i<<3))^S] = table[4];
-        dst[(0x5+(i<<3))^S] = table[5];
-        dst[(0x6+(i<<3))^S] = table[6];
-        dst[(0x7+(i<<3))^S] = table[7];
-        table += 8;
-    }
+        dst[i^S] = *(src++);
 }
-
 
 /* local functions */
-static unsigned int get_vscale(unsigned char nibble, unsigned char range)
+static unsigned int get_scale_shift(unsigned char scale, unsigned char range)
 {
-    return (nibble < range) ? range - nibble : 0;
+    return (scale < range) ? range - scale : 0;
 }
 
-static s16 unpack_sample(u8 byte, u8 mask, unsigned shift, unsigned vscale)
+static s16 get_predicted_sample(u8 byte, u8 mask, unsigned lshift, unsigned rshift)
 {
-    s16 sample = ((u16)byte & (u16)mask) << shift;
-    sample >>= vscale; /* signed */
+    s16 sample = ((u16)byte & (u16)mask) << lshift;
+    sample >>= rshift; /* signed */
     return sample;
 }
 
-static u16 unpack_16_samples_4bits(s16 *samples, u16 src,  unsigned char nibble)
+static u16 get_predicted_frame_4bits(s16 *dst, u16 src, unsigned char scale)
 {
     unsigned int i;
     u8 byte;
     
-    unsigned int vscale = get_vscale(nibble, 12);
+    unsigned int rshift = get_scale_shift(scale, 12);
 
     for(i = 0; i < 8; ++i)
     {
         byte = rsp.DMEM[(src++)^S8];
 
-        *(samples++) = unpack_sample(byte, 0xf0,  8, vscale);
-        *(samples++) = unpack_sample(byte, 0x0f, 12, vscale);
+        *(dst++) = get_predicted_sample(byte, 0xf0,  8, rshift);
+        *(dst++) = get_predicted_sample(byte, 0x0f, 12, rshift);
     }
 
     return src;
 }
 
-static u16 unpack_16_samples_2bits(s16 *samples, u16 src, unsigned char nibble)
+static u16 get_predicted_frame_2bits(s16 *dst, u16 src, unsigned char scale)
 {
     unsigned int i;
     u8 byte;
 
-    unsigned int vscale = get_vscale(nibble, 14);
+    unsigned int rshift = get_scale_shift(scale, 14);
 
     for(i = 0; i < 4; ++i)
     {
         byte = rsp.DMEM[(src++)^S8];
 
-        *(samples++) = unpack_sample(byte, 0xc0,  8, vscale);
-        *(samples++) = unpack_sample(byte, 0x30, 10, vscale);
-        *(samples++) = unpack_sample(byte, 0x0c, 12, vscale);
-        *(samples++) = unpack_sample(byte, 0x03, 14, vscale);
+        *(dst++) = get_predicted_sample(byte, 0xc0,  8, rshift);
+        *(dst++) = get_predicted_sample(byte, 0x30, 10, rshift);
+        *(dst++) = get_predicted_sample(byte, 0x0c, 12, rshift);
+        *(dst++) = get_predicted_sample(byte, 0x03, 14, rshift);
     }
 
     return src;
 }
 
-static void decode_8_samples(s16 *dst, const s16 *src, const s16 * codebook)
+static s32 compute_residuals(unsigned index, const s16 *src, const s16 *book1, const s16 *book2, s16 l1, s16 l2)
 {
-    const s16 * const book1 = codebook;
-    const s16 * const book2 = codebook + 8;
+    unsigned i;
+    s32 residuals;
+
+    residuals =  book1[index]*l1 + book2[index]*l2;
+    
+    for(i = 0; i < index; ++i)
+        residuals += book2[index - i - 1] * src[i];
+
+    return residuals;
+}
+
+static void decode_8_samples(s16 *dst, const s16 *src, const s16 *cb_entry)
+{
+    const s16 * const book1 = cb_entry;
+    const s16 * const book2 = cb_entry + 8;
 
     const s16 l1 = dst[-2 ^ S];
     const s16 l2 = dst[-1 ^ S];
 
+    unsigned i;
     s32 accu;
 
-    accu  = (s32)book1[0]*(s32)l1;
-    accu += (s32)book2[0]*(s32)l2;
-    accu += (s32)src[0] << 11;
-    dst[0 ^ S] = clamp_s16(accu >> 11);
+    for(i = 0; i < 8; ++i)
+    {
+        accu = src[i] << 11;
+        accu += compute_residuals(i, src, book1, book2, l1, l2);
+        dst[i ^ S] = clamp_s16(accu >> 11);
+    }
+}
 
-    accu  = (s32)book1[1]*(s32)l1;
-    accu += (s32)book2[1]*(s32)l2;
-    accu += (s32)book2[0]*(s32)src[0];
-    accu += (s32)src[1] << 11;
-    dst[1 ^ S] = clamp_s16(accu >> 11);
+static s16* decode_frames(get_predicted_frame_t get_predicted_frame, s16 *dst, u16 src, int count, s16 *codebook)
+{
+    u8 predictor;
+    s16 *cb_entry;
+    unsigned char scale;
+    s16 frame[16];
 
-    accu  = (s32)book1[2]*(s32)l1;
-    accu += (s32)book2[2]*(s32)l2;
-    accu += (s32)book2[1]*(s32)src[0];
-    accu += (s32)book2[0]*(s32)src[1];
-    accu += (s32)src[2] << 11;
-    dst[2 ^ S] = clamp_s16(accu >> 11);
+    while (count > 0)
+    {
+        predictor = rsp.DMEM[(src++)^S8];
 
-    accu  = (s32)book1[3]*(s32)l1;
-    accu += (s32)book2[3]*(s32)l2;
-    accu += (s32)book2[2]*(s32)src[0];
-    accu += (s32)book2[1]*(s32)src[1];
-    accu += (s32)book2[0]*(s32)src[2];
-    accu += (s32)src[3] << 11;
-    dst[3 ^ S] = clamp_s16(accu >> 11);
+        scale = (predictor & 0xf0) >> 4;
+        cb_entry = codebook + ((predictor & 0xf) << 4);
 
-    accu  = (s32)book1[4]*(s32)l1;
-    accu += (s32)book2[4]*(s32)l2;
-    accu += (s32)book2[3]*(s32)src[0];
-    accu += (s32)book2[2]*(s32)src[1];
-    accu += (s32)book2[1]*(s32)src[2];
-    accu += (s32)book2[0]*(s32)src[3];
-    accu += (s32)src[4] << 11;
-    dst[4 ^ S] = clamp_s16(accu >> 11);
+        src = get_predicted_frame(frame, src, scale);
 
-    accu  = (s32)book1[5]*(s32)l1;
-    accu += (s32)book2[5]*(s32)l2;
-    accu += (s32)book2[4]*(s32)src[0];
-    accu += (s32)book2[3]*(s32)src[1];
-    accu += (s32)book2[2]*(s32)src[2];
-    accu += (s32)book2[1]*(s32)src[3];
-    accu += (s32)book2[0]*(s32)src[4];
-    accu += (s32)src[5] << 11;
-    dst[5 ^ S] = clamp_s16(accu >> 11);
+        decode_8_samples(dst, frame    , cb_entry); dst += 8; 
+        decode_8_samples(dst, frame + 8, cb_entry); dst += 8; 
+        
+        --count;
+    }
 
-    accu  = (s32)book1[6]*(s32)l1;
-    accu += (s32)book2[6]*(s32)l2;
-    accu += (s32)book2[5]*(s32)src[0];
-    accu += (s32)book2[4]*(s32)src[1];
-    accu += (s32)book2[3]*(s32)src[2];
-    accu += (s32)book2[2]*(s32)src[3];
-    accu += (s32)book2[1]*(s32)src[4];
-    accu += (s32)book2[0]*(s32)src[5];
-    accu += (s32)src[6] << 11;
-    dst[6 ^ S] = clamp_s16(accu >> 11);
-
-    accu  = (s32)book1[7]*(s32)l1;
-    accu += (s32)book2[7]*(s32)l2;
-    accu += (s32)book2[6]*(s32)src[0];
-    accu += (s32)book2[5]*(s32)src[1];
-    accu += (s32)book2[4]*(s32)src[2];
-    accu += (s32)book2[3]*(s32)src[3];
-    accu += (s32)book2[2]*(s32)src[4];
-    accu += (s32)book2[1]*(s32)src[5];
-    accu += (s32)book2[0]*(s32)src[6];
-    accu += (s32)src[7] << 11;
-    dst[7 ^ S] = clamp_s16(accu >> 11);
+    return dst;
 }
 

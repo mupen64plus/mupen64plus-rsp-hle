@@ -645,7 +645,7 @@ static void ADPCM (u32 w1, u32 w2)
             parse_address(w2),
             audio.in,
             audio.out,
-            audio.count);
+            align(audio.count, 32) >> 5);
 }
 
 static void LOADBUFF (u32 w1, u32 w2)
@@ -916,7 +916,7 @@ static void ADPCM3 (u32 w1, u32 w2)
             w1 & 0xffffff,
             0x4f0 + ((w2 >> 12) & 0xf),
             0x4f0 + (w2 & 0xfff),
-            (w2 >> 16) & 0xfff);
+            align((w2 >> 16) & 0xfff, 32) >> 5);
 }
 
 static void RESAMPLE3 (u32 w1, u32 w2)
@@ -982,7 +982,7 @@ static void ADPCM2 (u32 w1, u32 w2)
             parse_address(w2),
             audio2.in,
             audio2.out,
-            audio2.count);
+            align(audio2.count, 32) >> 5);
 }
 
 static void CLEARBUFF2 (u32 inst1, u32 inst2) {
