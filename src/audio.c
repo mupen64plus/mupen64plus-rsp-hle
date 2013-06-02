@@ -750,9 +750,6 @@ static void ENVMIXER3 (u32 inst1, u32 inst2) {
     s32 AuxR;
     s32 AuxL;
     s32 i1;
-    //unsigned short AuxIncRate=1;
-    short zero[8];
-    memset(zero,0,16);
 
     s32 LAdder, LAcc, LVol;
     s32 RAdder, RAcc, RVol;
