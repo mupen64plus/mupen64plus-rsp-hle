@@ -453,9 +453,8 @@ static void ENVMIXER (u32 inst1, u32 inst2) {
     short *aux1=(short *)(rsp.DMEM+audio.aux_dry_left);
     short *aux2=(short *)(rsp.DMEM+audio.aux_wet_right);
     short *aux3=(short *)(rsp.DMEM+audio.aux_wet_left);
-    unsigned short AuxIncRate=1;
-    short zero[8];
-    memset(zero,0,16);
+
+    unsigned flag_aux = ((flags & A_AUX) != 0);
 
     struct ramp_t ramps[2];
     s32 rates[2];
@@ -465,48 +464,43 @@ static void ENVMIXER (u32 inst1, u32 inst2) {
     u32 ptr = 0;
     s32 LAdderStart, RAdderStart, LAdderEnd, RAdderEnd;
 
-    if (flags & A_INIT) {
-        ramps[0].step = ((audio.env_vol[0] * (s32)audio.env_rate[0]));
-        ramps[1].step = ((audio.env_vol[1] * (s32)audio.env_rate[1]));
-        Wet = audio.wet;
-        Dry = audio.dry; // Save Wet/Dry values
-        ramps[0].target = (audio.env_target[0] << 16);
-        ramps[1].target = (audio.env_target[1] << 16); // Save Current Left/Right Targets
-        LAdderStart = audio.env_vol[0] << 16;
-        RAdderStart = audio.env_vol[1] << 16;
-        LAdderEnd = ramps[0].step;
-        RAdderEnd = ramps[1].step;
-        rates[0] = audio.env_rate[0];
-        rates[1] = audio.env_rate[1];
-    } else {
-        // Load LVol, RVol, LAcc, and RAcc (all 32bit)
-        // Load Wet, Dry, LTrg, RTrg
+    if (flags & A_INIT)
+    {
+        Wet             = audio.wet;
+        Dry             = audio.dry;
+        ramps[0].target = audio.env_target[0] << 16;
+        ramps[1].target = audio.env_target[1] << 16;
+        rates[0]        = audio.env_rate[0];
+        rates[1]        = audio.env_rate[1];
+        LAdderEnd       = audio.env_vol[0] * audio.env_rate[0];
+        RAdderEnd       = audio.env_vol[1] * audio.env_rate[1];
+        LAdderStart     = audio.env_vol[0] << 16;
+        RAdderStart     = audio.env_vol[1] << 16;
+    }
+    else
+    {
         memcpy((u8 *)state_buffer, (rsp.RDRAM+addy), 80);
-        Wet  = *(s16 *)(state_buffer +  0); // 0-1
-        Dry  = *(s16 *)(state_buffer +  2); // 2-3
-        ramps[0].target = *(s32 *)(state_buffer +  4); // 4-5
-        ramps[1].target = *(s32 *)(state_buffer +  6); // 6-7
-        rates[0] = *(s32 *)(state_buffer +  8); // 8-9 (state_buffer is a 16bit pointer)
-        rates[1] = *(s32 *)(state_buffer + 10); // 10-11
-        LAdderEnd = *(s32 *)(state_buffer + 12); // 12-13
-        RAdderEnd = *(s32 *)(state_buffer + 14); // 14-15
-        LAdderStart = *(s32 *)(state_buffer + 16); // 12-13
-        RAdderStart = *(s32 *)(state_buffer + 18); // 14-15
+
+        Wet             = *(s16*)(state_buffer + 0);
+        Dry             = *(s16*)(state_buffer + 2);
+        ramps[0].target = *(s32*)(state_buffer + 4);
+        ramps[1].target = *(s32*)(state_buffer + 6);
+        rates[0]        = *(s32*)(state_buffer + 8);
+        rates[1]        = *(s32*)(state_buffer + 10);
+        LAdderEnd       = *(s32*)(state_buffer + 12);
+        RAdderEnd       = *(s32*)(state_buffer + 14);
+        LAdderStart     = *(s32*)(state_buffer + 16);
+        RAdderStart     = *(s32*)(state_buffer + 18);
     }
 
-    if (!(flags & A_AUX)) {
-        AuxIncRate=0;
-        aux2=aux3=zero;
-    }
-
-    for (y = 0; y < audio.count; y += 0x10) {
-
+    for (y = 0; y < audio.count; y += 0x10)
+    {
         if (LAdderStart != ramps[0].target)
         {
             ramps[0].value = LAdderStart;
             ramps[0].step = (LAdderEnd - LAdderStart) >> 3;
-            LAdderEnd   = (s32) (((s64)LAdderEnd * (s64)rates[0]) >> 16);
-            LAdderStart = (s32) (((s64)ramps[0].value * (s64)rates[0]) >> 16);
+            LAdderStart = (s32) (((s64)LAdderStart * (s64)rates[0]) >> 16);
+            LAdderEnd   = (s32) (((s64)LAdderEnd   * (s64)rates[0]) >> 16);
         }
         else
         {
@@ -518,8 +512,8 @@ static void ENVMIXER (u32 inst1, u32 inst2) {
         {
             ramps[1].value = RAdderStart;
             ramps[1].step = (RAdderEnd - RAdderStart) >> 3;
-            RAdderEnd   = (s32) (((s64)RAdderEnd * (s64)rates[1]) >> 16);
-            RAdderStart = (s32) (((s64)ramps[1].value * (s64)rates[1]) >> 16);
+            RAdderStart = (s32) (((s64)RAdderStart * (s64)rates[1]) >> 16);
+            RAdderEnd   = (s32) (((s64)RAdderEnd   * (s64)rates[1]) >> 16);
         }
         else
         {
@@ -546,7 +540,7 @@ static void ENVMIXER (u32 inst1, u32 inst2) {
 
             sadd(&out[ptr^S],  dmul_round(value, dmul_round(Dry, envR)));
             sadd(&aux1[ptr^S], dmul_round(value, dmul_round(Dry, envL)));
-            if (AuxIncRate)
+            if (flag_aux)
             {
                 sadd(&aux2[ptr^S], dmul_round(value, dmul_round(Wet, envR)));
                 sadd(&aux3[ptr^S], dmul_round(value, dmul_round(Wet, envL)));
@@ -555,17 +549,17 @@ static void ENVMIXER (u32 inst1, u32 inst2) {
         }
     }
 
-    *(s16 *)(state_buffer +  0) = Wet; // 0-1
-    *(s16 *)(state_buffer +  2) = Dry; // 2-3
-    *(s32 *)(state_buffer +  4) = ramps[0].target; // 4-5
-    *(s32 *)(state_buffer +  6) = ramps[1].target; // 6-7
-    *(s32 *)(state_buffer +  8) = rates[0]; // 8-9 (state_buffer is a 16bit pointer)
-    *(s32 *)(state_buffer + 10) = rates[1]; // 10-11
-    *(s32 *)(state_buffer + 12) = LAdderEnd; // 12-13
-    *(s32 *)(state_buffer + 14) = RAdderEnd; // 14-15
-    *(s32 *)(state_buffer + 16) = LAdderStart; // 12-13
-    *(s32 *)(state_buffer + 18) = RAdderStart; // 14-15
-    memcpy(rsp.RDRAM+addy, (u8 *)state_buffer,80);
+    *(s16 *)(state_buffer +  0) = Wet;
+    *(s16 *)(state_buffer +  2) = Dry;
+    *(s32 *)(state_buffer +  4) = ramps[0].target;
+    *(s32 *)(state_buffer +  6) = ramps[1].target;
+    *(s32 *)(state_buffer +  8) = rates[0];
+    *(s32 *)(state_buffer + 10) = rates[1];
+    *(s32 *)(state_buffer + 12) = LAdderEnd;
+    *(s32 *)(state_buffer + 14) = RAdderEnd;
+    *(s32 *)(state_buffer + 16) = LAdderStart;
+    *(s32 *)(state_buffer + 18) = RAdderStart;
+    memcpy(rsp.RDRAM+addy, (u8*)state_buffer, 80);
 }
 
 static void RESAMPLE (u32 w1, u32 w2)
