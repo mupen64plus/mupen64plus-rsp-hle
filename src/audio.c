@@ -59,7 +59,7 @@ static struct audio_t
     // envmixer envelopes (0: left, 1: right)
     s16 env_vol[2];
     s16 env_target[2];
-    s32 env_ramp[2];
+    s32 env_rate[2];
 
     // adpcm
     u16 adpcm_codebook[0x80];
@@ -77,7 +77,7 @@ static struct naudio_t
     // envmixer envelopes (0: left, 1: right)
     s16 env_vol[2];
     s16 env_target[2];
-    s32 env_ramp[2];
+    s32 env_rate[2];
 
     // adpcm
     u16 adpcm_codebook[0x80];
@@ -105,6 +105,29 @@ static struct audio2_t
     u32 s6;
     u16 env[8];
 } audio2;
+
+
+
+struct ramp_t
+{
+    s32 value;
+    s32 step;
+    s32 target;
+};
+
+/* update ramp to its next value.
+ * returns true if target has been reached, false otherwise */
+static int ramp_next(struct ramp_t *ramp)
+{
+    ramp->value += ramp->step;
+
+    return (ramp->step >= 0)
+        ? (ramp->value > ramp->target)
+        : (ramp->value < ramp->target);
+}
+
+
+
 
 // FIXME: remove these flags
 int isMKABI = 0;
@@ -430,46 +453,41 @@ static void ENVMIXER (u32 inst1, u32 inst2) {
     short *aux1=(short *)(rsp.DMEM+audio.aux_dry_left);
     short *aux2=(short *)(rsp.DMEM+audio.aux_wet_right);
     short *aux3=(short *)(rsp.DMEM+audio.aux_wet_left);
-    s32 MainR;
-    s32 MainL;
-    s32 AuxR;
-    s32 AuxL;
-    s32 i1;
     unsigned short AuxIncRate=1;
     short zero[8];
     memset(zero,0,16);
-    s32 LVol, RVol;
-    s32 LAcc, RAcc;
-    s32 LTrg, RTrg;
+
+    struct ramp_t ramps[2];
+    s32 rates[2];
+    s16 value, envL, envR;
+
     s16 Wet, Dry;
     u32 ptr = 0;
-    s32 RRamp, LRamp;
     s32 LAdderStart, RAdderStart, LAdderEnd, RAdderEnd;
-    s32 oMainR, oMainL, oAuxR, oAuxL;
 
     if (flags & A_INIT) {
-        LVol = ((audio.env_vol[0] * (s32)audio.env_ramp[0]));
-        RVol = ((audio.env_vol[1] * (s32)audio.env_ramp[1]));
+        ramps[0].step = ((audio.env_vol[0] * (s32)audio.env_rate[0]));
+        ramps[1].step = ((audio.env_vol[1] * (s32)audio.env_rate[1]));
         Wet = audio.wet;
         Dry = audio.dry; // Save Wet/Dry values
-        LTrg = (audio.env_target[0] << 16);
-        RTrg = (audio.env_target[1] << 16); // Save Current Left/Right Targets
+        ramps[0].target = (audio.env_target[0] << 16);
+        ramps[1].target = (audio.env_target[1] << 16); // Save Current Left/Right Targets
         LAdderStart = audio.env_vol[0] << 16;
         RAdderStart = audio.env_vol[1] << 16;
-        LAdderEnd = LVol;
-        RAdderEnd = RVol;
-        LRamp = audio.env_ramp[0];
-        RRamp = audio.env_ramp[1];
+        LAdderEnd = ramps[0].step;
+        RAdderEnd = ramps[1].step;
+        rates[0] = audio.env_rate[0];
+        rates[1] = audio.env_rate[1];
     } else {
         // Load LVol, RVol, LAcc, and RAcc (all 32bit)
         // Load Wet, Dry, LTrg, RTrg
         memcpy((u8 *)state_buffer, (rsp.RDRAM+addy), 80);
         Wet  = *(s16 *)(state_buffer +  0); // 0-1
         Dry  = *(s16 *)(state_buffer +  2); // 2-3
-        LTrg = *(s32 *)(state_buffer +  4); // 4-5
-        RTrg = *(s32 *)(state_buffer +  6); // 6-7
-        LRamp= *(s32 *)(state_buffer +  8); // 8-9 (state_buffer is a 16bit pointer)
-        RRamp= *(s32 *)(state_buffer + 10); // 10-11
+        ramps[0].target = *(s32 *)(state_buffer +  4); // 4-5
+        ramps[1].target = *(s32 *)(state_buffer +  6); // 6-7
+        rates[0] = *(s32 *)(state_buffer +  8); // 8-9 (state_buffer is a 16bit pointer)
+        rates[1] = *(s32 *)(state_buffer + 10); // 10-11
         LAdderEnd = *(s32 *)(state_buffer + 12); // 12-13
         RAdderEnd = *(s32 *)(state_buffer + 14); // 14-15
         LAdderStart = *(s32 *)(state_buffer + 16); // 12-13
@@ -481,104 +499,68 @@ static void ENVMIXER (u32 inst1, u32 inst2) {
         aux2=aux3=zero;
     }
 
-    oMainL = dmul_round(Dry, LTrg >> 16);
-    oAuxL  = dmul_round(Wet, LTrg >> 16);
-    oMainR = dmul_round(Dry, RTrg >> 16);
-    oAuxR  = dmul_round(Wet, RTrg >> 16);
-
     for (y = 0; y < audio.count; y += 0x10) {
 
-        if (LAdderStart != LTrg) {
-            LAcc = LAdderStart;
-            LVol = (LAdderEnd - LAdderStart) >> 3;
-            LAdderEnd   = (s32) (((s64)LAdderEnd * (s64)LRamp) >> 16);
-            LAdderStart = (s32) (((s64)LAcc * (s64)LRamp) >> 16);
-        } else {
-            LAcc = LTrg;
-            LVol = 0;
-        }
-
-        if (RAdderStart != RTrg) {
-            RAcc = RAdderStart;
-            RVol = (RAdderEnd - RAdderStart) >> 3;
-            RAdderEnd   = (s32) (((s64)RAdderEnd * (s64)RRamp) >> 16);
-            RAdderStart = (s32) (((s64)RAcc * (s64)RRamp) >> 16);
-        } else {
-            RAcc = RTrg;
-            RVol = 0;
-        }
-
-    for (x = 0; x < 8; x++) {
-        // TODO: here...
-        //LAcc = LTrg;
-        //RAcc = RTrg;
-
-        LAcc += LVol;
-        RAcc += RVol;
-
-        if (LVol <= 0) { // Decrementing
-            if (LAcc < LTrg) {
-                LAcc = LTrg;
-                LAdderStart = LTrg;
-                MainL = oMainL;
-                AuxL  = oAuxL;
-            } else {
-                MainL = dmul_round(Dry, LAcc >> 16);
-                AuxL  = dmul_round(Wet, LAcc >> 16);
-            }
-        } else {
-            if (LAcc > LTrg) {
-                LAcc = LTrg;
-                LAdderStart = LTrg;
-                MainL = oMainL;
-                AuxL  = oAuxL;
-            } else {
-                MainL = dmul_round(Dry, LAcc >> 16);
-                AuxL  = dmul_round(Wet, LAcc >> 16);
-            }
-        }
-
-        if (RVol <= 0) { // Decrementing
-            if (RAcc < RTrg) {
-                RAcc = RTrg;
-                RAdderStart = RTrg;
-                MainR = oMainR;
-                AuxR  = oAuxR;
-            } else {
-                MainR = dmul_round(Dry, RAcc >> 16);
-                AuxR  = dmul_round(Wet, RAcc >> 16);
-            }
-        } else {
-            if (RAcc > RTrg) {
-                RAcc = RTrg;
-                RAdderStart = RTrg;
-                MainR = oMainR;
-                AuxR  = oAuxR;
-            } else {
-                MainR = dmul_round(Dry, RAcc >> 16);
-                AuxR  = dmul_round(Wet, RAcc >> 16);
-            }
-        }
-
-        i1 = (s32)inp[ptr^S];
-        sadd(&out[ptr^S],  dmul_round(i1, MainR));
-        sadd(&aux1[ptr^S], dmul_round(i1, MainL));
-
-        if (AuxIncRate)
+        if (LAdderStart != ramps[0].target)
         {
-            sadd(&aux2[ptr^S], dmul_round(i1, AuxR));
-            sadd(&aux3[ptr^S], dmul_round(i1, AuxL));
+            ramps[0].value = LAdderStart;
+            ramps[0].step = (LAdderEnd - LAdderStart) >> 3;
+            LAdderEnd   = (s32) (((s64)LAdderEnd * (s64)rates[0]) >> 16);
+            LAdderStart = (s32) (((s64)ramps[0].value * (s64)rates[0]) >> 16);
         }
-        ptr++;
-    }
+        else
+        {
+            ramps[0].value = ramps[0].target;
+            ramps[0].step = 0;
+        }
+
+        if (RAdderStart != ramps[1].target)
+        {
+            ramps[1].value = RAdderStart;
+            ramps[1].step = (RAdderEnd - RAdderStart) >> 3;
+            RAdderEnd   = (s32) (((s64)RAdderEnd * (s64)rates[1]) >> 16);
+            RAdderStart = (s32) (((s64)ramps[1].value * (s64)rates[1]) >> 16);
+        }
+        else
+        {
+            ramps[1].value = ramps[1].target;
+            ramps[1].step = 0;
+        }
+
+        for (x = 0; x < 8; ++x)
+        {
+            if (ramp_next(&ramps[0]))
+            {
+                ramps[0].value = ramps[0].target;
+                LAdderStart = ramps[0].target;
+            }
+            if (ramp_next(&ramps[1]))
+            {
+                ramps[1].value = ramps[1].target;
+                RAdderStart = ramps[1].target;
+            }
+
+            value = inp[ptr^S];
+            envL = ramps[0].value >> 16;
+            envR = ramps[1].value >> 16;
+
+            sadd(&out[ptr^S],  dmul_round(value, dmul_round(Dry, envR)));
+            sadd(&aux1[ptr^S], dmul_round(value, dmul_round(Dry, envL)));
+            if (AuxIncRate)
+            {
+                sadd(&aux2[ptr^S], dmul_round(value, dmul_round(Wet, envR)));
+                sadd(&aux3[ptr^S], dmul_round(value, dmul_round(Wet, envL)));
+            }
+            ++ptr;
+        }
     }
 
     *(s16 *)(state_buffer +  0) = Wet; // 0-1
     *(s16 *)(state_buffer +  2) = Dry; // 2-3
-    *(s32 *)(state_buffer +  4) = LTrg; // 4-5
-    *(s32 *)(state_buffer +  6) = RTrg; // 6-7
-    *(s32 *)(state_buffer +  8) = LRamp; // 8-9 (state_buffer is a 16bit pointer)
-    *(s32 *)(state_buffer + 10) = RRamp; // 10-11
+    *(s32 *)(state_buffer +  4) = ramps[0].target; // 4-5
+    *(s32 *)(state_buffer +  6) = ramps[1].target; // 6-7
+    *(s32 *)(state_buffer +  8) = rates[0]; // 8-9 (state_buffer is a 16bit pointer)
+    *(s32 *)(state_buffer + 10) = rates[1]; // 10-11
     *(s32 *)(state_buffer + 12) = LAdderEnd; // 12-13
     *(s32 *)(state_buffer + 14) = RAdderEnd; // 14-15
     *(s32 *)(state_buffer + 16) = LAdderStart; // 12-13
@@ -619,10 +601,10 @@ static void SETVOL (u32 inst1, u32 inst2) {
 
     if (flags & A_LEFT) {
         audio.env_target[0]  = (s16)inst1;
-        audio.env_ramp[0] = (s32)inst2;
+        audio.env_rate[0] = (s32)inst2;
     } else { // A_RIGHT
         audio.env_target[1]  = (s16)inst1;
-        audio.env_ramp[1] = (s32)inst2;
+        audio.env_rate[1] = (s32)inst2;
     }
 }
 
@@ -725,12 +707,12 @@ static void SETVOL3 (u32 inst1, u32 inst2) {
             naudio.wet   = (s16)inst2; // 0x4C
         } else {
             naudio.env_target[1]  = (s16)inst1; // 0x46
-            //naudio.env_ramp[1] = (u16)(inst2 >> 0x10) | (s32)(s16)(inst2 << 0x10);
-            naudio.env_ramp[1] = (s32)inst2; // 0x48/0x4A
+            //naudio.env_rate[1] = (u16)(inst2 >> 0x10) | (s32)(s16)(inst2 << 0x10);
+            naudio.env_rate[1] = (s32)inst2; // 0x48/0x4A
         }
     } else {
         naudio.env_target[0]  = (s16)inst1; // 0x40
-        naudio.env_ramp[0] = (s32)inst2; // 0x42/0x44
+        naudio.env_rate[0] = (s32)inst2; // 0x42/0x44
     }
 }
 
@@ -745,105 +727,70 @@ static void ENVMIXER3 (u32 inst1, u32 inst2) {
     short *aux1=(short *)(rsp.DMEM+0xB40);
     short *aux2=(short *)(rsp.DMEM+0xCB0);
     short *aux3=(short *)(rsp.DMEM+0xE20);
-    s32 MainR;
-    s32 MainL;
-    s32 AuxR;
-    s32 AuxL;
-    s32 i1;
 
-    s32 LAdder, LAcc, LVol;
-    s32 RAdder, RAcc, RVol;
+    s16 envL, envR, value;
+
+    /* 0 -> Left, 1->Right */
+    struct ramp_t ramps[2];
     s16 RSig, LSig; // Most significant part of the Ramp Value
     s16 Wet, Dry;
-    s16 LTrg, RTrg;
 
     naudio.env_vol[1] = (s16)inst1;
 
-    if (flags & A_INIT) {
-        LAdder = naudio.env_ramp[0] / 8;
-        LAcc  = 0;
-        LVol  = naudio.env_vol[0];
-        LSig = (s16)(naudio.env_ramp[0] >> 16);
+    if (flags & A_INIT)
+    {
+        ramps[0].step = naudio.env_rate[0] >> 3;
+        ramps[0].value = (s32)naudio.env_vol[0] << 16;
+        ramps[0].target = (s32)naudio.env_target[0] << 16;
+        LSig = (s16)(naudio.env_rate[0] >> 16);
 
-        RAdder = naudio.env_ramp[1] / 8;
-        RAcc  = 0;
-        RVol  = naudio.env_vol[1];
-        RSig = (s16)(naudio.env_ramp[1] >> 16);
+        ramps[1].step = naudio.env_rate[1] >> 3;
+        ramps[1].value = (s32)naudio.env_vol[1] << 16;
+        ramps[1].target = (s32)naudio.env_target[1] << 16;
+        RSig = (s16)(naudio.env_rate[1] >> 16);
 
         Wet = (s16)naudio.wet; Dry = (s16)naudio.dry; // Save Wet/Dry values
-        LTrg = naudio.env_target[0]; RTrg = naudio.env_target[1]; // Save Current Left/Right Targets
     } else {
         memcpy((u8 *)state_buffer, rsp.RDRAM+addy, 80);
         Wet    = *(s16 *)(state_buffer +  0); // 0-1
         Dry    = *(s16 *)(state_buffer +  2); // 2-3
-        LTrg   = *(s16 *)(state_buffer +  4); // 4-5
-        RTrg   = *(s16 *)(state_buffer +  6); // 6-7
-        LAdder = *(s32 *)(state_buffer +  8); // 8-9 (state_buffer is a 16bit pointer)
-        RAdder = *(s32 *)(state_buffer + 10); // 10-11
-        LAcc   = *(s32 *)(state_buffer + 12); // 12-13
-        RAcc   = *(s32 *)(state_buffer + 14); // 14-15
-        LVol   = *(s32 *)(state_buffer + 16); // 16-17
-        RVol   = *(s32 *)(state_buffer + 18); // 18-19
+        ramps[0].target = (s32)*(s16 *)(state_buffer +  4) << 16; // 4-5
+        ramps[1].target = (s32)*(s16 *)(state_buffer +  6) << 16; // 6-7
+        ramps[0].step = *(s32 *)(state_buffer +  8); // 8-9 (state_buffer is a 16bit pointer)
+        ramps[1].step = *(s32 *)(state_buffer + 10); // 10-11
+//        0   = *(s32 *)(state_buffer + 12); // 12-13
+//        0   = *(s32 *)(state_buffer + 14); // 14-15
+        ramps[0].value = *(s32 *)(state_buffer + 16); // 16-17
+        ramps[1].value = *(s32 *)(state_buffer + 18); // 18-19
         LSig   = *(s16 *)(state_buffer + 20); // 20-21
         RSig   = *(s16 *)(state_buffer + 22); // 22-23
     }
 
-    for (y = 0; y < (0x170/2); y++) {
+    for (y = 0; y < (0x170/2); y++)
+    {
+        if (ramp_next(&ramps[0])) { ramps[0].value = ramps[0].target; }
+        if (ramp_next(&ramps[1])) { ramps[1].value = ramps[1].target; }
 
-        // Left
-        LAcc += LAdder;
-        LVol += (LAcc >> 16);
-        LAcc &= 0xFFFF;
+        value = inp[y^S];
+        envL = ramps[0].value >> 16;
+        envR = ramps[1].value >> 16;
 
-        // Right
-        RAcc += RAdder;
-        RVol += (RAcc >> 16);
-        RAcc &= 0xFFFF;
-// ****************************************************************
-        // Clamp Left
-        if (LSig >= 0) { // VLT
-            if (LVol > LTrg) {
-                LVol = LTrg;
-            }
-        } else { // VGE
-            if (LVol < LTrg) {
-                LVol = LTrg;
-            }
-        }
-
-        // Clamp Right
-        if (RSig >= 0) { // VLT
-            if (RVol > RTrg) {
-                RVol = RTrg;
-            }
-        } else { // VGE
-            if (RVol < RTrg) {
-                RVol = RTrg;
-            }
-        }
-// ****************************************************************
-        MainL = dmul_round(Dry, LVol);
-        MainR = dmul_round(Dry, RVol);
-        AuxL = dmul_round(Wet, LVol);
-        AuxR = dmul_round(Wet, RVol);
-        
-        i1 = inp[y^S];
-        sadd(&out[y^S],  dmul_round(i1, MainL));
-        sadd(&aux1[y^S], dmul_round(i1, MainR));
-        sadd(&aux2[y^S], dmul_round(i1, AuxL));
-        sadd(&aux3[y^S], dmul_round(i1, AuxR));
+        sadd(&out[y^S],  dmul_round(value, dmul_round(Dry, envL)));
+        sadd(&aux1[y^S], dmul_round(value, dmul_round(Dry, envR)));
+        sadd(&aux2[y^S], dmul_round(value, dmul_round(Wet, envL)));
+        sadd(&aux3[y^S], dmul_round(value, dmul_round(Wet, envR)));
     }
 
     *(s16 *)(state_buffer +  0) = Wet; // 0-1
     *(s16 *)(state_buffer +  2) = Dry; // 2-3
-    *(s16 *)(state_buffer +  4) = LTrg; // 4-5
-    *(s16 *)(state_buffer +  6) = RTrg; // 6-7
-    *(s32 *)(state_buffer +  8) = LAdder; // 8-9 (state_buffer is a 16bit pointer)
-    *(s32 *)(state_buffer + 10) = RAdder; // 10-11
-    *(s32 *)(state_buffer + 12) = LAcc; // 12-13
-    *(s32 *)(state_buffer + 14) = RAcc; // 14-15
-    *(s32 *)(state_buffer + 16) = LVol; // 16-17
-    *(s32 *)(state_buffer + 18) = RVol; // 18-19
+    *(s16 *)(state_buffer +  4) = ramps[0].target >> 16; // 4-5
+    *(s16 *)(state_buffer +  6) = ramps[1].target >> 16; // 6-7
+    *(s32 *)(state_buffer +  8) = ramps[0].step; // 8-9 (state_buffer is a 16bit pointer)
+    *(s32 *)(state_buffer + 10) = ramps[1].step; // 10-11
+    *(s32 *)(state_buffer + 12) = 0; // 12-13
+    *(s32 *)(state_buffer + 14) = 0; // 14-15
+    *(s32 *)(state_buffer + 16) = ramps[0].value; // 16-17
+    *(s32 *)(state_buffer + 18) = ramps[1].value; // 18-19
     *(s16 *)(state_buffer + 20) = LSig; // 20-21
     *(s16 *)(state_buffer + 22) = RSig; // 22-23
     memcpy(rsp.RDRAM+addy, (u8 *)state_buffer,80);
