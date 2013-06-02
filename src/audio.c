@@ -732,7 +732,6 @@ static void ENVMIXER3 (u32 inst1, u32 inst2) {
 
     /* 0 -> Left, 1->Right */
     struct ramp_t ramps[2];
-    s16 RSig, LSig; // Most significant part of the Ramp Value
     s16 Wet, Dry;
 
     naudio.env_vol[1] = (s16)inst1;
@@ -742,12 +741,10 @@ static void ENVMIXER3 (u32 inst1, u32 inst2) {
         ramps[0].step = naudio.env_rate[0] >> 3;
         ramps[0].value = (s32)naudio.env_vol[0] << 16;
         ramps[0].target = (s32)naudio.env_target[0] << 16;
-        LSig = (s16)(naudio.env_rate[0] >> 16);
 
         ramps[1].step = naudio.env_rate[1] >> 3;
         ramps[1].value = (s32)naudio.env_vol[1] << 16;
         ramps[1].target = (s32)naudio.env_target[1] << 16;
-        RSig = (s16)(naudio.env_rate[1] >> 16);
 
         Wet = (s16)naudio.wet; Dry = (s16)naudio.dry; // Save Wet/Dry values
     } else {
@@ -762,8 +759,6 @@ static void ENVMIXER3 (u32 inst1, u32 inst2) {
 //        0   = *(s32 *)(state_buffer + 14); // 14-15
         ramps[0].value = *(s32 *)(state_buffer + 16); // 16-17
         ramps[1].value = *(s32 *)(state_buffer + 18); // 18-19
-        LSig   = *(s16 *)(state_buffer + 20); // 20-21
-        RSig   = *(s16 *)(state_buffer + 22); // 22-23
     }
 
     for (y = 0; y < (0x170/2); y++)
@@ -791,8 +786,6 @@ static void ENVMIXER3 (u32 inst1, u32 inst2) {
     *(s32 *)(state_buffer + 14) = 0; // 14-15
     *(s32 *)(state_buffer + 16) = ramps[0].value; // 16-17
     *(s32 *)(state_buffer + 18) = ramps[1].value; // 18-19
-    *(s16 *)(state_buffer + 20) = LSig; // 20-21
-    *(s16 *)(state_buffer + 22) = RSig; // 22-23
     memcpy(rsp.RDRAM+addy, (u8 *)state_buffer,80);
 }
 
