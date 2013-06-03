@@ -126,7 +126,22 @@ static int ramp_next(struct ramp_t *ramp)
         : (ramp->value < ramp->target);
 }
 
+static void envmix_exp_next_ramp(struct ramp_t *ramp, s32 *start, s32 *end, s32 rate)
+{
+    if (*start != ramp->target)
+    {
+        ramp->value = *start;
+        ramp->step  = (*end - *start) >> 3;
 
+        *start = (s32)(((s64)*start * (s64)rate) >> 16);
+        *end   = (s32)(((s64)*end   * (s64)rate) >> 16);
+    }
+    else
+    {
+        ramp->value = ramp->target;
+        ramp->step  = 0;
+    }
+}
 
 
 // FIXME: remove these flags
@@ -495,31 +510,8 @@ static void ENVMIXER (u32 inst1, u32 inst2) {
 
     for (y = 0; y < audio.count; y += 0x10)
     {
-        if (LAdderStart != ramps[0].target)
-        {
-            ramps[0].value = LAdderStart;
-            ramps[0].step = (LAdderEnd - LAdderStart) >> 3;
-            LAdderStart = (s32) (((s64)LAdderStart * (s64)rates[0]) >> 16);
-            LAdderEnd   = (s32) (((s64)LAdderEnd   * (s64)rates[0]) >> 16);
-        }
-        else
-        {
-            ramps[0].value = ramps[0].target;
-            ramps[0].step = 0;
-        }
-
-        if (RAdderStart != ramps[1].target)
-        {
-            ramps[1].value = RAdderStart;
-            ramps[1].step = (RAdderEnd - RAdderStart) >> 3;
-            RAdderStart = (s32) (((s64)RAdderStart * (s64)rates[1]) >> 16);
-            RAdderEnd   = (s32) (((s64)RAdderEnd   * (s64)rates[1]) >> 16);
-        }
-        else
-        {
-            ramps[1].value = ramps[1].target;
-            ramps[1].step = 0;
-        }
+        envmix_exp_next_ramp(&ramps[0], &LAdderStart, &LAdderEnd, rates[0]);
+        envmix_exp_next_ramp(&ramps[1], &RAdderStart, &RAdderEnd, rates[1]);
 
         for (x = 0; x < 8; ++x)
         {
