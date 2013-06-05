@@ -208,6 +208,11 @@ static unsigned align(unsigned x, unsigned m)
     return (x + m) & (~m);
 }
 
+static u32 parse(u32 value, unsigned offset, unsigned width)
+{
+    return (value >> offset) & ((1 << width) - 1);
+}
+
 static s16 clamp_s16(s32 x)
 {
     if (x > 32767) { x = 32767; } else if (x < -32768) { x = -32768; }
@@ -227,33 +232,6 @@ static s32 dmul_round(s16 x, s16 y)
 static void sadd(s16 *x, s32 y)
 {
     *x = clamp_s16(*x + y);
-}
-
-
-static unsigned parse_acmd(u32 w1)
-{
-    return (w1 >> 24) & 0xff;
-}
-
-static unsigned parse_flags(u32 w1)
-{
-    return (w1 >> 16) & 0xff;
-}
-
-static u32 parse_address(u32 w2)
-{
-    // ignore segments (always zero in practice)
-    return (w2 & 0xffffff); // audio.segments[(w2 >> 24) & 0xff];
-}
-
-static u16 parse_lo(u32 x)
-{
-    return x & 0xffff;
-}
-
-static u16 parse_hi(u32 x)
-{
-    return (x >> 16) & 0xffff;
 }
 
 /* caller is responsible to ensure that size and alignment constrains are met */
@@ -295,7 +273,7 @@ static void alist_process(void * const data, const acmd_callback_t abi[], unsign
         w1 = *(alist++);
         w2 = *(alist++);
 
-        acmd = parse_acmd(w1);
+        acmd = parse(w1, 24, 8);
 
         if (acmd < abi_size)
         {
@@ -436,14 +414,22 @@ static void SPNOOP(void * const data, u32 w1, u32 w2)
 
 static void UNKNOWN(void * const data, u32 w1, u32 w2)
 {
+    u8 acmd = parse(w1, 24, 8);
+
     DebugMessage(M64MSG_WARNING,
             "Unknown audio command %d: %08x %08x",
-            parse_acmd(w1), w1, w2);
+            acmd, w1, w2);
 }
 
 static void SEGMENT(void * const data, u32 w1, u32 w2)
 {
+    struct audio_t * const audio = (struct audio_t *)data;
+
+    u8  index   = parse(w2, 24,  8);
+    u32 address = parse(w2,  0, 24);
+
     // ignored in practice
+    audio->segments[index] = address;
 }
 
 static void POLEF(void * const data, u32 w1, u32 w2)
@@ -453,20 +439,21 @@ static void POLEF(void * const data, u32 w1, u32 w2)
 
 static void CLEARBUFF(void * const data, u32 w1, u32 w2)
 {
-    u16 addr = parse_lo(w1) & ~3;
-    u16 count = align(parse_lo(w2), 4);
+    u16 dmem  = parse(w1, 0, 16);
+    u16 count = parse(w2, 0, 16);
     
-    memset(rsp.DMEM+addr, 0, count);
+    memset(rsp.DMEM + (dmem & ~3), 0, align(count, 4));
 }
 
 static void ENVMIXER(void * const data, u32 w1, u32 w2)
 {
     struct audio_t * const audio = (struct audio_t *)data;
 
+    u8  flags   = parse(w1, 16,  8);
+    u32 address = parse(w2,  0, 24);
+
     int x,y;
     short state_buffer[40];
-    unsigned flags = parse_flags(w1);
-    u32 addy = parse_address(w2);
     short *inp=(short *)(rsp.DMEM+audio->in);
     short *out=(short *)(rsp.DMEM+audio->out);
     short *aux1=(short *)(rsp.DMEM+audio->aux_dry_left);
@@ -498,7 +485,7 @@ static void ENVMIXER(void * const data, u32 w1, u32 w2)
     }
     else
     {
-        memcpy((u8 *)state_buffer, (rsp.RDRAM+addy), 80);
+        memcpy((u8 *)state_buffer, (rsp.RDRAM+address), 80);
 
         Wet             = *(s16*)(state_buffer + 0);
         Dry             = *(s16*)(state_buffer + 2);
@@ -555,17 +542,21 @@ static void ENVMIXER(void * const data, u32 w1, u32 w2)
     *(s32 *)(state_buffer + 14) = RAdderEnd;
     *(s32 *)(state_buffer + 16) = LAdderStart;
     *(s32 *)(state_buffer + 18) = RAdderStart;
-    memcpy(rsp.RDRAM+addy, (u8*)state_buffer, 80);
+    memcpy(rsp.RDRAM+address, (u8*)state_buffer, 80);
 }
 
 static void RESAMPLE(void * const data, u32 w1, u32 w2)
 {
     struct audio_t * const audio = (struct audio_t *)data;
 
+    u8  flags   = parse(w1, 16,  8);
+    u16 pitch   = parse(w1,  0, 16);
+    u32 address = parse(w2,  0, 24);
+
     resample_buffer(
-            parse_flags(w1) & A_INIT,
-            parse_address(w2),
-            (unsigned int)(parse_lo(w1)) << 1,
+            flags & A_INIT,
+            address,
+            (unsigned int)(pitch) << 1,
             audio->in >> 1,
             audio->out >> 1,
             align(audio->count, 16) >> 1);
@@ -575,14 +566,12 @@ static void SETVOL(void * const data, u32 w1, u32 w2)
 {
     struct audio_t * const audio = (struct audio_t *)data;
 
-    unsigned flags = parse_flags(w1);
-    s16 vol = (s16)parse_lo(w1);
-    s16 volrate = (s16)parse_lo(w2);
+    u8 flags = parse(w1, 16, 8);
 
     if (flags & A_AUX)
     {
-        audio->dry = vol;
-        audio->wet = volrate;
+        audio->dry = (s16)parse(w1, 0, 16);
+        audio->wet = (s16)parse(w2, 0, 16);
         return;
     }
 
@@ -590,24 +579,24 @@ static void SETVOL(void * const data, u32 w1, u32 w2)
     {
         if (flags & A_LEFT)
         {
-            audio->env_vol[0] = vol;
+            audio->env_vol[0] = (s16)parse(w1, 0, 16);
         }
         else
         {
-            audio->env_vol[1] = vol;
+            audio->env_vol[1] = (s16)parse(w1, 0, 16);
         }
         return;
     }
 
     if (flags & A_LEFT)
     {
-        audio->env_target[0]  = (s16)w1;
-        audio->env_rate[0] = (s32)w2;
+        audio->env_target[0] = (s16)parse(w1, 0, 16);
+        audio->env_rate[0]   = (s32)w2;
     }
     else
     { // A_RIGHT
-        audio->env_target[1]  = (s16)w1;
-        audio->env_rate[1] = (s32)w2;
+        audio->env_target[1] = (s16)parse(w1, 0, 16);
+        audio->env_rate[1]   = (s32)w2;
     }
 }
 
@@ -616,14 +605,17 @@ static void SETLOOP(void * const data, u32 w1, u32 w2)
 {
     struct audio_t * const audio = (struct audio_t *)data;
 
-    audio->loop = parse_address(w2);
+    u32 address = parse(w2, 0, 24);
+
+    audio->loop = address;
 }
 
 static void ADPCM(void * const data, u32 w1, u32 w2)
 {
     struct audio_t * const audio = (struct audio_t *)data;
 
-    unsigned flags = parse_flags(w1);
+    u8  flags   = parse(w1, 16,  8);
+    u32 address = parse(w2,  0, 24);
    
     adpcm_decode(
             flags & A_INIT,
@@ -631,7 +623,7 @@ static void ADPCM(void * const data, u32 w1, u32 w2)
             0, // not supported in this version
             (s16*)audio->adpcm_codebook,
             audio->loop,
-            parse_address(w2),
+            address,
             audio->in,
             audio->out,
             align(audio->count, 32) >> 5);
@@ -642,7 +634,10 @@ static void LOADBUFF(void * const data, u32 w1, u32 w2)
     struct audio_t * const audio = (struct audio_t *)data;
 
     if (audio->count == 0) { return; }
-    dma_read_fast(audio->in & 0xff8, parse_address(w2) & ~7, audio->count - 1);
+
+    u32 address = parse(w2, 0, 24);
+
+    dma_read_fast(audio->in & 0xff8, address & ~7, audio->count - 1);
 }
 
 static void SAVEBUFF(void * const data, u32 w1, u32 w2)
@@ -650,36 +645,43 @@ static void SAVEBUFF(void * const data, u32 w1, u32 w2)
     struct audio_t * const audio = (struct audio_t *)data;
 
     if (audio->count == 0) { return; }
-    dma_write_fast(parse_address(w2) & ~7, audio->out & 0xff8, audio->count - 1);
+    
+    u32 address = parse(w2, 0, 24);
+
+    dma_write_fast(address & ~7, audio->out & 0xff8, audio->count - 1);
 }
 
 static void SETBUFF(void * const data, u32 w1, u32 w2)
 {
     struct audio_t * const audio = (struct audio_t *)data;
 
-    if (parse_flags(w1) & A_AUX)
+    u8 flags = parse(w1, 16, 8);
+
+    if (flags & A_AUX)
     {
-        audio->aux_dry_left  = parse_lo(w1);
-        audio->aux_wet_right = parse_hi(w2);
-        audio->aux_wet_left  = parse_lo(w2);
+        audio->aux_dry_left  = parse(w1,  0, 16);
+        audio->aux_wet_right = parse(w2, 16, 16);
+        audio->aux_wet_left  = parse(w2,  0, 16);
     }
     else
     {
-        audio->in    = parse_lo(w1);
-        audio->out   = parse_hi(w2);
-        audio->count = parse_lo(w2);
+        audio->in    = parse(w1,  0, 16);
+        audio->out   = parse(w2, 16, 16);
+        audio->count = parse(w2,  0, 16);
     }
 }
 
 static void DMEMMOVE(void * const data, u32 w1, u32 w2)
 {
-    int count = (int)parse_lo(w2);
+    u16 dmemi = parse(w1,  0, 16);
+    u16 dmemo = parse(w2, 16, 16);
+    u16 count = parse(w2,  0, 16);
 
     if (count == 0) { return; }
 
     dmem_move(
-        parse_hi(w2),
-        parse_lo(w1),
+        dmemo,
+        dmemi,
         align(count, 4));
 }
 
@@ -687,10 +689,13 @@ static void LOADADPCM(void * const data, u32 w1, u32 w2)
 {
     struct audio_t * const audio = (struct audio_t *)data;
 
+    u16 count   = parse(w1, 0, 16);
+    u32 address = parse(w2, 0, 24);
+
     adpcm_load_codebook(
             audio->adpcm_codebook,
-            parse_address(w2 & 0xffffff),
-            parse_lo(w1));
+            address,
+            count);
 }
 
 
@@ -698,9 +703,12 @@ static void INTERLEAVE(void * const data, u32 w1, u32 w2)
 {
     struct audio_t * const audio = (struct audio_t *)data;
 
+    u16 left  = parse(w2, 16, 16);
+    u16 right = parse(w2,  0, 16);
+
     interleave_buffers(
-            parse_hi(w2),
-            parse_lo(w2),
+            left,
+            right,
             audio->out,
             audio->count >> 2);
 }
@@ -710,11 +718,15 @@ static void MIXER(void * const data, u32 w1, u32 w2)
 {
     struct audio_t * const audio = (struct audio_t *)data;
 
+    u16 gain  = parse(w1,  0, 16);
+    u16 dmemi = parse(w2, 16, 16);
+    u16 dmemo = parse(w2,  0, 16);
+
     mix_buffers(
-            parse_hi(w2),
-            parse_lo(w2),
+            dmemi,
+            dmemo,
             audio->count >> 1,
-            (s16)parse_lo(w1));
+            (s16)gain);
 }
 
 
@@ -726,27 +738,26 @@ static void SETVOL3(void * const data, u32 w1, u32 w2)
 {
     struct naudio_t * const naudio = (struct naudio_t *)data;
 
-    u8 Flags = (u8)(w1 >> 0x10);
+    u8 flags = parse(w1, 16, 8);
 
-    if (Flags & 0x4)
+    if (flags & 0x4)
     { // 288
-        if (Flags & 0x2)
+        if (flags & 0x2)
         { // 290
-            naudio->env_vol[0]  = (s16)w1; // 0x50
-            naudio->dry   = (s16)(w2 >> 0x10); // 0x4E
-            naudio->wet   = (s16)w2; // 0x4C
+            naudio->env_vol[0]  = (s16)parse(w1,  0, 16); // 0x50
+            naudio->dry         = (s16)parse(w2, 16, 16); // 0x4E
+            naudio->wet         = (s16)parse(w2,  0, 16); // 0x4C
         }
         else
         {
-            naudio->env_target[1]  = (s16)w1; // 0x46
-            //naudio->env_rate[1] = (u16)(w2 >> 0x10) | (s32)(s16)(w2 << 0x10);
-            naudio->env_rate[1] = (s32)w2; // 0x48/0x4A
+            naudio->env_target[1] = (s16)parse(w1, 0, 16); // 0x46
+            naudio->env_rate[1]   = (s32)w2;               // 0x48/0x4A
         }
     }
     else
     {
-        naudio->env_target[0]  = (s16)w1; // 0x40
-        naudio->env_rate[0] = (s32)w2; // 0x42/0x44
+        naudio->env_target[0] = (s16)parse(w1, 0, 16); // 0x40
+        naudio->env_rate[0]   = (s32)w2;               // 0x42/0x44
     }
 }
 
@@ -754,10 +765,11 @@ static void ENVMIXER3(void * const data, u32 w1, u32 w2)
 {
     struct naudio_t * const naudio = (struct naudio_t *)data;
 
+    u8  flags   = parse(w1, 16,  8);
+    u32 address = parse(w2,  0, 24);
+
     int y;
     short state_buffer[40];
-    u8 flags = (u8)((w1 >> 16) & 0xff);
-    u32 addy = (w2 & 0xFFFFFF);
 
     short *inp=(short *)(rsp.DMEM+0x4F0);
     short *out=(short *)(rsp.DMEM+0x9D0);
@@ -788,7 +800,7 @@ static void ENVMIXER3(void * const data, u32 w1, u32 w2)
     }
     else
     {
-        memcpy((u8 *)state_buffer, rsp.RDRAM+addy, 80);
+        memcpy((u8 *)state_buffer, rsp.RDRAM+address, 80);
 
         Wet             = *(s16 *)(state_buffer +  0); // 0-1
         Dry             = *(s16 *)(state_buffer +  2); // 2-3
@@ -827,71 +839,95 @@ static void ENVMIXER3(void * const data, u32 w1, u32 w2)
     *(s32 *)(state_buffer + 14) = 0; // 14-15
     *(s32 *)(state_buffer + 16) = ramps[0].value; // 16-17
     *(s32 *)(state_buffer + 18) = ramps[1].value; // 18-19
-    memcpy(rsp.RDRAM+addy, (u8 *)state_buffer,80);
+    memcpy(rsp.RDRAM+address, (u8 *)state_buffer,80);
 }
 
 static void CLEARBUFF3(void * const data, u32 w1, u32 w2)
 {
-    u16 addr = (u16)(w1 & 0xffff);
-    u16 count = (u16)(w2 & 0xffff);
-    memset(rsp.DMEM+addr+0x4f0, 0, count);
+    u16 dmem  = parse(w1, 0, 16);
+    u16 count = parse(w2, 0, 16);
+
+    memset(rsp.DMEM + dmem + 0x4f0, 0, count);
 }
 
 static void MIXER3(void * const data, u32 w1, u32 w2)
 {
+    u16 gain  = parse(w1,  0, 16);
+    u16 dmemi = parse(w2, 16, 16);
+    u16 dmemo = parse(w2,  0, 16);
+
     mix_buffers(
-            parse_hi(w2) + 0x4f0,
-            parse_lo(w2) + 0x4f0,
+            dmemi + 0x4f0,
+            dmemo + 0x4f0,
             0x170 >> 1,
-            (s16)parse_lo(w1));
+            (s16)gain);
 }
 
 static void LOADBUFF3(void * const data, u32 w1, u32 w2)
- {
-    u16 length = (w1 >> 12) & 0xfff;
+{
+    u16 length  = parse(w1, 12, 12);
+    u16 dmem    = parse(w1,  0, 12);
+    u32 address = parse(w2,  0, 24);
+
     if (length == 0) { return; }
 
-    dma_read_fast((w1 + 0x4f0) & 0xff8, (w2 & 0xfffff8), length - 1);
+    dma_read_fast((dmem + 0x4f0) & 0xff8, address & ~7, length - 1);
 }
 
 static void SAVEBUFF3(void * const data, u32 w1, u32 w2)
 {
-    u16 length = (w1 >> 12) & 0xfff;
+    u16 length  = parse(w1, 12, 12);
+    u16 dmem    = parse(w1,  0, 12);
+    u32 address = parse(w2,  0, 24);
+
     if (length == 0) { return; }
 
-    dma_write_fast((w2 & 0xfffff8), (w1 + 0x4f0) & 0xff8, length - 1);
+    dma_write_fast(address & ~7, (dmem + 0x4f0) & 0xff8, length - 1);
 }
 
 static void LOADADPCM3(void * const data, u32 w1, u32 w2)
 {
     struct naudio_t * const naudio = (struct naudio_t *)data;
 
+    u16 count   = parse(w1, 0, 16);
+    u32 address = parse(w2, 0, 24);
+
     adpcm_load_codebook(
             naudio->adpcm_codebook,
-            w2 & 0xffffff,
-            w1 & 0xffff);
+            address,
+            count);
 }
 
 static void DMEMMOVE3(void * const data, u32 w1, u32 w2)
 {
+    u16 dmemi = parse(w1,  0, 16);
+    u16 dmemo = parse(w2, 16, 16);
+    u16 count = parse(w2,  0, 16);
+
     dmem_move(
-            0x4f0 + parse_hi(w2),
-            0x4f0 + parse_lo(w1),
-            align(parse_lo(w2), 4));
+            dmemo + 0x4f0,
+            dmemi + 0x4f0,
+            align(count, 4));
 }
 
 static void SETLOOP3(void * const data, u32 w1, u32 w2)
 {
     struct naudio_t * const naudio = (struct naudio_t *)data;
 
-    naudio->loop = (w2 & 0xffffff);
+    u32 address = parse(w2, 0, 24);
+
+    naudio->loop = address;
 }
 
 static void ADPCM3(void * const data, u32 w1, u32 w2)
 {
     struct naudio_t * const naudio = (struct naudio_t *)data;
 
-    unsigned flags = (w2 >> 28) & 0x0f;
+    u32 address = parse(w1,  0, 24);
+    u8  flags   = parse(w2, 28,  4);
+    u16 count   = parse(w2, 16, 12);
+    u16 dmemi   = parse(w2, 12,  4);
+    u16 dmemo   = parse(w2,  0, 12);
 
     adpcm_decode(
             flags & A_INIT,
@@ -899,20 +935,26 @@ static void ADPCM3(void * const data, u32 w1, u32 w2)
             0, // not supported in this version
             (s16*)naudio->adpcm_codebook,
             naudio->loop,
-            w1 & 0xffffff,
-            0x4f0 + ((w2 >> 12) & 0xf),
-            0x4f0 + (w2 & 0xfff),
-            align((w2 >> 16) & 0xfff, 32) >> 5);
+            address,
+            0x4f0 + dmemi,
+            0x4f0 + dmemo,
+            align(count, 32) >> 5);
 }
 
 static void RESAMPLE3(void * const data, u32 w1, u32 w2)
 {
+    u32 address = parse(w1,  0, 24);
+    u8  flags   = parse(w2, 30,  2);
+    u16 pitch   = parse(w2, 14, 16);
+    u16 dmemi   = parse(w2,  2, 12);
+    u16 dmemo   = parse(w2,  0,  2);
+
     resample_buffer(
-            ((w2 >> 30) & 0x3) & A_INIT,
-            w1 & 0xffffff,
-            ((w2 >> 14) & 0xffff) << 1,
-            (((w2 >> 2) & 0xfff) + 0x4f0) >> 1,
-            ((w2 & 0x3) ? 0x660 : 0x4f0) >> 1,
+            flags & A_INIT,
+            address,
+            (u32)pitch << 1,
+            (dmemi + 0x4f0) >> 1,
+            ((dmemo) ? 0x660 : 0x4f0) >> 1,
             0x170 >> 1);
 }
 
@@ -932,42 +974,53 @@ static void MP3ADDY(void * const data, u32 w1, u32 w2)
 
 static void MP3(void * const data, u32 w1, u32 w2)
 {
-    mp3_decode(
-            w2 & 0xffffff,
-            (w1 >> 1) & 0x0f);
+    u8  index   = parse(w1,  1,  4);
+    u32 address = parse(w2,  0, 24);
+
+    mp3_decode(address, index);
 }
+
+
+
+
 
 static void LOADADPCM2(void * const data, u32 w1, u32 w2)
 {
     struct audio2_t * const audio2 = (struct audio2_t *)data;
 
+    u16 count   = parse(w1, 0, 16);
+    u32 address = parse(w2, 0, 24);
+
     adpcm_load_codebook(
             audio2->adpcm_codebook,
-            w2 & 0xffffff,
-            w1 & 0xffff);
+            address,
+            count);
 }
 
 static void SETLOOP2(void * const data, u32 w1, u32 w2)
 {
     struct audio2_t * const audio2 = (struct audio2_t *)data;
 
-    audio2->loop = w2 & 0xffffff; // No segment?
+    u32 address = parse(w2, 0, 24);
+
+    audio2->loop = address; // No segment?
 }
 
 static void SETBUFF2(void * const data, u32 w1, u32 w2)
 {
     struct audio2_t * const audio2 = (struct audio2_t *)data;
 
-    audio2->in    = (u16)(w1);            // 0x00
-    audio2->out   = (u16)((w2 >> 0x10)); // 0x02
-    audio2->count = (u16)(w2);            // 0x04
+    audio2->in    = parse(w1,  0, 16);
+    audio2->out   = parse(w2, 16, 16);
+    audio2->count = parse(w2,  0, 16);
 }
 
 static void ADPCM2(void * const data, u32 w1, u32 w2)
 {
     struct audio2_t * const audio2 = (struct audio2_t *)data;
 
-    unsigned flags = parse_flags(w1);
+    u8  flags   = parse(w1, 16,  8);
+    u32 address = parse(w2,  0, 24);
 
     adpcm_decode(
             flags & A_INIT,
@@ -975,7 +1028,7 @@ static void ADPCM2(void * const data, u32 w1, u32 w2)
             flags & 0x4,
             (s16*)audio2->adpcm_codebook,
             audio2->loop,
-            parse_address(w2),
+            address,
             audio2->in,
             audio2->out,
             align(audio2->count, 32) >> 5);
@@ -983,40 +1036,58 @@ static void ADPCM2(void * const data, u32 w1, u32 w2)
 
 static void CLEARBUFF2(void * const data, u32 w1, u32 w2)
 {
-    u16 addr = (u16)(w1 & 0xffff);
-    u16 count = (u16)(w2 & 0xffff);
+    u16 dmem  = parse(w1, 0, 16);
+    u16 count = parse(w2, 0, 16);
+    
     if (count > 0)
-        memset(rsp.DMEM+addr, 0, count);
+        memset(rsp.DMEM + dmem, 0, count);
 }
 
 static void LOADBUFF2(void * const data, u32 w1, u32 w2)
 {
-    dma_read_fast(w1 & 0xff8, parse_address(w2) & ~7, ((w1 >> 12) & 0xff0) - 1);
+    u16 count   = parse(w1, 12, 12);
+    u16 dmem    = parse(w1,  0, 12);
+    u32 address = parse(w2,  0, 24);
+
+    dma_read_fast(dmem & ~7, address & ~7, (count & 0xff0) - 1);
 }
 
 static void SAVEBUFF2(void * const data, u32 w1, u32 w2)
 {
-    dma_write_fast(parse_address(w2) & ~7, w1 & 0xff8, ((w1 >> 12) & 0xff0) - 1);
+    u16 count   = parse(w1, 12, 12);
+    u16 dmem    = parse(w1,  0, 12);
+    u32 address = parse(w2,  0, 24);
+
+    dma_write_fast(address & ~7, dmem & ~7, (count & 0xff0) - 1);
 }
 
 
 static void MIXER2(void * const data, u32 w1, u32 w2)
 {
+    u16 count = parse(w1, 12, 12);
+    u16 gain  = parse(w1,  0, 16);
+    u16 dmemi = parse(w2, 16, 16);
+    u16 dmemo = parse(w2,  0, 16);
+
     mix_buffers(
-            parse_hi(w2),
-            parse_lo(w2),
-            ((w1 >> 12) & 0xff0) >> 1,
-            (s16)parse_lo(w1));
+            dmemi,
+            dmemo,
+            (count & ~0xf) >> 1,
+            (s16)gain);
 }
 
 static void RESAMPLE2(void * const data, u32 w1, u32 w2)
 {
     struct audio2_t * const audio2 = (struct audio2_t *)data;
 
+    u8  flags   = parse(w1, 16,  8);
+    u16 pitch   = parse(w1,  0, 16);
+    u32 address = parse(w2,  0, 24);
+
     resample_buffer(
-            parse_flags(w1) & A_INIT,
-            parse_address(w2),
-            (unsigned int)(parse_lo(w1)) << 1,
+            flags & A_INIT,
+            address,
+            (unsigned int)pitch << 1,
             audio2->in >> 1,
             audio2->out >> 1,
             align(audio2->count, 16) >> 1);
@@ -1024,13 +1095,15 @@ static void RESAMPLE2(void * const data, u32 w1, u32 w2)
 
 static void DMEMMOVE2(void * const data, u32 w1, u32 w2)
 {
-    int count = (int)parse_lo(w2);
+    u16 dmemi = parse(w1,  0, 16);
+    u16 dmemo = parse(w2, 16, 16);
+    u16 count = parse(w2,  0, 16);
 
     if (count == 0) { return; }
 
     dmem_move(
-        parse_hi(w2),
-        parse_lo(w1),
+        dmemo,
+        dmemi,
         align(count, 4));
 }
 
@@ -1038,40 +1111,45 @@ static void ENVSETUP1(void * const data, u32 w1, u32 w2)
 {
     struct audio2_t * const audio2 = (struct audio2_t *)data;
 
-    u32 tmp;
+    u32 tmp    = parse(w1, 16,  8) << 8;
+    audio2->t3 = parse(w1,  0, 16);
+    audio2->s5 = parse(w2, 16, 16);
+    audio2->s6 = parse(w2,  0, 16);
 
-    audio2->t3 = w1 & 0xFFFF;
-    tmp = (w1 >> 0x8) & 0xFF00;
     audio2->env[4] = (u16)tmp;
     tmp += audio2->t3;
     audio2->env[5] = (u16)tmp;
-    audio2->s5 = w2 >> 0x10;
-    audio2->s6 = w2 & 0xFFFF;
 }
 
 static void ENVSETUP2(void * const data, u32 w1, u32 w2)
 {
     struct audio2_t * const audio2 = (struct audio2_t *)data;
 
-    u32 tmp;
+    u32 tmp1 = parse(w2, 16, 16);
+    u32 tmp2 = parse(w2,  0, 16);
 
-    tmp = (w2 >> 0x10);
-    audio2->env[0] = (u16)tmp;
-    tmp += audio2->s5;
-    audio2->env[1] = (u16)tmp;
-    tmp = w2 & 0xffff;
-    audio2->env[2] = (u16)tmp;
-    tmp += audio2->s6;
-    audio2->env[3] = (u16)tmp;
+    audio2->env[0] = (u16)tmp1;
+    tmp1 += audio2->s5;
+    audio2->env[1] = (u16)tmp1;
+
+    audio2->env[2] = (u16)tmp2;
+    tmp2 += audio2->s6;
+    audio2->env[3] = (u16)tmp2;
 }
 
 static void ENVMIXER2(void * const data, u32 w1, u32 w2)
 {
     struct audio2_t * const audio2 = (struct audio2_t *)data;
 
+    u16 s3 = parse(w1, 16, 8) << 4;
+    u16 t6 = parse(w2, 24, 8) << 4;
+    u16 t7 = parse(w2, 16, 8) << 4;
+    u16 s0 = parse(w2,  8, 8) << 4;
+    u16 s1 = parse(w2,  0, 8) << 4;
+    s32 count = (s32)parse(w1, 8, 8);
+
     s16 *bufft6, *bufft7, *buffs0, *buffs1;
     s16 *buffs3;
-    s32 count;
     u32 adder;
     int x;
 
@@ -1079,19 +1157,16 @@ static void ENVMIXER2(void * const data, u32 w1, u32 w2)
 
     s16 v2[8];
 
-    buffs3 = (s16 *)(rsp.DMEM + ((w1 >> 0x0c)&0x0ff0));
-    bufft6 = (s16 *)(rsp.DMEM + ((w2 >> 0x14)&0x0ff0));
-    bufft7 = (s16 *)(rsp.DMEM + ((w2 >> 0x0c)&0x0ff0));
-    buffs0 = (s16 *)(rsp.DMEM + ((w2 >> 0x04)&0x0ff0));
-    buffs1 = (s16 *)(rsp.DMEM + ((w2 << 0x04)&0x0ff0));
+    buffs3 = (s16 *)(rsp.DMEM + s3);
+    bufft6 = (s16 *)(rsp.DMEM + t6);
+    bufft7 = (s16 *)(rsp.DMEM + t7);
+    buffs0 = (s16 *)(rsp.DMEM + s0);
+    buffs1 = (s16 *)(rsp.DMEM + s1);
 
-
-    v2[0] = 0 - (s16)((w1 & 0x2) >> 1);
-    v2[1] = 0 - (s16)((w1 & 0x1));
-    v2[2] = 0 - (s16)((w1 & 0x8) >> 1);
-    v2[3] = 0 - (s16)((w1 & 0x4) >> 1);
-
-    count = (w1 >> 8) & 0xff;
+    v2[0] = 0 - (s16)parse(w1, 1, 1);
+    v2[1] = 0 - (s16)parse(w1, 0, 1);
+    v2[2] = 0 - (s16)(parse(w1, 3, 1) << 2);
+    v2[3] = 0 - (s16)(parse(w1, 2, 1) << 1);
 
     if (!isMKABI)
     {
@@ -1166,38 +1241,35 @@ static void ENVMIXER2(void * const data, u32 w1, u32 w2)
 
 static void DUPLICATE2(void * const data, u32 w1, u32 w2)
 {
-    unsigned short Count = (w1 >> 16) & 0xff;
-    unsigned short In  = w1&0xffff;
-    unsigned short Out = (w2>>16);
+    u16 count = parse(w1, 16,  8);
+    u16 dmemi = parse(w1,  0, 16);
+    u16 dmemo = parse(w2, 16, 16);
 
     unsigned short buff[64];
     
-    memcpy(buff,rsp.DMEM+In,128);
+    memcpy(buff, rsp.DMEM + dmemi, 128);
 
-    while(Count)
+    while(count)
     {
-        memcpy(rsp.DMEM+Out,buff,128);
-        Out+=128;
-        Count--;
+        memcpy(rsp.DMEM + dmemo, buff, 128);
+        dmemo += 128;
+        --count;
     }
 }
 
 static void INTERL2(void * const data, u32 w1, u32 w2)
 {
-    short Count = w1 & 0xffff;
-    unsigned short  Out   = w2 & 0xffff;
-    unsigned short In     = (w2 >> 16);
+    u16 count = parse(w1,  0, 16);
+    u16 dmemi = parse(w2, 16, 16);
+    u16 dmemo = parse(w2,  0, 16);
 
-    unsigned char *src,*dst;
-    src=(unsigned char *)(rsp.DMEM);//[In];
-    dst=(unsigned char *)(rsp.DMEM);//[Out];
-
-    while(Count)
+    while(count)
     {
-        *(short *)(dst+(Out^S8)) = *(short *)(src+(In^S8));
-        Out += 2;
-        In  += 4;
-        Count--;
+        *(u16*)(rsp.DMEM + (dmemo ^ S8)) = *(u16*)(rsp.DMEM + (dmemi ^ S8));
+
+        dmemo += 2;
+        dmemi += 4;
+        --count;
     }
 }
 
@@ -1205,8 +1277,11 @@ static void INTERLEAVE2(void * const data, u32 w1, u32 w2)
 {
     struct audio2_t * const audio2 = (struct audio2_t *)data;
 
+    u16 count = parse(w1, 16,  8) << 4;
+    u16 right = parse(w2, 16, 16);
+    u16 left  = parse(w2,  0, 16);
+    
     u16 out;
-    int count = ((w1 >> 12) & 0xff0);
     if (count == 0)
     {
         out = audio2->out;
@@ -1214,88 +1289,94 @@ static void INTERLEAVE2(void * const data, u32 w1, u32 w2)
     }
     else
     {
-        out = parse_lo(w1);
+        out = parse(w1, 0, 16);
     }
 
     // TODO: verify L/R order ?
     interleave_buffers(
-            parse_lo(w2),
-            parse_hi(w2),
+            left,
+            right,
             out,
             count >> 2);
 }
 
 static void ADDMIXER(void * const data, u32 w1, u32 w2)
 {
-    short Count   = (w1 >> 12) & 0x00ff0;
-    u16 InBuffer  = (w2 >> 16);
-    u16 OutBuffer = w2 & 0xffff;
-    int cntr;
+    u16 count = parse(w1, 16, 8) << 4;
+    u16 dmemi = parse(w2, 16, 16);
+    u16 dmemo = parse(w2,  0, 16);
 
-    s16 *inp  = (s16 *)(rsp.DMEM + InBuffer);
-    s16 *outp = (s16 *)(rsp.DMEM + OutBuffer);
-    for (cntr = 0; cntr < Count; cntr+=2)
-        sadd(outp++, *(inp++));
+    unsigned i;
+
+    const s16 *src = (s16 *)(rsp.DMEM + dmemi);
+    s16 *dst       = (s16 *)(rsp.DMEM + dmemo);
+
+    for (i = 0; i < count; i += 2)
+        sadd(dst++, *(src++));
 }
 
 static void HILOGAIN(void * const data, u32 w1, u32 w2)
 {
-    u16 cnt = w1 & 0xffff;
-    u16 out = (w2 >> 16) & 0xffff;
-    s16 hi  = (s16)((w1 >> 4) & 0xf000);
-    u16 lo  = (w1 >> 20) & 0xf;
-    s16 *src;
+    u16 count = parse(w1,  0, 16);
+    s16 hi    = (s16)(parse(w1, 16, 4) << 12);
+    u16 lo    = parse(w1, 20, 4);
+    u16 dmem  = parse(w2, 16, 16);
 
-    src = (s16 *)(rsp.DMEM+out);
+    s16 *ptr = (s16*)(rsp.DMEM + dmem);
+
     s32 tmp, val;
 
-    while(cnt)
+    while(count)
     {
-        val = (s32)*src;
+        val = (s32)*ptr;
         tmp = ((val * (s32)hi) >> 16) + (u32)(val * lo);
-        *src = clamp_s16(tmp);
-        src++;
-        cnt -= 2;
+        *ptr = clamp_s16(tmp);
+        ++ptr;
+        count -= 2;
     }
 }
 
 static void FILTER2(void * const data, u32 w1, u32 w2)
 {
+    u8  t4      = parse(w1, 16,  8);
+    u16 lw1     = parse(w1,  0, 16);
+    u32 address = parse(w2,  0, 24);
+
+
     static int cnt = 0;
     static s16 *lutt6;
     static s16 *lutt5;
-    u8 *save = (rsp.RDRAM+(w2&0xFFFFFF));
-    u8 t4 = (u8)((w1 >> 0x10) & 0xFF);
+
     int x;
+    u8 *save = rsp.RDRAM + address;
 
     if (t4 > 1)
     { // Then set the cnt variable
-        cnt = (w1 & 0xFFFF);
+        cnt = lw1;
         lutt6 = (s16 *)save;
         return;
     }
 
     if (t4 == 0)
     {
-        lutt5 = (short *)(save+0x10);
+        lutt5 = (s16*)(save+0x10);
     }
 
-    lutt5 = (short *)(save+0x10);
+    lutt5 = (s16*)(save+0x10);
 
     for (x = 0; x < 8; x++)
     {
         s32 a;
         a = (lutt5[x] + lutt6[x]) >> 1;
-        lutt5[x] = lutt6[x] = (short)a;
+        lutt5[x] = lutt6[x] = (s16)a;
     }
 
     short *inp1, *inp2; 
     s32 out1[8];
     s16 outbuff[0x3c0], *outp;
-    u32 inPtr = (u32)(w1&0xffff);
     inp1 = (short *)(save);
     outp = outbuff;
-    inp2 = (short *)(rsp.DMEM+inPtr);
+    inp2 = (short *)(rsp.DMEM+lw1);
     for (x = 0; x < cnt; x+=0x10)
     {
         out1[1] =  inp1[0]*lutt6[6];
@@ -1383,7 +1464,7 @@ static void FILTER2(void * const data, u32 w1, u32 w2)
     }
 //          memcpy (rsp.RDRAM+(w2&0xFFFFFF), dmem+0xFB0, 0x20);
     memcpy (save, inp2-8, 0x10);
-    memcpy (rsp.DMEM+(w1&0xffff), outbuff, cnt);
+    memcpy (rsp.DMEM + lw1, outbuff, cnt);
 }
 
 static void SEGMENT2(void * const data, u32 w1, u32 w2)
@@ -1394,7 +1475,7 @@ static void SEGMENT2(void * const data, u32 w1, u32 w2)
         return;
     }
 
-    if ((w1 & 0xffffff) == 0)
+    if (parse(w1, 0, 24) == 0)
     {
         isMKABI = 1;
         //SEGMENTS[(w2>>24)&0xf] = (w2 & 0xffffff);
