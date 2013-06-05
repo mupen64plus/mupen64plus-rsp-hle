@@ -321,6 +321,14 @@ static void segoffset_store(u32 so, u32* const segments, size_t n)
     }
 }
 
+static void dmem_move(u16 dmemo, u16 dmemi, u16 count)
+{
+    while (count != 0)
+    {
+        rsp.DMEM[(dmemo++)^S8] = rsp.DMEM[(dmemi++)^S8];
+        --count;
+    }
+}
 
 
 
@@ -426,18 +434,6 @@ static void interleave_buffers(u16 right, u16 left, u16 out, int count)
         *(dst++)=Right;
         *(dst++)=Left;
 #endif
-    }
-}
-
-static void dmem_move(u16 dst, u16 src, int count)
-{
-    int i;
-
-    for (i = 0; i < count; ++i)
-    {
-        *(u8*)(rsp.DMEM+(dst^S8)) = *(u8*)(rsp.DMEM+(src^S8));
-        ++src;
-        ++dst;
     }
 }
 
