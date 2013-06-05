@@ -30,6 +30,8 @@
 #include "adpcm.h"
 #include "mp3.h"
 
+#define N_SEGMENTS 16
+
 /* types defintions */
 typedef void (*acmd_callback_t)(void * const data, u32 w1, u32 w2);
 
@@ -37,7 +39,7 @@ typedef void (*acmd_callback_t)(void * const data, u32 w1, u32 w2);
 static struct audio_t
 {
     // segments
-    u32 segments[0x10]; // 0x320
+    u32 segments[N_SEGMENTS]; // 0x320
 
     // main buffers
     u16 in;             // 0x0000(t8)
@@ -213,14 +215,6 @@ static u32 parse(u32 value, unsigned offset, unsigned width)
     return (value >> offset) & ((1 << width) - 1);
 }
 
-static u32 segoffset(u32 so, const u32* segments)
-{
-    u8 index   = parse(so, 24, 8);
-    u32 offset = parse(so, 0, 24);
-
-    return segments[index] + offset;
-}
-
 static s16 clamp_s16(s32 x)
 {
     if (x > 32767) { x = 32767; } else if (x < -32768) { x = -32768; }
@@ -293,6 +287,46 @@ static void alist_process(void * const data, const acmd_callback_t abi[], unsign
         }
     }
 }
+
+
+/* segment / offset related functions */
+static u32 segoffset_load(u32 so, const u32* const segments, size_t n)
+{
+    u8 segment = parse(so, 24,  8);
+    u32 offset = parse(so,  0, 24);
+
+    if (segment < n)
+    {
+        return segments[segment] + offset;
+    }
+    else
+    {
+        DebugMessage(M64MSG_WARNING, "Invalid segment %u", segment);
+        return offset;
+    }
+}
+
+static void segoffset_store(u32 so, u32* const segments, size_t n)
+{
+    u8 segment = parse(so, 24,  8);
+    u32 offset = parse(so,  0, 24);
+
+    if (segment < n)
+    {
+        segments[segment] = offset;
+    }
+    else
+    {
+        DebugMessage(M64MSG_WARNING, "Invalid segment %u", segment);
+    }
+}
+
+
+
+
+
+
+
 
 static void mix_buffers(u16 in, u16 out, int count, s16 gain)
 {
@@ -433,10 +467,7 @@ static void SEGMENT(void * const data, u32 w1, u32 w2)
 {
     struct audio_t * const audio = (struct audio_t *)data;
 
-    u8  index   = parse(w2, 24,  8);
-    u32 address = parse(w2,  0, 24);
-
-    audio->segments[index] = address;
+    segoffset_store(w2, audio->segments, N_SEGMENTS);
 }
 
 static void POLEF(void * const data, u32 w1, u32 w2)
@@ -457,7 +488,7 @@ static void ENVMIXER(void * const data, u32 w1, u32 w2)
     struct audio_t * const audio = (struct audio_t *)data;
 
     u8  flags   = parse(w1, 16,  8);
-    u32 address = segoffset(w2, audio->segments);
+    u32 address = segoffset_load(w2, audio->segments, N_SEGMENTS);
 
     int x,y;
     short state_buffer[40];
@@ -558,7 +589,7 @@ static void RESAMPLE(void * const data, u32 w1, u32 w2)
 
     u8  flags   = parse(w1, 16,  8);
     u16 pitch   = parse(w1,  0, 16);
-    u32 address = segoffset(w2, audio->segments);
+    u32 address = segoffset_load(w2, audio->segments, N_SEGMENTS);
 
     resample_buffer(
             flags & A_INIT,
@@ -612,9 +643,7 @@ static void SETLOOP(void * const data, u32 w1, u32 w2)
 {
     struct audio_t * const audio = (struct audio_t *)data;
 
-    u32 address = segoffset(w2, audio->segments);
-
-    audio->loop = address;
+    audio->loop = segoffset_load(w2, audio->segments, N_SEGMENTS);
 }
 
 static void ADPCM(void * const data, u32 w1, u32 w2)
@@ -622,7 +651,7 @@ static void ADPCM(void * const data, u32 w1, u32 w2)
     struct audio_t * const audio = (struct audio_t *)data;
 
     u8  flags   = parse(w1, 16,  8);
-    u32 address = segoffset(w2, audio->segments);
+    u32 address = segoffset_load(w2, audio->segments, N_SEGMENTS);
    
     adpcm_decode(
             flags & A_INIT,
@@ -642,7 +671,7 @@ static void LOADBUFF(void * const data, u32 w1, u32 w2)
 
     if (audio->count == 0) { return; }
 
-    u32 address = segoffset(w2, audio->segments);
+    u32 address = segoffset_load(w2, audio->segments, N_SEGMENTS);
 
     dma_read_fast(audio->in & 0xff8, address & ~7, audio->count - 1);
 }
@@ -653,7 +682,7 @@ static void SAVEBUFF(void * const data, u32 w1, u32 w2)
 
     if (audio->count == 0) { return; }
     
-    u32 address = segoffset(w2, audio->segments);
+    u32 address = segoffset_load(w2, audio->segments, N_SEGMENTS);
 
     dma_write_fast(address & ~7, audio->out & 0xff8, audio->count - 1);
 }
@@ -697,7 +726,7 @@ static void LOADADPCM(void * const data, u32 w1, u32 w2)
     struct audio_t * const audio = (struct audio_t *)data;
 
     u16 count   = parse(w1, 0, 16);
-    u32 address = segoffset(w2, audio->segments);
+    u32 address = segoffset_load(w2, audio->segments, N_SEGMENTS);
 
     adpcm_load_codebook(
             audio->adpcm_codebook,
@@ -1535,7 +1564,7 @@ static const acmd_callback_t ABI3[0x10] =
 /* global functions */
 void alist_process_ABI1()
 {
-    memset(l_audio.segments, 0, sizeof(u32)*0x10);
+    memset(l_audio.segments, 0, sizeof(l_audio.segments[0])*N_SEGMENTS);
     alist_process(&l_audio, ABI1, 0x10);
 }
 
