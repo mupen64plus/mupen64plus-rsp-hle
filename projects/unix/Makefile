@@ -243,7 +243,8 @@ SOURCE = \
 	$(SRCDIR)/audio.c \
 	$(SRCDIR)/cicx105.c \
 	$(SRCDIR)/jpeg.c \
-	$(SRCDIR)/mp3.c
+	$(SRCDIR)/mp3.c \
+	$(SRCDIR)/resample.c
 
 
 # generate a list of object files build, make a temporary directory for them
