@@ -29,17 +29,10 @@
 
 #include "mp3.h"
 
-static void InnerLoop();
-
-// FIXME: avoid them
-static u32 inPtr, outPtr;
-static u32 t6;// = 0x08A0; // I think these are temporary storage buffers
-static u32 t5;// = 0x0AC0;
-static u32 t4;// = (inst1 & 0x1E);
+static void InnerLoop(u32 inPtr, u32 outPtr, u32 t4, u32 t5, u32 t6);
 
 // FIXME: use DMEM instead
 static u8 mp3data[0x1000];
-static s32 v[32];
 
 static const u16 DEWINDOW_LUT[0x420] =
 {
@@ -202,12 +195,12 @@ void mp3_decode(u32 address, unsigned char index)
     u32 writePtr; // s6
     //u32 Count = 0x0480; // s4
     u32 tmp;
-    //u32 inPtr, outPtr;
+    u32 inPtr, outPtr;
     int cnt, cnt2;
 
-    t6 = 0x08A0; // I think these are temporary storage buffers
-    t5 = 0x0AC0;
-    t4 = index;
+    u32 t6 = 0x08A0; // I think these are temporary storage buffers
+    u32 t5 = 0x0AC0;
+    u32 t4 = index;
 
     writePtr = address;
     readPtr  = writePtr;
@@ -226,12 +219,12 @@ void mp3_decode(u32 address, unsigned char index)
             t5 &= 0xFFE0;
             t6 |= (t4 << 1);
             t5 |= (t4 << 1);
-            InnerLoop ();
+            InnerLoop(inPtr, outPtr, t4, t5, t6);
             t4 = (t4 - 1) & 0x0f;
             tmp = t6;
             t6 = t5;
             t5 = tmp;
-            //outPtr += 0x40;
+            outPtr += 0x40;
             inPtr += 0x40;
         }
 // --------------- Inner Loop End --------------------
@@ -242,7 +235,7 @@ void mp3_decode(u32 address, unsigned char index)
 }
 
 /* local functions */
-static void MP3AB0 ()
+static void MP3AB0(s32 *v)
 {
     // Part 2 - 100% Accurate
     const u16 LUT2[8] = { 0xFEC4, 0xF4FA, 0xC5E4, 0xE1C4, 
@@ -279,8 +272,9 @@ static void MP3AB0 ()
     }
 }
 
-static void InnerLoop ()
+static void InnerLoop(u32 inPtr, u32 outPtr, u32 t4, u32 t5, u32 t6)
 {
+    s32 v[32];
     // Part 1: 100% Accurate
 
     int i;
@@ -306,7 +300,7 @@ static void InnerLoop ()
 
     // Part 2-4
 
-    MP3AB0 ();
+    MP3AB0(v);
 
     // Part 5 - 1-Wide Butterflies - 100% Accurate but need SSVs!!!
 
@@ -439,7 +433,7 @@ static void InnerLoop ()
     v[5] = v[5] + v[5]; v[6] = v[6] + v[6]; v[7] = v[7] + v[7];
     v[12] = v[12] + v[12]; v[13] = v[13] + v[13]; v[15] = v[15] + v[15];
     
-    MP3AB0 ();
+    MP3AB0(v);
 
     // Part 7: - 100% Accurate + SSV - Unoptimized
 
