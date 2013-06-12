@@ -187,6 +187,14 @@ static void smul(s16 *x, s16 gain)
     *x = clamp_s16((s32)(*x) * (s32)gain);
 }
 
+static s16* sample_at(u16 mem)
+{
+    assert((mem & 0x1) == 0);
+    assert((mem & ~0xfff) == 0);
+
+    return (s16*)(mp3data+(mem^S16));
+}
+
 
 /* global function */
 void mp3_decode(u32 address, unsigned char index)
@@ -279,25 +287,25 @@ static void InnerLoop(u32 inPtr, u32 outPtr, u32 t4, u32 t5, u32 t6)
     // Part 1: 100% Accurate
 
     int i;
-    v[0] = *(s16 *)(mp3data+inPtr+(0x00^S16)); v[31] = *(s16 *)(mp3data+inPtr+(0x3E^S16)); v[0] += v[31];
-    v[1] = *(s16 *)(mp3data+inPtr+(0x02^S16)); v[30] = *(s16 *)(mp3data+inPtr+(0x3C^S16)); v[1] += v[30];
-    v[2] = *(s16 *)(mp3data+inPtr+(0x06^S16)); v[28] = *(s16 *)(mp3data+inPtr+(0x38^S16)); v[2] += v[28];
-    v[3] = *(s16 *)(mp3data+inPtr+(0x04^S16)); v[29] = *(s16 *)(mp3data+inPtr+(0x3A^S16)); v[3] += v[29];
+    v[0] = *sample_at(inPtr+0x00); v[31] = *sample_at(inPtr+0x3E); v[0] += v[31];
+    v[1] = *sample_at(inPtr+0x02); v[30] = *sample_at(inPtr+0x3C); v[1] += v[30];
+    v[2] = *sample_at(inPtr+0x06); v[28] = *sample_at(inPtr+0x38); v[2] += v[28];
+    v[3] = *sample_at(inPtr+0x04); v[29] = *sample_at(inPtr+0x3A); v[3] += v[29];
 
-    v[4] = *(s16 *)(mp3data+inPtr+(0x0E^S16)); v[24] = *(s16 *)(mp3data+inPtr+(0x30^S16)); v[4] += v[24];
-    v[5] = *(s16 *)(mp3data+inPtr+(0x0C^S16)); v[25] = *(s16 *)(mp3data+inPtr+(0x32^S16)); v[5] += v[25];
-    v[6] = *(s16 *)(mp3data+inPtr+(0x08^S16)); v[27] = *(s16 *)(mp3data+inPtr+(0x36^S16)); v[6] += v[27];
-    v[7] = *(s16 *)(mp3data+inPtr+(0x0A^S16)); v[26] = *(s16 *)(mp3data+inPtr+(0x34^S16)); v[7] += v[26];
+    v[4] = *sample_at(inPtr+0x0E); v[24] = *sample_at(inPtr+0x30); v[4] += v[24];
+    v[5] = *sample_at(inPtr+0x0C); v[25] = *sample_at(inPtr+0x32); v[5] += v[25];
+    v[6] = *sample_at(inPtr+0x08); v[27] = *sample_at(inPtr+0x36); v[6] += v[27];
+    v[7] = *sample_at(inPtr+0x0A); v[26] = *sample_at(inPtr+0x34); v[7] += v[26];
 
-    v[8] = *(s16 *)(mp3data+inPtr+(0x1E^S16)); v[16] = *(s16 *)(mp3data+inPtr+(0x20^S16)); v[8] += v[16];
-    v[9] = *(s16 *)(mp3data+inPtr+(0x1C^S16)); v[17] = *(s16 *)(mp3data+inPtr+(0x22^S16)); v[9] += v[17];
-    v[10]= *(s16 *)(mp3data+inPtr+(0x18^S16)); v[19] = *(s16 *)(mp3data+inPtr+(0x26^S16)); v[10]+= v[19];
-    v[11]= *(s16 *)(mp3data+inPtr+(0x1A^S16)); v[18] = *(s16 *)(mp3data+inPtr+(0x24^S16)); v[11]+= v[18];
+    v[8] = *sample_at(inPtr+0x1E); v[16] = *sample_at(inPtr+0x20); v[8] += v[16];
+    v[9] = *sample_at(inPtr+0x1C); v[17] = *sample_at(inPtr+0x22); v[9] += v[17];
+    v[10]= *sample_at(inPtr+0x18); v[19] = *sample_at(inPtr+0x26); v[10]+= v[19];
+    v[11]= *sample_at(inPtr+0x1A); v[18] = *sample_at(inPtr+0x24); v[11]+= v[18];
 
-    v[12]= *(s16 *)(mp3data+inPtr+(0x10^S16)); v[23] = *(s16 *)(mp3data+inPtr+(0x2E^S16)); v[12]+= v[23];
-    v[13]= *(s16 *)(mp3data+inPtr+(0x12^S16)); v[22] = *(s16 *)(mp3data+inPtr+(0x2C^S16)); v[13]+= v[22];
-    v[14]= *(s16 *)(mp3data+inPtr+(0x16^S16)); v[20] = *(s16 *)(mp3data+inPtr+(0x28^S16)); v[14]+= v[20];
-    v[15]= *(s16 *)(mp3data+inPtr+(0x14^S16)); v[21] = *(s16 *)(mp3data+inPtr+(0x2A^S16)); v[15]+= v[21];
+    v[12]= *sample_at(inPtr+0x10); v[23] = *sample_at(inPtr+0x2E); v[12]+= v[23];
+    v[13]= *sample_at(inPtr+0x12); v[22] = *sample_at(inPtr+0x2C); v[13]+= v[22];
+    v[14]= *sample_at(inPtr+0x16); v[20] = *sample_at(inPtr+0x28); v[14]+= v[20];
+    v[15]= *sample_at(inPtr+0x14); v[21] = *sample_at(inPtr+0x2A); v[15]+= v[21];
 
     // Part 2-4
 
@@ -399,26 +407,25 @@ static void InnerLoop(u32 inPtr, u32 outPtr, u32 t4, u32 t5, u32 t6)
     // 0x14FC - Verified...
 
     // Part 6 - 100% Accurate
+    v[0] = *sample_at(inPtr+0x00); v[31] = *sample_at(inPtr+0x3E); v[0] += v[31];
+    v[1] = *sample_at(inPtr+0x02); v[30] = *sample_at(inPtr+0x3C); v[1] += v[30];
+    v[2] = *sample_at(inPtr+0x06); v[28] = *sample_at(inPtr+0x38); v[2] += v[28];
+    v[3] = *sample_at(inPtr+0x04); v[29] = *sample_at(inPtr+0x3A); v[3] += v[29];
 
-    v[0] = *(s16 *)(mp3data+inPtr+(0x00^S16)); v[31] = *(s16 *)(mp3data+inPtr+(0x3E^S16)); v[0] -= v[31];
-    v[1] = *(s16 *)(mp3data+inPtr+(0x02^S16)); v[30] = *(s16 *)(mp3data+inPtr+(0x3C^S16)); v[1] -= v[30];
-    v[2] = *(s16 *)(mp3data+inPtr+(0x06^S16)); v[28] = *(s16 *)(mp3data+inPtr+(0x38^S16)); v[2] -= v[28];
-    v[3] = *(s16 *)(mp3data+inPtr+(0x04^S16)); v[29] = *(s16 *)(mp3data+inPtr+(0x3A^S16)); v[3] -= v[29];
+    v[4] = *sample_at(inPtr+0x0E); v[24] = *sample_at(inPtr+0x30); v[4] += v[24];
+    v[5] = *sample_at(inPtr+0x0C); v[25] = *sample_at(inPtr+0x32); v[5] += v[25];
+    v[6] = *sample_at(inPtr+0x08); v[27] = *sample_at(inPtr+0x36); v[6] += v[27];
+    v[7] = *sample_at(inPtr+0x0A); v[26] = *sample_at(inPtr+0x34); v[7] += v[26];
 
-    v[4] = *(s16 *)(mp3data+inPtr+(0x0E^S16)); v[24] = *(s16 *)(mp3data+inPtr+(0x30^S16)); v[4] -= v[24];
-    v[5] = *(s16 *)(mp3data+inPtr+(0x0C^S16)); v[25] = *(s16 *)(mp3data+inPtr+(0x32^S16)); v[5] -= v[25];
-    v[6] = *(s16 *)(mp3data+inPtr+(0x08^S16)); v[27] = *(s16 *)(mp3data+inPtr+(0x36^S16)); v[6] -= v[27];
-    v[7] = *(s16 *)(mp3data+inPtr+(0x0A^S16)); v[26] = *(s16 *)(mp3data+inPtr+(0x34^S16)); v[7] -= v[26];
+    v[8] = *sample_at(inPtr+0x1E); v[16] = *sample_at(inPtr+0x20); v[8] += v[16];
+    v[9] = *sample_at(inPtr+0x1C); v[17] = *sample_at(inPtr+0x22); v[9] += v[17];
+    v[10]= *sample_at(inPtr+0x18); v[19] = *sample_at(inPtr+0x26); v[10]+= v[19];
+    v[11]= *sample_at(inPtr+0x1A); v[18] = *sample_at(inPtr+0x24); v[11]+= v[18];
 
-    v[8] = *(s16 *)(mp3data+inPtr+(0x1E^S16)); v[16] = *(s16 *)(mp3data+inPtr+(0x20^S16)); v[8] -= v[16];
-    v[9] = *(s16 *)(mp3data+inPtr+(0x1C^S16)); v[17] = *(s16 *)(mp3data+inPtr+(0x22^S16)); v[9] -= v[17];
-    v[10]= *(s16 *)(mp3data+inPtr+(0x18^S16)); v[19] = *(s16 *)(mp3data+inPtr+(0x26^S16)); v[10]-= v[19];
-    v[11]= *(s16 *)(mp3data+inPtr+(0x1A^S16)); v[18] = *(s16 *)(mp3data+inPtr+(0x24^S16)); v[11]-= v[18];
-
-    v[12]= *(s16 *)(mp3data+inPtr+(0x10^S16)); v[23] = *(s16 *)(mp3data+inPtr+(0x2E^S16)); v[12]-= v[23];
-    v[13]= *(s16 *)(mp3data+inPtr+(0x12^S16)); v[22] = *(s16 *)(mp3data+inPtr+(0x2C^S16)); v[13]-= v[22];
-    v[14]= *(s16 *)(mp3data+inPtr+(0x16^S16)); v[20] = *(s16 *)(mp3data+inPtr+(0x28^S16)); v[14]-= v[20];
-    v[15]= *(s16 *)(mp3data+inPtr+(0x14^S16)); v[21] = *(s16 *)(mp3data+inPtr+(0x2A^S16)); v[15]-= v[21];
+    v[12]= *sample_at(inPtr+0x10); v[23] = *sample_at(inPtr+0x2E); v[12]+= v[23];
+    v[13]= *sample_at(inPtr+0x12); v[22] = *sample_at(inPtr+0x2C); v[13]+= v[22];
+    v[14]= *sample_at(inPtr+0x16); v[20] = *sample_at(inPtr+0x28); v[14]+= v[20];
+    v[15]= *sample_at(inPtr+0x14); v[21] = *sample_at(inPtr+0x2A); v[15]+= v[21];
 
     //0, 1, 3, 2, 7, 6, 4, 5, 7, 6, 4, 5, 0, 1, 3, 2
     const u16 LUT6[16] = { 0xFFB2, 0xFD3A, 0xF10A, 0xF854,
@@ -540,8 +547,9 @@ static void dewindowing(u32 t4, u32 t6, u32 outPtr)
         //Clamp(v0);
         //Clamp(v18);
         // clamp???
-        *(s16 *)(mp3data+(outPtr^S16)) = v0;
-        *(s16 *)(mp3data+((outPtr+2)^S16)) = v18;
+        *sample_at(outPtr    ) = v0;
+        *sample_at(outPtr + 2) = v18;
+        
         outPtr+=4;
         addptr += 0x30;
         offset += 0x38;
@@ -563,12 +571,12 @@ static void dewindowing(u32 t4, u32 t6, u32 outPtr)
     if (t4 & 0x1)
     {
         v2 = (v2 * *(u32 *)(mp3data+0xCE8)) >> 0x10;
-        *(s16 *)(mp3data+(outPtr^S16)) = v2;
+        *sample_at(outPtr) = v2;
     }
     else
     {
         v4 = (v4 * *(u32 *)(mp3data+0xCE8)) >> 0x10;
-        *(s16 *)(mp3data+(outPtr^S16)) = v4;
+        *sample_at(outPtr) = v4;
         mult4 = *(u32 *)(mp3data+0xCE8);
     }
     addptr -= 0x50;
@@ -596,21 +604,21 @@ static void dewindowing(u32 t4, u32 t6, u32 outPtr)
         //Clamp(v0);
         //Clamp(v18);
         // clamp???
-        *(s16 *)(mp3data+((outPtr+2)^S16)) = v0;
-        *(s16 *)(mp3data+((outPtr+4)^S16)) = v18;
+        *sample_at(outPtr + 2) = v0;
+        *sample_at(outPtr + 4) = v18;
+        
         outPtr+=4;
         addptr -= 0x50;
     }
 
-    int tmp = outPtr;
     s16 hi0 = (s16)(mult6 >> 16);
     s16 hi1 = (s16)(mult4 >> 16);
     for (i = 0; i < 8; i++)
     {
-        smul((s16*)(mp3data+((tmp-0x40)^S16)), hi0);    // v0
-        smul((s16*)(mp3data+((tmp-0x30)^S16)), hi0);    // v17
-        smul((s16*)(mp3data+((tmp-0x1e)^S16)), hi1);    // v2
-        smul((s16*)(mp3data+((tmp-0x0e)^S16)), hi1);    // v4
-        tmp += 2;
+        smul(sample_at(outPtr-0x40), hi0);    // v0
+        smul(sample_at(outPtr-0x30), hi0);    // v17
+        smul(sample_at(outPtr-0x1e), hi1);    // v2
+        smul(sample_at(outPtr-0x0e), hi1);    // v4
+        outPtr += 2;
     }
 }
