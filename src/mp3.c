@@ -29,6 +29,7 @@
 
 #include "mp3.h"
 
+static void dewindowing(u32 t4, u32 t6, u32 outPtr);
 static void InnerLoop(u32 inPtr, u32 outPtr, u32 t4, u32 t5, u32 t6);
 
 // FIXME: use DMEM instead
@@ -509,19 +510,17 @@ static void InnerLoop(u32 inPtr, u32 outPtr, u32 t4, u32 t5, u32 t6)
     *(s16 *)(mp3data+((t0+(short)0xFFA0))) = (short)v[2];
     // 0x7A8 - Verified...
 
-    // Step 8 - Dewindowing
+    dewindowing(t4, t6, outPtr);
+}
 
-    //u64 *DW = (u64 *)&DEWINDOW_LUT[0x10-t4];
+static void dewindowing(u32 t4, u32 t6, u32 outPtr)
+{
     u32 offset = 0x10-t4;
-
     u32 addptr = t6 & 0xFFE0;
-    offset = 0x10-t4;
-
     s32 v2=0, v4=0, v6=0, v8=0;
-    //s32 z2=0, z4=0, z6=0, z8=0;
 
     offset = 0x10-t4;// + x*0x40;
-    int x;
+    int x, i;
     for (x = 0; x < 8; x++)
     {
         v2 = v4 = v6 = v8 = 0;
@@ -615,4 +614,3 @@ static void InnerLoop(u32 inPtr, u32 outPtr, u32 t4, u32 t5, u32 t6)
         tmp += 2;
     }
 }
-
