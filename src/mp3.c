@@ -188,6 +188,12 @@ static s32 dmul_round(s16 x, s16 y)
     return ((s32)x * (s32)y + 0x4000) >> 15;
 }
 
+static void smul(s16 *x, s16 gain)
+{
+    *x = clamp_s16((s32)(*x) * (s32)gain);
+}
+
+
 /* global function */
 void mp3_decode(u32 address, unsigned char index)
 {
@@ -604,26 +610,14 @@ static void InnerLoop ()
     }
 
     int tmp = outPtr;
-    s32 hi0 = mult6;
-    s32 hi1 = mult4;
-    s32 v;
-
-    hi0 = (int)hi0 >> 0x10;
-    hi1 = (int)hi1 >> 0x10;
+    s16 hi0 = (s16)(mult6 >> 16);
+    s16 hi1 = (s16)(mult4 >> 16);
     for (i = 0; i < 8; i++)
     {
-        // v0
-        v = (*(s16 *)(mp3data+((tmp-0x40)^S16)) * hi0);
-        *(s16 *)((u8 *)mp3data+((tmp-0x40)^S16)) = clamp_s16(v);
-        // v17
-        v = (*(s16 *)(mp3data+((tmp-0x30)^S16)) * hi0);
-        *(s16 *)((u8 *)mp3data+((tmp-0x30)^S16)) = clamp_s16(v);
-        // v2
-        v = (*(s16 *)(mp3data+((tmp-0x1E)^S16)) * hi1);
-        *(s16 *)((u8 *)mp3data+((tmp-0x1E)^S16)) = clamp_s16(v);
-        // v4
-        v = (*(s16 *)(mp3data+((tmp-0xE)^S16)) * hi1);
-        *(s16 *)((u8 *)mp3data+((tmp-0xE)^S16)) = clamp_s16(v);
+        smul((s16*)(mp3data+((tmp-0x40)^S16)), hi0);    // v0
+        smul((s16*)(mp3data+((tmp-0x30)^S16)), hi0);    // v17
+        smul((s16*)(mp3data+((tmp-0x1e)^S16)), hi1);    // v2
+        smul((s16*)(mp3data+((tmp-0x0e)^S16)), hi1);    // v4
         tmp += 2;
     }
 }
