@@ -458,13 +458,12 @@ static void InnerLoop(u32 inPtr, u32 outPtr, u32 t4, u32 t5, u32 t6)
 
 static void dewindowing(u32 t4, u32 t6, u32 outPtr)
 {
+    unsigned i;
     u32 offset = 0x10-t4;
     u32 addptr = t6 & 0xFFE0;
     s32 v2=0, v4=0, v6=0;
 
-    int x;
-
-    for (x = 0; x < 16; x++)
+    for (i = 0; i < 16; ++i)
     {
         idot8(&v2, &v6, (s16*)(mp3data + addptr), (s16*)(DEWINDOW_LUT + offset));
         // clamp ?
@@ -497,7 +496,7 @@ static void dewindowing(u32 t4, u32 t6, u32 outPtr)
 
     offset  = 0x22f - t4;
 
-    for (x = 0; x < 8; x++)
+    for (i = 0; i < 8; ++i)
     {
         idot8(&v2, &v4, (s16*)(mp3data+addptr+0x20), (s16*)(DEWINDOW_LUT + offset + 0x00));
         v2 -= v4;
