@@ -514,33 +514,24 @@ static void dewindowing(u32 t4, u32 t6, u32 outPtr)
     u32 addptr = t6 & 0xFFE0;
     s32 v2=0, v4=0, v6=0, v8=0;
 
-    offset = 0x10-t4;// + x*0x40;
     int x, i;
     for (x = 0; x < 8; x++)
     {
-        v2 = v4 = v6 = v8 = 0;
+        v2 = v6 = 0;
 
-        //addptr = t1;
-    
-        for (i = 7; i >= 0; i--)
+        for (i = 0; i < 16; ++i)
         {
             v2 += dmul_round(*(s16*)(mp3data+addptr+0x00), DEWINDOW_LUT[offset+0x00]);
-            v4 += dmul_round(*(s16*)(mp3data+addptr+0x10), DEWINDOW_LUT[offset+0x08]);
             v6 += dmul_round(*(s16*)(mp3data+addptr+0x20), DEWINDOW_LUT[offset+0x20]);
-            v8 += dmul_round(*(s16*)(mp3data+addptr+0x30), DEWINDOW_LUT[offset+0x28]);
             addptr+=2; offset++;
         }
-        s32 v0  = v2 + v4;
-        s32 v18 = v6 + v8;
-        //Clamp(v0);
-        //Clamp(v18);
-        // clamp???
-        *sample_at(outPtr    ) = v0;
-        *sample_at(outPtr + 2) = v18;
+        // clamp ?
+        *sample_at(outPtr    ) = v2;
+        *sample_at(outPtr + 2) = v6;
         
         outPtr+=4;
-        addptr += 0x30;
-        offset += 0x38;
+        addptr += 0x20;
+        offset += 0x30;
     }
 
     offset = 0x10-t4 + 8*0x40;
