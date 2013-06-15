@@ -325,37 +325,31 @@ static void InnerLoop(u32 inPtr, u32 outPtr, u32 t4, u32 t5, u32 t6)
 
     v[16] = -v[16] -v[17];
     v[2] = v[18] + v[19];
-    *(s16 *)(mp3data+((t6+(short)0x0))) = (short)v[11];
+    *(s16 *)(mp3data+((t6 + 0x0))) = (s16)v[11];
     
     
     v[11] = -v[11];
-    *(s16 *)(mp3data+((t3+(short)0x0))) = (short)v[16];
-    *(s16 *)(mp3data+((t5+(short)0x0))) = (short)v[11];
+    *(s16 *)(mp3data+((t3 + 0x0))) = (s16)v[16];
+    *(s16 *)(mp3data+((t5 + 0x0))) = (s16)v[11];
     v[2] = -v[2];
-    *(s16 *)(mp3data+((t2+(short)0x0))) = (short)v[2];
+    *(s16 *)(mp3data+((t2 + 0x0))) = (s16)v[2];
     v[3]  = (((v[18] - v[19]) * 0x16A09) >> 0x10) + v[2];
-    *(s16 *)(mp3data+((t0+(short)0x0))) = (short)v[3];
+    *(s16 *)(mp3data+((t0 + 0x0))) = (s16)v[3];
     v[4] = -v[20] -v[21];
     v[6] = v[22] + v[23];
     v[5] = ((v[20] - v[21]) * 0x16A09) >> 0x10;
-    *(s16 *)(mp3data+((t3+(short)0xFF80))) = (short)v[4];
+    *(s16 *)(mp3data+((t3 - 0x80))) = (s16)v[4];
     v[7] = ((v[22] - v[23]) * 0x2D413) >> 0x10;
     v[5] = v[5] - v[4];
     v[7] = v[7] - v[5];
     v[6] = v[6] + v[6];
     v[5] = v[5] - v[6];
     v[4] = -v[4] - v[6];
-    *(s16 *)(mp3data+((t1+(short)0xFF80))) = (short)v[7];
-    *(s16 *)(mp3data+((t2+(short)0xFF80))) = (short)v[4];
-    *(s16 *)(mp3data+((t0+(short)0xFF80))) = (short)v[5];
     v[8] = v[24] + v[25];
-
-
     v[9] = ((v[24] - v[25]) * 0x16A09) >> 0x10;
     v[2] = v[8] + v[9];
     v[11] = ((v[26] - v[27]) * 0x2D413) >> 0x10;
     v[13] = ((v[28] - v[29]) * 0x2D413) >> 0x10;
-
     v[10] = v[26] + v[27]; v[10] = v[10] + v[10];
     v[12] = v[28] + v[29]; v[12] = v[12] + v[12];
     v[14] = v[30] + v[31];
@@ -366,18 +360,22 @@ static void InnerLoop(u32 inPtr, u32 outPtr, u32 t4, u32 t5, u32 t6)
     v[14] = -(v[14] + v[14]) + v[3];
     v[17] = v[13] - v[10];
     v[9] = v[9] + v[14];
-    *(s16 *)(mp3data+((t6+(short)0x40))) = (short)v[9];
     v[11] = v[11] - v[13];
-    *(s16 *)(mp3data+((t0+(short)0xFFC0))) = (short)v[17];
     v[12] = v[8] - v[12];
-    *(s16 *)(mp3data+((t0+(short)0x40))) = (short)v[11];
     v[8] = -v[8];
-    *(s16 *)(mp3data+((t1+(short)0xFFC0))) = (short)v[15];
     v[10] = -v[10] -v[12];
-    *(s16 *)(mp3data+((t2+(short)0x40))) = (short)v[12];
-    *(s16 *)(mp3data+((t3+(short)0xFFC0))) = (short)v[8];
-    *(s16 *)(mp3data+((t5+(short)0x40))) = (short)v[14];
-    *(s16 *)(mp3data+((t2+(short)0xFFC0))) = (short)v[10];
+    
+    *(s16 *)(mp3data+((t1 - 0x80))) = (s16)v[7];
+    *(s16 *)(mp3data+((t2 - 0x80))) = (s16)v[4];
+    *(s16 *)(mp3data+((t0 - 0x80))) = (s16)v[5];
+    *(s16 *)(mp3data+((t6 + 0x40))) = (s16)v[9];
+    *(s16 *)(mp3data+((t0 - 0x40))) = (s16)v[17];
+    *(s16 *)(mp3data+((t0 + 0x40))) = (s16)v[11];
+    *(s16 *)(mp3data+((t1 - 0x40))) = (s16)v[15];
+    *(s16 *)(mp3data+((t2 + 0x40))) = (s16)v[12];
+    *(s16 *)(mp3data+((t3 - 0x40))) = (s16)v[8];
+    *(s16 *)(mp3data+((t5 + 0x40))) = (s16)v[14];
+    *(s16 *)(mp3data+((t2 - 0x40))) = (s16)v[10];
 
     load_v(v, inPtr);
 
