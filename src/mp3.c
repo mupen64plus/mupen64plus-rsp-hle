@@ -463,19 +463,19 @@ static void dewindowing(u32 t4, u32 t6, u32 outPtr)
     s32 v2=0, v4=0, v6=0, v8=0;
 
     int x, i;
-    for (x = 0; x < 8; x++)
-    {
-        v2 = dot((s16*)(mp3data + addptr + 0x00), (s16*)(DEWINDOW_LUT + offset + 0x00), 16);
-        v6 = dot((s16*)(mp3data + addptr + 0x20), (s16*)(DEWINDOW_LUT + offset + 0x20), 16);
 
+
+    for (x = 0; x < 16; x++)
+    {
+        v2 = dot((s16*)(mp3data + addptr), (s16*)(DEWINDOW_LUT + offset), 16);
         // clamp ?
         *sample_at(outPtr    ) = v2;
-        *sample_at(outPtr + 2) = v6;
-        
-        outPtr+=4;
-        addptr += 0x40;
-        offset += 0x40;
+
+        outPtr += 2;
+        addptr += 0x20;
+        offset += 0x20;
     }
+
 
     offset = 0x10-t4 + 8*0x40;
     v2 = v4 = 0;
