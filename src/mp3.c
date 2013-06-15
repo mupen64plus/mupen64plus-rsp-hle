@@ -29,6 +29,7 @@
 
 #include "mp3.h"
 
+static void apply_gain(u16 mem, unsigned count, s16 gain);
 static void dewindowing(u32 t4, u32 t6, u32 outPtr);
 static void InnerLoop(u32 inPtr, u32 outPtr, u32 t4, u32 t5, u32 t6);
 
@@ -536,14 +537,16 @@ static void dewindowing(u32 t4, u32 t6, u32 outPtr)
         addptr -= 0x50;
     }
 
-    s16 hi0 = (s16)(mult6 >> 16);
-    s16 hi1 = (s16)(mult4 >> 16);
-    for (i = 0; i < 8; i++)
+    apply_gain(outPtr - 0x40, 16, (s16)(mult6 >> 16));
+    apply_gain(outPtr - 0x1e, 16, (s16)(mult4 >> 16));
+}
+
+static void apply_gain(u16 mem, unsigned count, s16 gain)
+{
+    while (count != 0)
     {
-        smul(sample_at(outPtr-0x40), hi0);    // v0
-        smul(sample_at(outPtr-0x30), hi0);    // v17
-        smul(sample_at(outPtr-0x1e), hi1);    // v2
-        smul(sample_at(outPtr-0x0e), hi1);    // v4
-        outPtr += 2;
+        smul(sample_at(mem), gain);
+        mem += 2;
+        --count;
     }
 }
