@@ -30,6 +30,7 @@
 #include "mp3.h"
 
 static void apply_gain(u16 mem, unsigned count, s16 gain);
+static s32 dot(const s16 *x, const s16 *y, unsigned count);
 static void dewindowing(u32 t4, u32 t6, u32 outPtr);
 static void InnerLoop(u32 inPtr, u32 outPtr, u32 t4, u32 t5, u32 t6);
 
@@ -464,21 +465,16 @@ static void dewindowing(u32 t4, u32 t6, u32 outPtr)
     int x, i;
     for (x = 0; x < 8; x++)
     {
-        v2 = v6 = 0;
+        v2 = dot((s16*)(mp3data + addptr + 0x00), (s16*)(DEWINDOW_LUT + offset + 0x00), 16);
+        v6 = dot((s16*)(mp3data + addptr + 0x20), (s16*)(DEWINDOW_LUT + offset + 0x20), 16);
 
-        for (i = 0; i < 16; ++i)
-        {
-            v2 += dmul_round(*(s16*)(mp3data+addptr+0x00), DEWINDOW_LUT[offset+0x00]);
-            v6 += dmul_round(*(s16*)(mp3data+addptr+0x20), DEWINDOW_LUT[offset+0x20]);
-            addptr+=2; offset++;
-        }
         // clamp ?
         *sample_at(outPtr    ) = v2;
         *sample_at(outPtr + 2) = v6;
         
         outPtr+=4;
-        addptr += 0x20;
-        offset += 0x30;
+        addptr += 0x40;
+        offset += 0x40;
     }
 
     offset = 0x10-t4 + 8*0x40;
@@ -549,4 +545,17 @@ static void apply_gain(u16 mem, unsigned count, s16 gain)
         mem += 2;
         --count;
     }
+}
+
+static s32 dot(const s16 *x, const s16 *y, unsigned count)
+{
+    s32 accu = 0;
+
+    while(count != 0)
+    {
+        accu += dmul_round(*(x++), *(y++));
+        --count;
+    }
+
+    return accu;
 }
