@@ -30,7 +30,7 @@
 #include "mp3.h"
 
 static void apply_gain(u16 mem, unsigned count, s16 gain);
-static s32 dot(const s16 *x, const s16 *y, unsigned count);
+static void idot8(s32 *dot1, s32 *dot2, const s16 *x, const s16 *y);
 static void dewindowing(u32 t4, u32 t6, u32 outPtr);
 static void InnerLoop(u32 inPtr, u32 outPtr, u32 t4, u32 t5, u32 t6);
 
@@ -464,12 +464,11 @@ static void dewindowing(u32 t4, u32 t6, u32 outPtr)
 
     int x, i;
 
-
     for (x = 0; x < 16; x++)
     {
-        v2 = dot((s16*)(mp3data + addptr), (s16*)(DEWINDOW_LUT + offset), 16);
+        idot8(&v2, &v6, (s16*)(mp3data + addptr), (s16*)(DEWINDOW_LUT + offset));
         // clamp ?
-        *sample_at(outPtr    ) = v2;
+        *sample_at(outPtr) = v2 + v6;
 
         outPtr += 2;
         addptr += 0x20;
@@ -478,17 +477,7 @@ static void dewindowing(u32 t4, u32 t6, u32 outPtr)
 
 
     offset = 0x10-t4 + 8*0x40;
-
-    v2 = v4 = 0;
-    for (i = 0; i < 4; i++)
-    {
-        v2 += dmul_round(*(s16*)(mp3data+addptr+0x00), DEWINDOW_LUT[offset+0x00]);
-        v2 += dmul_round(*(s16*)(mp3data+addptr+0x10), DEWINDOW_LUT[offset+0x08]);
-        addptr+=2; offset++;
-        v4 += dmul_round(*(s16*)(mp3data+addptr+0x00), DEWINDOW_LUT[offset+0x00]);
-        v4 += dmul_round(*(s16*)(mp3data+addptr+0x10), DEWINDOW_LUT[offset+0x08]);
-        addptr+=2; offset++;
-    }
+    idot8(&v2, &v4, (s16*)(mp3data + addptr), (s16*)(DEWINDOW_LUT + offset));
 
     s32 mult6 = *(s32 *)(mp3data+0xCE8);
     s32 mult4 = *(s32 *)(mp3data+0xCEC);
@@ -503,35 +492,23 @@ static void dewindowing(u32 t4, u32 t6, u32 outPtr)
         *sample_at(outPtr) = v4;
         mult4 = *(u32 *)(mp3data+0xCE8);
     }
-    addptr -= 0x50;
-
-
+    addptr -= 0x40;
 
 
     for (x = 0; x < 8; x++)
     {
-        v2 = v6 = 0;
-
-        offset = (0x22F-t4 + x*0x40);
-    
-        for (i = 0; i < 4; i++)
-        {
-            v2 += dmul_round(*(s16*)(mp3data+addptr+0x20), DEWINDOW_LUT[offset+0x00]);
-            v2 -= dmul_round(*(s16*)(mp3data+addptr+0x22), DEWINDOW_LUT[offset+0x01]);
-            v2 += dmul_round(*(s16*)(mp3data+addptr+0x30), DEWINDOW_LUT[offset+0x08]);
-            v2 -= dmul_round(*(s16*)(mp3data+addptr+0x32), DEWINDOW_LUT[offset+0x09]);
-            v6 += dmul_round(*(s16*)(mp3data+addptr+0x00), DEWINDOW_LUT[offset+0x20]);
-            v6 -= dmul_round(*(s16*)(mp3data+addptr+0x02), DEWINDOW_LUT[offset+0x21]);
-            v6 += dmul_round(*(s16*)(mp3data+addptr+0x10), DEWINDOW_LUT[offset+0x28]);
-            v6 -= dmul_round(*(s16*)(mp3data+addptr+0x12), DEWINDOW_LUT[offset+0x29]);
-            addptr+=4; offset+=2;
-        }
+        offset = (0x22f-t4 + x*0x40);
+   
+        idot8(&v2, &v4, (s16*)(mp3data+addptr+0x20), (s16*)(DEWINDOW_LUT + offset + 0x00));
+        v2 -= v4;
+        idot8(&v6, &v4, (s16*)(mp3data+addptr+0x00), (s16*)(DEWINDOW_LUT + offset + 0x20));
+        v6 -= v4;
         // clamp ?
         *sample_at(outPtr + 2) = v2;
         *sample_at(outPtr + 4) = v6;
         
-        outPtr+=4;
-        addptr -= 0x50;
+        outPtr += 4;
+        addptr -= 0x40;
     }
 
     apply_gain(outPtr - 0x40, 16, (s16)(mult6 >> 16));
@@ -548,15 +525,17 @@ static void apply_gain(u16 mem, unsigned count, s16 gain)
     }
 }
 
-static s32 dot(const s16 *x, const s16 *y, unsigned count)
+static void idot8(s32 *dot1, s32 *dot2, const s16 *x, const s16 *y)
 {
-    s32 accu = 0;
+    unsigned i;
 
-    while(count != 0)
+    *dot1 = 0;
+    *dot2 = 0;
+    
+    for(i = 0; i < 8; ++i)
     {
-        accu += dmul_round(*(x++), *(y++));
-        --count;
+        *dot1 += dmul_round(*(x++), *(y++));
+        *dot2 += dmul_round(*(x++), *(y++));
     }
-
-    return accu;
 }
+
