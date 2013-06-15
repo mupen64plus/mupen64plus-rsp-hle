@@ -308,57 +308,36 @@ static void load_v(s32 *v, u16 inPtr)
 static void InnerLoop(u32 inPtr, u32 outPtr, u32 t4, u32 t5, u32 t6)
 {
     s32 v[32];
-    // Part 1: 100% Accurate
-
     int i;
+
+
     load_v(v, inPtr);
 
-    // Part 2-4
-
     MP3AB0(v);
-
-    // Part 5 - 1-Wide Butterflies - 100% Accurate but need SSVs!!!
 
     u32 t0 = t6 + 0x100;
     u32 t1 = t6 + 0x200;
     u32 t2 = t5 + 0x100;
     u32 t3 = t5 + 0x200;
-    /*RSP_GPR[0x8].W = t0;
-    RSP_GPR[0x9].W = t1;
-    RSP_GPR[0xA].W = t2;
-    RSP_GPR[0xB].W = t3;
-
-    RSP_Vect[0].DW[1] = 0xB504A57E00016A09;
-    RSP_Vect[0].DW[0] = 0x0002D4130005A827;
-*/
-
-    // 0x13A8
+    
     v[1] = 0;
     v[11] = ((v[16] - v[17]) * 0xB504) >> 0x10;
 
     v[16] = -v[16] -v[17];
     v[2] = v[18] + v[19];
-    // ** Store v[11] -> (T6 + 0)**
     *(s16 *)(mp3data+((t6+(short)0x0))) = (short)v[11];
     
     
     v[11] = -v[11];
-    // ** Store v[16] -> (T3 + 0)**
     *(s16 *)(mp3data+((t3+(short)0x0))) = (short)v[16];
-    // ** Store v[11] -> (T5 + 0)**
     *(s16 *)(mp3data+((t5+(short)0x0))) = (short)v[11];
-    // 0x13E8 - Verified....
     v[2] = -v[2];
-    // ** Store v[2] -> (T2 + 0)**
     *(s16 *)(mp3data+((t2+(short)0x0))) = (short)v[2];
     v[3]  = (((v[18] - v[19]) * 0x16A09) >> 0x10) + v[2];
-    // ** Store v[3] -> (T0 + 0)**
     *(s16 *)(mp3data+((t0+(short)0x0))) = (short)v[3];
-    // 0x1400 - Verified
     v[4] = -v[20] -v[21];
     v[6] = v[22] + v[23];
     v[5] = ((v[20] - v[21]) * 0x16A09) >> 0x10;
-    // ** Store v[4] -> (T3 + 0xFF80)
     *(s16 *)(mp3data+((t3+(short)0xFF80))) = (short)v[4];
     v[7] = ((v[22] - v[23]) * 0x2D413) >> 0x10;
     v[5] = v[5] - v[4];
@@ -366,11 +345,8 @@ static void InnerLoop(u32 inPtr, u32 outPtr, u32 t4, u32 t5, u32 t6)
     v[6] = v[6] + v[6];
     v[5] = v[5] - v[6];
     v[4] = -v[4] - v[6];
-    // *** Store v[7] -> (T1 + 0xFF80)
     *(s16 *)(mp3data+((t1+(short)0xFF80))) = (short)v[7];
-    // *** Store v[4] -> (T2 + 0xFF80)
     *(s16 *)(mp3data+((t2+(short)0xFF80))) = (short)v[4];
-    // *** Store v[5] -> (T0 + 0xFF80)
     *(s16 *)(mp3data+((t0+(short)0xFF80))) = (short)v[5];
     v[8] = v[24] + v[25];
 
@@ -390,29 +366,19 @@ static void InnerLoop(u32 inPtr, u32 outPtr, u32 t4, u32 t5, u32 t6)
     v[14] = -(v[14] + v[14]) + v[3];
     v[17] = v[13] - v[10];
     v[9] = v[9] + v[14];
-    // ** Store v[9] -> (T6 + 0x40)
     *(s16 *)(mp3data+((t6+(short)0x40))) = (short)v[9];
     v[11] = v[11] - v[13];
-    // ** Store v[17] -> (T0 + 0xFFC0)
     *(s16 *)(mp3data+((t0+(short)0xFFC0))) = (short)v[17];
     v[12] = v[8] - v[12];
-    // ** Store v[11] -> (T0 + 0x40)
     *(s16 *)(mp3data+((t0+(short)0x40))) = (short)v[11];
     v[8] = -v[8];
-    // ** Store v[15] -> (T1 + 0xFFC0)
     *(s16 *)(mp3data+((t1+(short)0xFFC0))) = (short)v[15];
     v[10] = -v[10] -v[12];
-    // ** Store v[12] -> (T2 + 0x40)
     *(s16 *)(mp3data+((t2+(short)0x40))) = (short)v[12];
-    // ** Store v[8] -> (T3 + 0xFFC0)
     *(s16 *)(mp3data+((t3+(short)0xFFC0))) = (short)v[8];
-    // ** Store v[14] -> (T5 + 0x40)
     *(s16 *)(mp3data+((t5+(short)0x40))) = (short)v[14];
-    // ** Store v[10] -> (T2 + 0xFFC0)
     *(s16 *)(mp3data+((t2+(short)0xFFC0))) = (short)v[10];
-    // 0x14FC - Verified...
 
-    // Part 6 - 100% Accurate
     load_v(v, inPtr);
 
     //0, 1, 3, 2, 7, 6, 4, 5, 7, 6, 4, 5, 0, 1, 3, 2
@@ -431,8 +397,6 @@ static void InnerLoop(u32 inPtr, u32 outPtr, u32 t4, u32 t5, u32 t6)
     
     MP3AB0(v);
 
-    // Part 7: - 100% Accurate + SSV - Unoptimized
-
     v[0] = ( v[17] + v[16] ) >> 1;
     v[1] = ((v[17] * (int)((short)0xA57E * 2)) + (v[16] * 0xB504)) >> 0x10;
     v[2] = -v[18] -v[19];
@@ -441,15 +405,12 @@ static void InnerLoop(u32 inPtr, u32 outPtr, u32 t4, u32 t5, u32 t6)
     v[5] = (((v[20] - v[21]) * 0x16A09) >> 0x10) + v[1];
     v[6] = (((v[22] + v[23]) << 1) + v[0]) - v[2];
     v[7] = (((v[22] - v[23]) * 0x2D413) >> 0x10) + v[0] + v[1] + v[3];
-    // 0x16A8
-    // Save v[0] -> (T3 + 0xFFE0)
     *(s16 *)(mp3data+((t3+(short)0xFFE0))) = (short)-v[0];
     v[8] = v[24] + v[25];
     v[9] = ((v[24] - v[25]) * 0x16A09) >> 0x10;
     v[10] = ((v[26] + v[27]) << 1) + v[8];
     v[11] = (((v[26] - v[27]) * 0x2D413) >> 0x10) + v[8] + v[9];
     v[12] = v[4] - ((v[28] + v[29]) << 1);
-    // ** Store v12 -> (T2 + 0x20)
     *(s16 *)(mp3data+((t2+(short)0x20))) = (short)v[12];
     v[13] = (((v[28] - v[29]) * 0x2D413) >> 0x10) - v[12] - v[5];
     v[14] = v[30] + v[31];
@@ -457,53 +418,37 @@ static void InnerLoop(u32 inPtr, u32 outPtr, u32 t4, u32 t5, u32 t6)
     v[14] = v[14] + v[14];
     v[14] = v[6] - v[14];
     v[15] = (((v[30] - v[31]) * 0x5A827) >> 0x10) - v[7];
-    // Store v14 -> (T5 + 0x20)
     *(s16 *)(mp3data+((t5+(short)0x20))) = (short)v[14];
     v[14] = v[14] + v[1];
-    // Store v[14] -> (T6 + 0x20)
     *(s16 *)(mp3data+((t6+(short)0x20))) = (short)v[14];
-    // Store v[15] -> (T1 + 0xFFE0)
     *(s16 *)(mp3data+((t1+(short)0xFFE0))) = (short)v[15];
     v[9] = v[9] + v[10];
     v[1] = v[1] + v[6];
     v[6] = v[10] - v[6];
     v[1] = v[9] - v[1];
-    // Store v[6] -> (T5 + 0x60)
     *(s16 *)(mp3data+((t5+(short)0x60))) = (short)v[6];
     v[10] = v[10] + v[2];
     v[10] = v[4] - v[10];
-    // Store v[10] -> (T2 + 0xFFA0)
     *(s16 *)(mp3data+((t2+(short)0xFFA0))) = (short)v[10];
     v[12] = v[2] - v[12];
-    // Store v[12] -> (T2 + 0xFFE0)
     *(s16 *)(mp3data+((t2+(short)0xFFE0))) = (short)v[12];
     v[5] = v[4] + v[5];
     v[4] = v[8] - v[4];
-    // Store v[4] -> (T2 + 0x60)
     *(s16 *)(mp3data+((t2+(short)0x60))) = (short)v[4];
     v[0] = v[0] - v[8];
-    // Store v[0] -> (T3 + 0xFFA0)
     *(s16 *)(mp3data+((t3+(short)0xFFA0))) = (short)v[0];
     v[7] = v[7] - v[11];
-    // Store v[7] -> (T1 + 0xFFA0)
     *(s16 *)(mp3data+((t1+(short)0xFFA0))) = (short)v[7];
     v[11] = v[11] - v[3];
-    // Store v[1] -> (T6 + 0x60)
     *(s16 *)(mp3data+((t6+(short)0x60))) = (short)v[1];
     v[11] = v[11] - v[5];
-    // Store v[11] -> (T0 + 0x60)
     *(s16 *)(mp3data+((t0+(short)0x60))) = (short)v[11];
     v[3] = v[3] - v[13];
-    // Store v[3] -> (T0 + 0x20)
     *(s16 *)(mp3data+((t0+(short)0x20))) = (short)v[3];
     v[13] = v[13] + v[2];
-    // Store v[13] -> (T0 + 0xFFE0)
     *(s16 *)(mp3data+((t0+(short)0xFFE0))) = (short)v[13];
-    //v[2] = ;
     v[2] = (v[5] - v[2]) - v[9];
-    // Store v[2] -> (T0 + 0xFFA0)
     *(s16 *)(mp3data+((t0+(short)0xFFA0))) = (short)v[2];
-    // 0x7A8 - Verified...
 
     dewindowing(t4, t6, outPtr);
 }
