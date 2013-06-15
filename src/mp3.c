@@ -495,11 +495,10 @@ static void dewindowing(u32 t4, u32 t6, u32 outPtr)
     addptr -= 0x40;
     outPtr += 2;
 
+    offset  = 0x22f - t4;
 
     for (x = 0; x < 8; x++)
     {
-        offset = (0x22f-t4 + x*0x40);
-   
         idot8(&v2, &v4, (s16*)(mp3data+addptr+0x20), (s16*)(DEWINDOW_LUT + offset + 0x00));
         v2 -= v4;
         idot8(&v6, &v4, (s16*)(mp3data+addptr+0x00), (s16*)(DEWINDOW_LUT + offset + 0x20));
@@ -510,6 +509,7 @@ static void dewindowing(u32 t4, u32 t6, u32 outPtr)
         
         outPtr += 4;
         addptr -= 0x40;
+        offset += 0x40;
     }
 
     apply_gain(outPtr - 0x42, 16, (s16)(mult6 >> 16));
