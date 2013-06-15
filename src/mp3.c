@@ -195,6 +195,13 @@ static s16* sample_at(u16 mem)
     return (s16*)(mp3data+(mem^S16));
 }
 
+static void swap(u32 *a, u32 *b)
+{
+    u32 tmp = *b;
+    *b = *a;
+    *a = tmp;
+}
+
 
 /* global function */
 void mp3_decode(u32 address, unsigned char index)
@@ -203,7 +210,6 @@ void mp3_decode(u32 address, unsigned char index)
     u32 readPtr; // s5
     u32 writePtr; // s6
     //u32 Count = 0x0480; // s4
-    u32 tmp;
     u32 inPtr, outPtr;
     int cnt, cnt2;
 
@@ -230,9 +236,7 @@ void mp3_decode(u32 address, unsigned char index)
             t5 |= (t4 << 1);
             InnerLoop(inPtr, outPtr, t4, t5, t6);
             t4 = (t4 - 1) & 0x0f;
-            tmp = t6;
-            t6 = t5;
-            t5 = tmp;
+            swap(&t5, &t6);
             outPtr += 0x40;
             inPtr += 0x40;
         }
