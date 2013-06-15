@@ -460,7 +460,7 @@ static void dewindowing(u32 t4, u32 t6, u32 outPtr)
 {
     u32 offset = 0x10-t4;
     u32 addptr = t6 & 0xFFE0;
-    s32 v2=0, v4=0, v6=0, v8=0;
+    s32 v2=0, v4=0, v6=0;
 
     int x, i;
 
@@ -478,6 +478,7 @@ static void dewindowing(u32 t4, u32 t6, u32 outPtr)
 
 
     offset = 0x10-t4 + 8*0x40;
+
     v2 = v4 = 0;
     for (i = 0; i < 4; i++)
     {
@@ -488,6 +489,7 @@ static void dewindowing(u32 t4, u32 t6, u32 outPtr)
         v4 += dmul_round(*(s16*)(mp3data+addptr+0x10), DEWINDOW_LUT[offset+0x08]);
         addptr+=2; offset++;
     }
+
     s32 mult6 = *(s32 *)(mp3data+0xCE8);
     s32 mult4 = *(s32 *)(mp3data+0xCEC);
     if (t4 & 0x1)
@@ -503,9 +505,12 @@ static void dewindowing(u32 t4, u32 t6, u32 outPtr)
     }
     addptr -= 0x50;
 
+
+
+
     for (x = 0; x < 8; x++)
     {
-        v2 = v4 = v6 = v8 = 0;
+        v2 = v6 = 0;
 
         offset = (0x22F-t4 + x*0x40);
     
@@ -513,21 +518,17 @@ static void dewindowing(u32 t4, u32 t6, u32 outPtr)
         {
             v2 += dmul_round(*(s16*)(mp3data+addptr+0x20), DEWINDOW_LUT[offset+0x00]);
             v2 -= dmul_round(*(s16*)(mp3data+addptr+0x22), DEWINDOW_LUT[offset+0x01]);
-            v4 += dmul_round(*(s16*)(mp3data+addptr+0x30), DEWINDOW_LUT[offset+0x08]);
-            v4 -= dmul_round(*(s16*)(mp3data+addptr+0x32), DEWINDOW_LUT[offset+0x09]);
+            v2 += dmul_round(*(s16*)(mp3data+addptr+0x30), DEWINDOW_LUT[offset+0x08]);
+            v2 -= dmul_round(*(s16*)(mp3data+addptr+0x32), DEWINDOW_LUT[offset+0x09]);
             v6 += dmul_round(*(s16*)(mp3data+addptr+0x00), DEWINDOW_LUT[offset+0x20]);
             v6 -= dmul_round(*(s16*)(mp3data+addptr+0x02), DEWINDOW_LUT[offset+0x21]);
-            v8 += dmul_round(*(s16*)(mp3data+addptr+0x10), DEWINDOW_LUT[offset+0x28]);
-            v8 -= dmul_round(*(s16*)(mp3data+addptr+0x12), DEWINDOW_LUT[offset+0x29]);
+            v6 += dmul_round(*(s16*)(mp3data+addptr+0x10), DEWINDOW_LUT[offset+0x28]);
+            v6 -= dmul_round(*(s16*)(mp3data+addptr+0x12), DEWINDOW_LUT[offset+0x29]);
             addptr+=4; offset+=2;
         }
-        s32 v0  = v2 + v4;
-        s32 v18 = v6 + v8;
-        //Clamp(v0);
-        //Clamp(v18);
-        // clamp???
-        *sample_at(outPtr + 2) = v0;
-        *sample_at(outPtr + 4) = v18;
+        // clamp ?
+        *sample_at(outPtr + 2) = v2;
+        *sample_at(outPtr + 4) = v6;
         
         outPtr+=4;
         addptr -= 0x50;
