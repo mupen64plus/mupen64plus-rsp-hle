@@ -462,7 +462,7 @@ static void dewindowing(u32 t4, u32 t6, u32 outPtr)
     u32 addptr = t6 & 0xFFE0;
     s32 v2=0, v4=0, v6=0;
 
-    int x, i;
+    int x;
 
     for (x = 0; x < 16; x++)
     {
@@ -493,6 +493,7 @@ static void dewindowing(u32 t4, u32 t6, u32 outPtr)
         mult4 = *(u32 *)(mp3data+0xCE8);
     }
     addptr -= 0x40;
+    outPtr += 2;
 
 
     for (x = 0; x < 8; x++)
@@ -504,15 +505,15 @@ static void dewindowing(u32 t4, u32 t6, u32 outPtr)
         idot8(&v6, &v4, (s16*)(mp3data+addptr+0x00), (s16*)(DEWINDOW_LUT + offset + 0x20));
         v6 -= v4;
         // clamp ?
-        *sample_at(outPtr + 2) = v2;
-        *sample_at(outPtr + 4) = v6;
+        *sample_at(outPtr) = v2;
+        *sample_at(outPtr + 2) = v6;
         
         outPtr += 4;
         addptr -= 0x40;
     }
 
-    apply_gain(outPtr - 0x40, 16, (s16)(mult6 >> 16));
-    apply_gain(outPtr - 0x1e, 16, (s16)(mult4 >> 16));
+    apply_gain(outPtr - 0x42, 16, (s16)(mult6 >> 16));
+    apply_gain(outPtr - 0x20, 16, (s16)(mult4 >> 16));
 }
 
 static void apply_gain(u16 mem, unsigned count, s16 gain)
