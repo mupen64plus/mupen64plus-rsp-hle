@@ -31,8 +31,8 @@
 
 static void apply_gain(u16 mem, unsigned count, s16 gain);
 static void idot8(s32 *dot1, s32 *dot2, const s16 *x, const s16 *y);
+static void process_frequency_lines(u32 inPtr, u32 t5, u32 t6);
 static void dewindowing(u32 t4, u32 t6, u32 outPtr);
-static void InnerLoop(u32 inPtr, u32 outPtr, u32 t4, u32 t5, u32 t6);
 
 // FIXME: use DMEM instead
 static u8 mp3data[0x1000];
@@ -225,23 +225,27 @@ void mp3_decode(u32 address, unsigned char index)
 
     for (cnt = 0; cnt < 0x480; cnt += 0x180)
     {
+        /* buffer 6*32 frequency lines */
         memcpy (mp3data+0xCF0, rsp.RDRAM+readPtr, 0x180); // DMA: 0xCF0 <- RDRAM[s5] : 0x180
         inPtr  = 0xCF0; // s7
         outPtr = 0xE70; // s3
-// --------------- Inner Loop Start --------------------
+
+        /* process them */
         for (cnt2 = 0; cnt2 < 0x180; cnt2 += 0x40)
         {
             t6 &= 0xFFE0;
             t5 &= 0xFFE0;
             t6 |= (t4 << 1);
             t5 |= (t4 << 1);
-            InnerLoop(inPtr, outPtr, t4, t5, t6);
+            process_frequency_lines(inPtr, t5, t6);
+            dewindowing(t4, t6, outPtr);
             t4 = (t4 - 1) & 0x0f;
             swap(&t5, &t6);
             outPtr += 0x40;
             inPtr += 0x40;
         }
-// --------------- Inner Loop End --------------------
+
+        /* flush results */
         memcpy (rsp.RDRAM+writePtr, mp3data+0xe70, 0x180);
         writePtr += 0x180;
         readPtr  += 0x180;
@@ -310,11 +314,14 @@ static void load_v(s32 *v, u16 inPtr)
 
 }
 
-static void InnerLoop(u32 inPtr, u32 outPtr, u32 t4, u32 t5, u32 t6)
+/* Called 18 times (one per frequency line)
+ * Write 33 values at equally spaced locations (32 bytes spaced).
+ * I think it does alias reduction, imdct and frequency inversion.
+ */
+static void process_frequency_lines(u32 inPtr, u32 t5, u32 t6)
 {
     s32 v[32];
     int i;
-
 
     load_v(v, inPtr);
 
@@ -447,7 +454,7 @@ static void InnerLoop(u32 inPtr, u32 outPtr, u32 t4, u32 t5, u32 t6)
     v[2] = (v[5] - v[2]) - v[9];
     *(s16 *)(mp3data+((t6 + 0xa0))) = (s16)v[2];
 
-    dewindowing(t4, t6, outPtr);
+
 }
 
 static void dewindowing(u32 t4, u32 t6, u32 outPtr)
