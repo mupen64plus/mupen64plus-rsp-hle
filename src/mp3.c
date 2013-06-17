@@ -29,7 +29,7 @@
 
 #include "mp3.h"
 
-static void butterfly(s32 *x, s32 *y);
+static void butterfly(s32 *x, s32 *y, s32 w);
 static void apply_gain(u16 mem, unsigned count, s16 gain);
 static void idot8(s32 *dot1, s32 *dot2, const s16 *x, const s16 *y);
 static void process_frequency_lines(u32 inPtr, u32 t5, u32 t6);
@@ -345,35 +345,32 @@ static void process_frequency_lines(u32 inPtr, u32 t5, u32 t6)
 
     MP3AB0(v);
 
-    butterfly(&v[16], &v[17]);
-    butterfly(&v[18], &v[19]);
-    butterfly(&v[20], &v[21]);
-    butterfly(&v[22], &v[23]);
-    butterfly(&v[24], &v[25]);
-    butterfly(&v[26], &v[27]);
-    butterfly(&v[28], &v[29]);
-    butterfly(&v[30], &v[31]);
+    butterfly(&v[16], &v[17], K[0]);
+    butterfly(&v[18], &v[19], K[1]);
+    butterfly(&v[20], &v[21], K[1]);
+    butterfly(&v[22], &v[23], K[2]);
+    butterfly(&v[24], &v[25], K[1]);
+    butterfly(&v[26], &v[27], K[2]);
+    butterfly(&v[28], &v[29], K[2]);
+    butterfly(&v[30], &v[31], K[3]);
 
-    v[17] = mul(v[17], K[0]);
-    v[5]  = mul(v[21], K[1]) + v[20];
+    v[5]  = v[21] + v[20];
     v[6]  = v[22] << 1;
-    v[9]  = mul(v[25], K[1]);
-    v[2]  = v[24] + v[9];
+    v[2]  = v[24] + v[25];
     v[10] = v[26] << 1;
-    v[11] = mul(v[27], K[2]);
     v[3]  = v[24] + v[10];
     v[12] = v[28] << 1;
-    v[13] = mul(v[29], K[2]) - v[2] + v[12];
+    v[13] = v[29] - v[2] + v[12];
     v[14] = v[3] - (v[30] << 2);
-    v[15] = mul(v[31], K[3]) - v[2] - v[11];
+    v[15] = v[31] - v[2] - v[27];
     
     *(s16*)(mp3data+((t6 + 0x000))) = (s16)v[17];
-    *(s16*)(mp3data+((t6 + 0x040))) = (s16)( v[9] + v[14]);
+    *(s16*)(mp3data+((t6 + 0x040))) = (s16)(v[25] + v[14]);
     *(s16*)(mp3data+((t6 + 0x080))) = (s16)( v[5] - v[6]);
     *(s16*)(mp3data+((t6 + 0x0c0))) = (s16)(v[13] - v[10]);
-    *(s16*)(mp3data+((t6 + 0x100))) = (s16)(mul(v[19], K[1]) - v[18]);
-    *(s16*)(mp3data+((t6 + 0x140))) = (s16)(v[11] - v[13]);
-    *(s16*)(mp3data+((t6 + 0x180))) = (s16)(mul(v[23], K[2]) - v[5]);
+    *(s16*)(mp3data+((t6 + 0x100))) = (s16)(v[19] - v[18]);
+    *(s16*)(mp3data+((t6 + 0x140))) = (s16)(v[27] - v[13]);
+    *(s16*)(mp3data+((t6 + 0x180))) = (s16)(v[23] - v[5]);
     *(s16*)(mp3data+((t6 + 0x1c0))) = (s16)v[15];
 
     *(s16*)(mp3data+((t5 + 0x000))) = (s16)(-v[17]);
@@ -533,12 +530,12 @@ static void idot8(s32 *dot1, s32 *dot2, const s16 *x, const s16 *y)
     }
 }
 
-static void butterfly(s32 *x, s32 *y)
+static void butterfly(s32 *x, s32 *y, s32 w)
 {
     s32 sum  = *x + *y;
     s32 diff = *x - *y;
 
     *x = sum;
-    *y = diff;
+    *y = mul(diff, w);
 }
 
