@@ -277,42 +277,30 @@ static void MP3AB0(s32 *v)
     int i;
 
     for (i = 0; i < 8; i++)
-    {
-        v[16+i] = v[0+i] + v[8+i];
-        v[24+i] = ((v[0+i] - v[8+i]) * LUT2[i]) >> 0x10;
-    }
-
-    // Part 3: 4-wide butterflies
+        butterfly(&v[0+i], &v[8+i], LUT2[i]);
 
     for (i=0; i < 4; i++)
     {
-        v[0+i]  = v[16+i] + v[20+i];
-        v[4+i]  = ((v[16+i] - v[20+i]) * LUT3[i]) >> 0x10;
-
-        v[8+i]  = v[24+i] + v[28+i];
-        v[12+i] = ((v[24+i] - v[28+i]) * LUT3[i]) >> 0x10;
+        butterfly(&v[0+i], &v[ 4+i], LUT3[i]);
+        butterfly(&v[8+i], &v[12+i], LUT3[i]);
     }
-                
-    // Part 4: 2-wide butterflies - 100% Accurate
 
     for (i = 0; i < 16; i+=4)
     {
-        v[16+i] = v[0+i] + v[2+i];
-        v[18+i] = ((v[0+i] - v[2+i]) * 0xEC84) >> 0x10;
-
-        v[17+i] = v[1+i] + v[3+i];
-        v[19+i] = ((v[1+i] - v[3+i]) * 0x61F8) >> 0x10;
+        butterfly(&v[0+i], &v[2+i], 0xec84);
+        butterfly(&v[1+i], &v[3+i], 0x61f8);
     }
 
+    butterfly(&v[ 0], &v[ 1], K[0]);
+    butterfly(&v[ 2], &v[ 3], K[1]);
+    butterfly(&v[ 4], &v[ 5], K[1]);
+    butterfly(&v[ 6], &v[ 7], K[2]);
+    butterfly(&v[ 8], &v[ 9], K[1]);
+    butterfly(&v[10], &v[11], K[2]);
+    butterfly(&v[12], &v[13], K[2]);
+    butterfly(&v[14], &v[15], K[3]);
 
-    butterfly(&v[16], &v[17], K[0]);
-    butterfly(&v[18], &v[19], K[1]);
-    butterfly(&v[20], &v[21], K[1]);
-    butterfly(&v[22], &v[23], K[2]);
-    butterfly(&v[24], &v[25], K[1]);
-    butterfly(&v[26], &v[27], K[2]);
-    butterfly(&v[28], &v[29], K[2]);
-    butterfly(&v[30], &v[31], K[3]);
+    memcpy(v + 16, v + 0, 16*sizeof(s32));
 }
 
 static void load_v(s32 *v, u16 inPtr)
@@ -333,7 +321,6 @@ static void load_v(s32 *v, u16 inPtr)
     v[13]= *sample_at(inPtr+0x12) + *sample_at(inPtr+0x2C);
     v[14]= *sample_at(inPtr+0x16) + *sample_at(inPtr+0x28);
     v[15]= *sample_at(inPtr+0x14) + *sample_at(inPtr+0x2A);
-
 }
 
 
