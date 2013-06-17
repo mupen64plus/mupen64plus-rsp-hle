@@ -386,19 +386,16 @@ static void process_frequency_lines(u32 inPtr, u32 t5, u32 t6)
 
     load_v(v, inPtr);
 
-    //0, 1, 3, 2, 7, 6, 4, 5, 7, 6, 4, 5, 0, 1, 3, 2
-    const u16 LUT6[16] = { 0xFFB2, 0xFD3A, 0xF10A, 0xF854,
-                           0xBDAE, 0xCDA0, 0xE76C, 0xDB94,
-                           0x1920, 0x4B20, 0xAC7C, 0x7C68,
-                           0xABEC, 0x9880, 0xDAE8, 0x839C };
-    for (i = 0; i < 16; i++)
+    const s32 LUT6[] =
     {
-        v[0+i] = (v[0+i] * LUT6[i]) >> 0x10;
-    }
-    v[0] = v[0] + v[0]; v[1] = v[1] + v[1];
-    v[2] = v[2] + v[2]; v[3] = v[3] + v[3]; v[4] = v[4] + v[4];
-    v[5] = v[5] + v[5]; v[6] = v[6] + v[6]; v[7] = v[7] + v[7];
-    v[12] = v[12] + v[12]; v[13] = v[13] + v[13]; v[15] = v[15] + v[15];
+        0x1ff64, 0x1fa74, 0x1e214, 0x1f0a8,
+        0x17b5c, 0x19b40, 0x1ced8, 0x1b728,
+        0x1920, 0x4b20, 0xac7c, 0x7c68,
+        0x157d8, 0x13100, 0xdae8, 0x10738
+    };
+
+    for (i = 0; i < 16; i++)
+        v[i] = mul(v[i], LUT6[i]);
     
     MP3AB0(v);
 
