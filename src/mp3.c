@@ -317,25 +317,22 @@ static void MP3AB0(s32 *v)
 
 static void load_v(s32 *v, u16 inPtr)
 {
-    v[0] = *sample_at(inPtr+0x00); v[31] = *sample_at(inPtr+0x3E); v[0] += v[31];
-    v[1] = *sample_at(inPtr+0x02); v[30] = *sample_at(inPtr+0x3C); v[1] += v[30];
-    v[2] = *sample_at(inPtr+0x06); v[28] = *sample_at(inPtr+0x38); v[2] += v[28];
-    v[3] = *sample_at(inPtr+0x04); v[29] = *sample_at(inPtr+0x3A); v[3] += v[29];
-
-    v[4] = *sample_at(inPtr+0x0E); v[24] = *sample_at(inPtr+0x30); v[4] += v[24];
-    v[5] = *sample_at(inPtr+0x0C); v[25] = *sample_at(inPtr+0x32); v[5] += v[25];
-    v[6] = *sample_at(inPtr+0x08); v[27] = *sample_at(inPtr+0x36); v[6] += v[27];
-    v[7] = *sample_at(inPtr+0x0A); v[26] = *sample_at(inPtr+0x34); v[7] += v[26];
-
-    v[8] = *sample_at(inPtr+0x1E); v[16] = *sample_at(inPtr+0x20); v[8] += v[16];
-    v[9] = *sample_at(inPtr+0x1C); v[17] = *sample_at(inPtr+0x22); v[9] += v[17];
-    v[10]= *sample_at(inPtr+0x18); v[19] = *sample_at(inPtr+0x26); v[10]+= v[19];
-    v[11]= *sample_at(inPtr+0x1A); v[18] = *sample_at(inPtr+0x24); v[11]+= v[18];
-
-    v[12]= *sample_at(inPtr+0x10); v[23] = *sample_at(inPtr+0x2E); v[12]+= v[23];
-    v[13]= *sample_at(inPtr+0x12); v[22] = *sample_at(inPtr+0x2C); v[13]+= v[22];
-    v[14]= *sample_at(inPtr+0x16); v[20] = *sample_at(inPtr+0x28); v[14]+= v[20];
-    v[15]= *sample_at(inPtr+0x14); v[21] = *sample_at(inPtr+0x2A); v[15]+= v[21];
+    v[0] = *sample_at(inPtr+0x00) + *sample_at(inPtr+0x3E);
+    v[1] = *sample_at(inPtr+0x02) + *sample_at(inPtr+0x3C);
+    v[2] = *sample_at(inPtr+0x06) + *sample_at(inPtr+0x38);
+    v[3] = *sample_at(inPtr+0x04) + *sample_at(inPtr+0x3A);
+    v[4] = *sample_at(inPtr+0x0E) + *sample_at(inPtr+0x30);
+    v[5] = *sample_at(inPtr+0x0C) + *sample_at(inPtr+0x32);
+    v[6] = *sample_at(inPtr+0x08) + *sample_at(inPtr+0x36);
+    v[7] = *sample_at(inPtr+0x0A) + *sample_at(inPtr+0x34);
+    v[8] = *sample_at(inPtr+0x1E) + *sample_at(inPtr+0x20);
+    v[9] = *sample_at(inPtr+0x1C) + *sample_at(inPtr+0x22);
+    v[10]= *sample_at(inPtr+0x18) + *sample_at(inPtr+0x26);
+    v[11]= *sample_at(inPtr+0x1A) + *sample_at(inPtr+0x24);
+    v[12]= *sample_at(inPtr+0x10) + *sample_at(inPtr+0x2E);
+    v[13]= *sample_at(inPtr+0x12) + *sample_at(inPtr+0x2C);
+    v[14]= *sample_at(inPtr+0x16) + *sample_at(inPtr+0x28);
+    v[15]= *sample_at(inPtr+0x14) + *sample_at(inPtr+0x2A);
 
 }
 
