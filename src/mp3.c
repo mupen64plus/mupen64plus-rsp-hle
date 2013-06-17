@@ -303,6 +303,16 @@ static void MP3AB0(s32 *v)
         v[17+i] = v[1+i] + v[3+i];
         v[19+i] = ((v[1+i] - v[3+i]) * 0x61F8) >> 0x10;
     }
+
+
+    butterfly(&v[16], &v[17], K[0]);
+    butterfly(&v[18], &v[19], K[1]);
+    butterfly(&v[20], &v[21], K[1]);
+    butterfly(&v[22], &v[23], K[2]);
+    butterfly(&v[24], &v[25], K[1]);
+    butterfly(&v[26], &v[27], K[2]);
+    butterfly(&v[28], &v[29], K[2]);
+    butterfly(&v[30], &v[31], K[3]);
 }
 
 static void load_v(s32 *v, u16 inPtr)
@@ -344,15 +354,6 @@ static void process_frequency_lines(u32 inPtr, u32 t5, u32 t6)
     load_v(v, inPtr);
 
     MP3AB0(v);
-
-    butterfly(&v[16], &v[17], K[0]);
-    butterfly(&v[18], &v[19], K[1]);
-    butterfly(&v[20], &v[21], K[1]);
-    butterfly(&v[22], &v[23], K[2]);
-    butterfly(&v[24], &v[25], K[1]);
-    butterfly(&v[26], &v[27], K[2]);
-    butterfly(&v[28], &v[29], K[2]);
-    butterfly(&v[30], &v[31], K[3]);
 
     v[5]  = v[21] + v[20];
     v[6]  = v[22] << 1;
@@ -401,71 +402,48 @@ static void process_frequency_lines(u32 inPtr, u32 t5, u32 t6)
     
     MP3AB0(v);
 
-    butterfly(&v[16], &v[17], K[0]);
-    butterfly(&v[18], &v[19], K[1]);
-    butterfly(&v[20], &v[21], K[1]);
-    butterfly(&v[22], &v[23], K[2]);
-    butterfly(&v[24], &v[25], K[1]);
-    butterfly(&v[26], &v[27], K[2]);
-    butterfly(&v[28], &v[29], K[2]);
-    butterfly(&v[30], &v[31], K[3]);
 
     v[0] = v[16] >> 1;
-    v[1] = v[17];
-
-    v[2] = -v[18];
-    v[3] = v[19];
-    
     v[4] = v[20] + v[0];
-    v[5] = v[21] + v[1];
-    
-    v[6] = (v[22] << 1) + v[0] - v[2];
-    v[7] = v[23] + v[0] + v[1] + v[3];
-    
-
-    v[8] = v[24];
-    v[9] = v[25];
-
-    v[10] = (v[26] << 1) + v[8];
-    v[11] = v[27] + v[8] + v[9];
-
+    v[5] = v[21] + v[17];
+    v[6] = (v[22] << 1) + v[0] + v[18];
+    v[7] = v[23] + v[0] + v[17] + v[19];
+    v[10] = (v[26] << 1) + v[24];
+    v[11] = v[27] + v[24] + v[25];
     v[12] = v[4] - (v[28] << 1);
     v[13] = v[29] - v[12] - v[5];
-
     v[14] = v[6] - (v[30] << 2);
     v[15] = v[31] - v[7];
 
     *(s16 *)(mp3data+((t5 + 0x1e0))) = (s16)(-v[0]);
     *(s16 *)(mp3data+((t5 + 0x120))) = (s16)v[12];
     *(s16 *)(mp3data+((t5 + 0x20))) = (s16)v[14];
-    v[14] = v[14] + v[1];
+    v[14] = v[14] + v[17];
     *(s16 *)(mp3data+((t6 + 0x20))) = (s16)v[14];
     *(s16 *)(mp3data+((t6 + 0x1e0))) = (s16)v[15];
-    v[9] = v[9] + v[10];
-    v[1] = v[1] + v[6];
+    v[9] = v[25] + v[10];
+    v[1] = v[17] + v[6];
     v[6] = v[10] - v[6];
     *(s16 *)(mp3data+((t5 + 0x60))) = (s16)v[6];
     v[1] = v[9] - v[1];
     *(s16 *)(mp3data+((t6 + 0x60))) = (s16)v[1];
-    v[10] = v[4] - (v[10] + v[2]);
+    v[10] = v[4] - (v[10] - v[18]);
     *(s16 *)(mp3data+((t5 + 0xa0))) = (s16)v[10];
-    v[12] = v[2] - v[12];
+    v[12] = -v[18] - v[12];
     *(s16 *)(mp3data+((t5 + 0xe0))) = (s16)v[12];
     v[5] = v[4] + v[5];
-    v[4] = v[8] - v[4];
+    v[4] = v[24] - v[4];
     *(s16 *)(mp3data+((t5 + 0x160))) = (s16)v[4];
-    v[0] = v[0] - v[8];
+    v[0] = v[0] - v[24];
     *(s16 *)(mp3data+((t5 + 0x1a0))) = (s16)v[0];
     v[7] = v[7] - v[11];
     *(s16 *)(mp3data+((t6 + 0x1a0))) = (s16)v[7];
-    v[11] = v[11] - v[3] - v[5];
+    v[11] = v[11] - v[19] - v[5];
     *(s16 *)(mp3data+((t6 + 0x160))) = (s16)v[11];
-    v[3] = v[3] - v[13];
-    *(s16 *)(mp3data+((t6 + 0x120))) = (s16)v[3];
-    v[13] = v[13] + v[2];
+    *(s16 *)(mp3data+((t6 + 0x120))) = (s16)(v[19] - v[13]);
+    v[13] = v[13] - v[18];
     *(s16 *)(mp3data+((t6 + 0xe0))) = (s16)v[13];
-    v[2] = (v[5] - v[2]) - v[9];
-    *(s16 *)(mp3data+((t6 + 0xa0))) = (s16)v[2];
+    *(s16 *)(mp3data+((t6 + 0xa0))) = (s16)(v[5] + v[18] - v[9]);
 }
 
 static void dewindowing(u32 t4, u32 t6, u32 outPtr)
