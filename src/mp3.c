@@ -251,14 +251,14 @@ void mp3_decode(u32 address, unsigned char index)
         /* process them */
         for (cnt2 = 0; cnt2 < 0x180; cnt2 += 0x40)
         {
-            t6 &= 0xFFE0;
-            t5 &= 0xFFE0;
-            t6 |= (t4 << 1);
-            t5 |= (t4 << 1);
+            t6 = (t6 & 0xffe0) | (t4 << 1);
+            t5 = (t5 & 0xffe0) | (t4 << 1);
+
             process_frequency_lines(inPtr, t5, t6);
             dewindowing(t4, t6, outPtr);
             apply_gain(outPtr + 0x00, 17, mult6);
             apply_gain(outPtr + 0x22, 16, (t4 & 0x1) ? mult4 : mult6);
+                
             t4 = (t4 - 1) & 0x0f;
             swap(&t5, &t6);
             outPtr += 0x40;
@@ -437,13 +437,12 @@ static void dewindowing(u32 t4, u32 t6, u32 outPtr)
         addptr += 0x20;
         offset += 0x20;
     }
-    idot8(&v2, &v4, (s16*)(mp3data + addptr), (s16*)(DEWINDOW_LUT + offset));
 
+    idot8(&v2, &v4, (s16*)(mp3data + addptr), (s16*)(DEWINDOW_LUT + offset));
     *sample_at(outPtr) = (t4 & 0x1) ? v2 : v4;
-    addptr -= 0x40;
     outPtr += 2;
 
-
+    addptr -= 0x40;
     offset  = 0x22f - t4;
     for (i = 0; i < 8; ++i)
     {
