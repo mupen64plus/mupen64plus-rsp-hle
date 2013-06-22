@@ -276,9 +276,13 @@ void mp3_decode(u32 address, unsigned char index)
 static void MP3AB0(s32 *v)
 {
     // Part 2 - 100% Accurate
-    const u16 LUT2[8] = { 0xFEC4, 0xF4FA, 0xC5E4, 0xE1C4, 
-                          0x1916, 0x4A50, 0xA268, 0x78AE };
+
+    /* cos(2*(2k+1)PI/64) with k = { 0,1,3,2,7,6,4,5 } */
+    const u16 LUT2[8] = { 0xFEC4, 0xF4FA, 0xC5E4, 0xE1C4, 0x1916, 0x4A50, 0xA268, 0x78AE };
+
+    /* cos(2*(2k)/64) with k = {1,3,7,5} */
     const u16 LUT3[4] = { 0xFB14, 0xD4DC, 0x31F2, 0x8E3A };
+
     int i;
 
     for (i = 0; i < 8; i++)
@@ -292,8 +296,8 @@ static void MP3AB0(s32 *v)
 
     for (i = 0; i < 16; i+=4)
     {
-        butterfly(&v[0+i], &v[2+i], 0xec84);
-        butterfly(&v[1+i], &v[3+i], 0x61f8);
+        butterfly(&v[0+i], &v[2+i], 0xec84);    /* cos(4*PI/32) */
+        butterfly(&v[1+i], &v[3+i], 0x61f8);    /* cos(12*PI/32) */
     }
 
     butterfly(&v[ 0], &v[ 1], K[0]);
@@ -374,6 +378,11 @@ static void process_frequency_lines(u32 inPtr, u32 t5, u32 t6)
 
     load_v(v, inPtr);
 
+    // 2*cos((2k+1)PI/64),
+    // with k = {
+    // 0   1  3  2 7 6  4  5
+    // 15 14 12 13 8 9 11 10A
+    // }
     const s32 LUT6[] =
     {
         0x1ff64, 0x1fa74, 0x1e214, 0x1f0a8,
