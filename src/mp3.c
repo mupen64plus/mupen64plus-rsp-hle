@@ -235,8 +235,11 @@ void mp3_decode(u32 address, unsigned char index)
 
     writePtr = address;
     readPtr  = writePtr;
-    memcpy (mp3data+0xCE8, rsp.RDRAM+readPtr, 8); // Just do that for efficiency... may remove and use directly later anyway
-    readPtr += 8; // This must be a header byte or whatnot
+
+    memcpy (mp3data+0xce8, rsp.RDRAM+readPtr, 8);
+    s16 mult6 = *(s32*)(mp3data+0xce8) >> 16;
+    s16 mult4 = *(s32*)(mp3data+0xcec) >> 16;
+    readPtr += 8;
 
     for (cnt = 0; cnt < 0x480; cnt += 0x180)
     {
@@ -254,6 +257,8 @@ void mp3_decode(u32 address, unsigned char index)
             t5 |= (t4 << 1);
             process_frequency_lines(inPtr, t5, t6);
             dewindowing(t4, t6, outPtr);
+            apply_gain(outPtr + 0x00, 17, mult6);
+            apply_gain(outPtr + 0x22, 16, (t4 & 0x1) ? mult4 : mult6);
             t4 = (t4 - 1) & 0x0f;
             swap(&t5, &t6);
             outPtr += 0x40;
@@ -434,19 +439,7 @@ static void dewindowing(u32 t4, u32 t6, u32 outPtr)
     }
     idot8(&v2, &v4, (s16*)(mp3data + addptr), (s16*)(DEWINDOW_LUT + offset));
 
-    s32 mult6 = *(s32 *)(mp3data+0xCE8);
-    s32 mult4 = *(s32 *)(mp3data+0xCEC);
-    if (t4 & 0x1)
-    {
-        v2 = (v2 * *(u32 *)(mp3data+0xCE8)) >> 0x10;
-        *sample_at(outPtr) = v2;
-    }
-    else
-    {
-        v4 = (v4 * *(u32 *)(mp3data+0xCE8)) >> 0x10;
-        *sample_at(outPtr) = v4;
-        mult4 = *(u32 *)(mp3data+0xCE8);
-    }
+    *sample_at(outPtr) = (t4 & 0x1) ? v2 : v4;
     addptr -= 0x40;
     outPtr += 2;
 
@@ -466,9 +459,6 @@ static void dewindowing(u32 t4, u32 t6, u32 outPtr)
         addptr -= 0x40;
         offset += 0x40;
     }
-
-    apply_gain(outPtr - 0x42, 16, (s16)(mult6 >> 16));
-    apply_gain(outPtr - 0x20, 16, (s16)(mult4 >> 16));
 }
 
 static void apply_gain(u16 mem, unsigned count, s16 gain)
