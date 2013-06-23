@@ -32,10 +32,9 @@
 static void butterfly(s32 *x, s32 *y, s32 w);
 static void apply_gain(u16 mem, unsigned count, s16 gain);
 static void idot8(s32 *dot1, s32 *dot2, const s16 *x, const s16 *y);
-static void process_frequency_lines(u32 inPtr, u32 t5, u32 t6);
-static void dewindowing(u32 t4, u32 t6, u32 outPtr);
+static void mdct32(u32 inPtr, u32 t5, u32 t6);
+static void window(u32 t4, u32 t6, u32 outPtr);
 
-// FIXME: use DMEM instead
 static u8 mp3data[0x1000];
 
 /* some constants */
@@ -254,8 +253,9 @@ void mp3_decode(u32 address, unsigned char index)
             t6 = (t6 & 0xffe0) | (t4 << 1);
             t5 = (t5 & 0xffe0) | (t4 << 1);
 
-            process_frequency_lines(inPtr, t5, t6);
-            dewindowing(t4, t6, outPtr);
+            /* synthesis polyphase filter bank */
+            mdct32(inPtr, t5, t6);
+            window(t4, t6, outPtr);
             apply_gain(outPtr + 0x00, 17, mult6);
             apply_gain(outPtr + 0x22, 16, (t4 & 0x1) ? mult4 : mult6);
                 
@@ -335,14 +335,9 @@ static void load_v(s32 *v, u16 inPtr)
     v[15]= *sample_at(inPtr+0x14) + *sample_at(inPtr+0x2A);
 }
 
-
-
-
-/* Called 18 times (one per frequency line)
- * Write 33 values at equally spaced locations (32 bytes spaced).
- * I think it does alias reduction, imdct and frequency inversion.
- */
-static void process_frequency_lines(u32 inPtr, u32 t5, u32 t6)
+/* Looks like a 32 point MDCT (not sure)
+ * It outputs 33 values (spaced by 30 bytes) */
+static void mdct32(u32 inPtr, u32 t5, u32 t6)
 {
     s32 v[16];
     s32 t[16]; // temporary values
@@ -387,10 +382,8 @@ static void process_frequency_lines(u32 inPtr, u32 t5, u32 t6)
     // }
     const s32 LUT6[] =
     {
-        0x1ff64, 0x1fa74, 0x1e214, 0x1f0a8,
-        0x17b5c, 0x19b40, 0x1ced8, 0x1b728,
-        0x1920, 0x4b20, 0xac7c, 0x7c68,
-        0x157d8, 0x13100, 0xdae8, 0x10738
+        0x1ff64, 0x1fa74, 0x1e214, 0x1f0a8, 0x17b5c, 0x19b40, 0x1ced8, 0x1b728,
+        0x01920, 0x04b20, 0x0ac7c, 0x07c68, 0x157d8, 0x13100, 0x0dae8, 0x10738
     };
 
     for (i = 0; i < 16; i++)
@@ -431,7 +424,7 @@ static void process_frequency_lines(u32 inPtr, u32 t5, u32 t6)
     *(s16 *)(mp3data+((t6 + 0x1e0))) = (s16)t[15];
 }
 
-static void dewindowing(u32 t4, u32 t6, u32 outPtr)
+static void window(u32 t4, u32 t6, u32 outPtr)
 {
     unsigned i;
     u32 offset = 0x10-t4;
