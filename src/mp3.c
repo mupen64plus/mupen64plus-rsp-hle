@@ -383,7 +383,7 @@ static void process_frequency_lines(u32 inPtr, u32 t5, u32 t6)
     // 2*cos((2k+1)PI/64),
     // with k = {
     // 0   1  3  2 7 6  4  5
-    // 15 14 12 13 8 9 11 10A
+    // 15 14 12 13 8 9 11 10
     // }
     const s32 LUT6[] =
     {
