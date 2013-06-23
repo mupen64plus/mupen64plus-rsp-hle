@@ -32,8 +32,8 @@
 static void butterfly(s32 *x, s32 *y, s32 w);
 static void apply_gain(u16 mem, unsigned count, s16 gain);
 static void idot8(s32 *dot1, s32 *dot2, const s16 *x, const s16 *y);
-static void mdct32(u32 inPtr, u32 t5, u32 t6);
-static void window(u32 t4, u32 t6, u32 outPtr);
+static void mdct32(u16 dmem_src, u32 t5, u32 t6);
+static void window(unsigned index, u32 t6, u16 dmem_dst);
 
 static u8 mp3data[0x1000];
 
@@ -233,56 +233,53 @@ static void swap(u32 *a, u32 *b)
 }
 
 /* global function */
-void mp3_decode(u32 address, unsigned char index)
+
+/**
+ * Perform the synthesis polyphase filter bank step.
+ **/
+void mp3_decode(u32 address, unsigned index)
 {
-    // Initialization Code
-    u32 readPtr; // s5
-    u32 writePtr; // s6
-    //u32 Count = 0x0480; // s4
-    u32 inPtr, outPtr;
-    int cnt, cnt2;
+    u32 dram_dst, dram_src; /* s6, s5 */
+    u16 dmem_dst, dmem_src; /* s3, s7 */
+    s16 gains[2];
+    unsigned i, j;
 
-    u32 t6 = 0x08A0; // I think these are temporary storage buffers
-    u32 t5 = 0x0AC0;
-    u32 t4 = index;
+    u32 t6 = 0x08a0; // I think these are temporary storage buffers
+    u32 t5 = 0x0ac0;
 
-    writePtr = address;
-    readPtr  = writePtr;
+    dram_dst = dram_src = address;
 
-    memcpy (mp3data+0xce8, rsp.RDRAM+readPtr, 8);
-    s16 mult6 = *(s32*)(mp3data+0xce8) >> 16;
-    s16 mult4 = *(s32*)(mp3data+0xcec) >> 16;
-    readPtr += 8;
+    /* read gains */
+    memcpy (mp3data+0xce8, rsp.RDRAM+dram_src, 8);
+    gains[0] = *(s32*)(mp3data+0xce8) >> 16;
+    gains[1] = *(s32*)(mp3data+0xcec) >> 16;
 
-    for (cnt = 0; cnt < 0x480; cnt += 0x180)
+    dram_src += 8;
+
+    /* process frequency lines */
+    for (i = 0; i < 3; ++i)
     {
-        /* buffer 6*32 frequency lines */
-        memcpy (mp3data+0xCF0, rsp.RDRAM+readPtr, 0x180); // DMA: 0xCF0 <- RDRAM[s5] : 0x180
-        inPtr  = 0xCF0; // s7
-        outPtr = 0xE70; // s3
+        dmem_src = 0xcf0; dmem_dst = 0xe70;
+        memcpy(mp3data+dmem_src, rsp.RDRAM+dram_src, 0x180);
 
-        /* process them */
-        for (cnt2 = 0; cnt2 < 0x180; cnt2 += 0x40)
+        for (j = 0; j < 6; ++j)
         {
-            t6 = (t6 & 0xffe0) | (t4 << 1);
-            t5 = (t5 & 0xffe0) | (t4 << 1);
+            t6 = (t6 & 0xffe0) | (index << 1);
+            t5 = (t5 & 0xffe0) | (index << 1);
 
             /* synthesis polyphase filter bank */
-            mdct32(inPtr, t5, t6);
-            window(t4, t6, outPtr);
-            apply_gain(outPtr + 0x00, 17, mult6);
-            apply_gain(outPtr + 0x22, 16, (t4 & 0x1) ? mult4 : mult6);
+            mdct32(dmem_src, t5, t6);
+            window(index, t6, dmem_dst);
+            apply_gain(dmem_dst + 0x00, 17, gains[0]);
+            apply_gain(dmem_dst + 0x22, 16, gains[index & 0x1]);
                 
-            t4 = (t4 - 1) & 0x0f;
             swap(&t5, &t6);
-            outPtr += 0x40;
-            inPtr += 0x40;
+            index = (index - 1) & 0x0f;
+            dmem_dst += 0x40; dmem_src += 0x40;
         }
 
-        /* flush results */
-        memcpy (rsp.RDRAM+writePtr, mp3data+0xe70, 0x180);
-        writePtr += 0x180;
-        readPtr  += 0x180;
+        memcpy(rsp.RDRAM+dram_dst, mp3data+0xe70, 0x180);
+        dram_dst += 0x180; dram_src += 0x180;
     }
 }
 
@@ -325,35 +322,35 @@ static void MP3AB0(s32 *v)
     v[14] <<= 2;
 }
 
-static void load_v(s32 *v, u16 inPtr)
+static void load_v(s32 *v, u16 dmem_src)
 {
-    v[0] = *sample_at(inPtr+0x00) + *sample_at(inPtr+0x3E);
-    v[1] = *sample_at(inPtr+0x02) + *sample_at(inPtr+0x3C);
-    v[2] = *sample_at(inPtr+0x06) + *sample_at(inPtr+0x38);
-    v[3] = *sample_at(inPtr+0x04) + *sample_at(inPtr+0x3A);
-    v[4] = *sample_at(inPtr+0x0E) + *sample_at(inPtr+0x30);
-    v[5] = *sample_at(inPtr+0x0C) + *sample_at(inPtr+0x32);
-    v[6] = *sample_at(inPtr+0x08) + *sample_at(inPtr+0x36);
-    v[7] = *sample_at(inPtr+0x0A) + *sample_at(inPtr+0x34);
-    v[8] = *sample_at(inPtr+0x1E) + *sample_at(inPtr+0x20);
-    v[9] = *sample_at(inPtr+0x1C) + *sample_at(inPtr+0x22);
-    v[10]= *sample_at(inPtr+0x18) + *sample_at(inPtr+0x26);
-    v[11]= *sample_at(inPtr+0x1A) + *sample_at(inPtr+0x24);
-    v[12]= *sample_at(inPtr+0x10) + *sample_at(inPtr+0x2E);
-    v[13]= *sample_at(inPtr+0x12) + *sample_at(inPtr+0x2C);
-    v[14]= *sample_at(inPtr+0x16) + *sample_at(inPtr+0x28);
-    v[15]= *sample_at(inPtr+0x14) + *sample_at(inPtr+0x2A);
+    v[0] = *sample_at(dmem_src+0x00) + *sample_at(dmem_src+0x3E);
+    v[1] = *sample_at(dmem_src+0x02) + *sample_at(dmem_src+0x3C);
+    v[2] = *sample_at(dmem_src+0x06) + *sample_at(dmem_src+0x38);
+    v[3] = *sample_at(dmem_src+0x04) + *sample_at(dmem_src+0x3A);
+    v[4] = *sample_at(dmem_src+0x0E) + *sample_at(dmem_src+0x30);
+    v[5] = *sample_at(dmem_src+0x0C) + *sample_at(dmem_src+0x32);
+    v[6] = *sample_at(dmem_src+0x08) + *sample_at(dmem_src+0x36);
+    v[7] = *sample_at(dmem_src+0x0A) + *sample_at(dmem_src+0x34);
+    v[8] = *sample_at(dmem_src+0x1E) + *sample_at(dmem_src+0x20);
+    v[9] = *sample_at(dmem_src+0x1C) + *sample_at(dmem_src+0x22);
+    v[10]= *sample_at(dmem_src+0x18) + *sample_at(dmem_src+0x26);
+    v[11]= *sample_at(dmem_src+0x1A) + *sample_at(dmem_src+0x24);
+    v[12]= *sample_at(dmem_src+0x10) + *sample_at(dmem_src+0x2E);
+    v[13]= *sample_at(dmem_src+0x12) + *sample_at(dmem_src+0x2C);
+    v[14]= *sample_at(dmem_src+0x16) + *sample_at(dmem_src+0x28);
+    v[15]= *sample_at(dmem_src+0x14) + *sample_at(dmem_src+0x2A);
 }
 
 /* Looks like a 32 point MDCT (not sure)
  * It outputs 33 values (spaced by 30 bytes) */
-static void mdct32(u32 inPtr, u32 t5, u32 t6)
+static void mdct32(u16 dmem_src, u32 t5, u32 t6)
 {
     s32 v[16];
     s32 t[16]; // temporary values
     int i;
 
-    load_v(v, inPtr);
+    load_v(v, dmem_src);
 
     MP3AB0(v);
 
@@ -383,7 +380,7 @@ static void mdct32(u32 inPtr, u32 t5, u32 t6)
     *(s16*)(mp3data+((t5 + 0x1c0))) = (s16)(-v[8]);
     *(s16*)(mp3data+((t5 + 0x200))) = (s16)(-v[0]);
 
-    load_v(v, inPtr);
+    load_v(v, dmem_src);
 
     for (i = 0; i < 16; i++)
         v[i] = mul(v[i], C64_ODD[i]);
@@ -423,10 +420,10 @@ static void mdct32(u32 inPtr, u32 t5, u32 t6)
     *(s16 *)(mp3data+((t6 + 0x1e0))) = (s16)t[15];
 }
 
-static void window(u32 t4, u32 t6, u32 outPtr)
+static void window(unsigned index, u32 t6, u16 dmem_dst)
 {
     unsigned i;
-    u32 offset = 0x10-t4;
+    u32 offset = 0x10-index;
     u32 addptr = t6 & 0xFFE0;
     s32 v2=0, v4=0, v6=0;
 
@@ -434,19 +431,19 @@ static void window(u32 t4, u32 t6, u32 outPtr)
     {
         idot8(&v2, &v6, (s16*)(mp3data + addptr), (s16*)(DEWINDOW_LUT + offset));
         // clamp ?
-        *sample_at(outPtr) = v2 + v6;
+        *sample_at(dmem_dst) = v2 + v6;
 
-        outPtr += 2;
+        dmem_dst += 2;
         addptr += 0x20;
         offset += 0x20;
     }
 
     idot8(&v2, &v4, (s16*)(mp3data + addptr), (s16*)(DEWINDOW_LUT + offset));
-    *sample_at(outPtr) = (t4 & 0x1) ? v2 : v4;
-    outPtr += 2;
+    *sample_at(dmem_dst) = (index & 0x1) ? v2 : v4;
+    dmem_dst += 2;
 
     addptr -= 0x40;
-    offset  = 0x22f - t4;
+    offset  = 0x22f - index;
     for (i = 0; i < 8; ++i)
     {
         idot8(&v2, &v4, (s16*)(mp3data+addptr+0x20), (s16*)(DEWINDOW_LUT + offset + 0x00));
@@ -454,10 +451,10 @@ static void window(u32 t4, u32 t6, u32 outPtr)
         idot8(&v6, &v4, (s16*)(mp3data+addptr+0x00), (s16*)(DEWINDOW_LUT + offset + 0x20));
         v6 -= v4;
         // clamp ?
-        *sample_at(outPtr) = v2;
-        *sample_at(outPtr + 2) = v6;
+        *sample_at(dmem_dst) = v2;
+        *sample_at(dmem_dst + 2) = v6;
         
-        outPtr += 4;
+        dmem_dst += 4;
         addptr -= 0x40;
         offset += 0x40;
     }
