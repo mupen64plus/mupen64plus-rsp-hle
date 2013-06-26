@@ -371,30 +371,30 @@ static void matrixing_step(u16 dmem_src, u16 fifo1, u16 fifo2)
     t[5] = t[4] + t[5];
     t[9] = v[25] + t[10];
 
-    *(s16 *)(mp3data+((fifo2 + 0x020))) = (s16)t[14];
-    *(s16 *)(mp3data+((fifo2 + 0x060))) = (s16)(t[10] - t[6]);
-    *(s16 *)(mp3data+((fifo2 + 0x0a0))) = (s16)(t[4] - t[10] + v[18]);
-    *(s16 *)(mp3data+((fifo2 + 0x0e0))) = (s16)(-t[12] - v[18]);
-    *(s16 *)(mp3data+((fifo2 + 0x120))) = (s16)t[12];
-    *(s16 *)(mp3data+((fifo2 + 0x160))) = (s16)(v[24] - t[4]);
-    *(s16 *)(mp3data+((fifo2 + 0x1a0))) = (s16)(t[0] - v[24]);
-    *(s16 *)(mp3data+((fifo2 + 0x1e0))) = (s16)(-t[0]);
+    *(s16*)(mp3data+((fifo2 + 0x020))) = (s16)t[14];
+    *(s16*)(mp3data+((fifo2 + 0x060))) = (s16)(t[10] - t[6]);
+    *(s16*)(mp3data+((fifo2 + 0x0a0))) = (s16)(t[4] - t[10] + v[18]);
+    *(s16*)(mp3data+((fifo2 + 0x0e0))) = (s16)(-t[12] - v[18]);
+    *(s16*)(mp3data+((fifo2 + 0x120))) = (s16)t[12];
+    *(s16*)(mp3data+((fifo2 + 0x160))) = (s16)(v[24] - t[4]);
+    *(s16*)(mp3data+((fifo2 + 0x1a0))) = (s16)(t[0] - v[24]);
+    *(s16*)(mp3data+((fifo2 + 0x1e0))) = (s16)(-t[0]);
     
-    *(s16 *)(mp3data+((fifo1 + 0x020))) = (s16)(t[14] + v[17]);
-    *(s16 *)(mp3data+((fifo1 + 0x060))) = (s16)(t[9] - v[17] - t[6]);
-    *(s16 *)(mp3data+((fifo1 + 0x0a0))) = (s16)(t[5] + v[18] - t[9]);
-    *(s16 *)(mp3data+((fifo1 + 0x0e0))) = (s16)(t[13] - v[18]);
-    *(s16 *)(mp3data+((fifo1 + 0x120))) = (s16)(v[19] - t[13]);
-    *(s16 *)(mp3data+((fifo1 + 0x160))) = (s16)(t[11] - v[19] - t[5]);
-    *(s16 *)(mp3data+((fifo1 + 0x1a0))) = (s16)(t[7] - t[11]);
-    *(s16 *)(mp3data+((fifo1 + 0x1e0))) = (s16)t[15];
+    *(s16*)(mp3data+((fifo1 + 0x020))) = (s16)(t[14] + v[17]);
+    *(s16*)(mp3data+((fifo1 + 0x060))) = (s16)(t[9] - v[17] - t[6]);
+    *(s16*)(mp3data+((fifo1 + 0x0a0))) = (s16)(t[5] + v[18] - t[9]);
+    *(s16*)(mp3data+((fifo1 + 0x0e0))) = (s16)(t[13] - v[18]);
+    *(s16*)(mp3data+((fifo1 + 0x120))) = (s16)(v[19] - t[13]);
+    *(s16*)(mp3data+((fifo1 + 0x160))) = (s16)(t[11] - v[19] - t[5]);
+    *(s16*)(mp3data+((fifo1 + 0x1a0))) = (s16)(t[7] - t[11]);
+    *(s16*)(mp3data+((fifo1 + 0x1e0))) = (s16)t[15];
 }
 
 static void windowing_step(u16 dmem_dst, u16 fifo16_base, unsigned index)
 {
     unsigned i;
-    u32 offset = 0x10-index;
-    s32 v2=0, v4=0, v6=0;
+    u32 offset = 0x10 - index;
+    s32 v2, v4, v6;
 
     for (i = 0; i < 16; ++i)
     {
@@ -457,7 +457,7 @@ void mp3_decode(u32 address, unsigned index)
     dram_dst = dram_src = address;
 
     /* read gains */
-    memcpy (mp3data+0xce8, rsp.RDRAM+dram_src, 8);
+    memcpy(mp3data+0xce8, rsp.RDRAM+dram_src, 8);
     gains[0] = *(s32*)(mp3data+0xce8) >> 16;
     gains[1] = *(s32*)(mp3data+0xcec) >> 16;
 
