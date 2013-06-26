@@ -225,11 +225,18 @@ static s16* sample_at(u16 mem)
     return (s16*)(mp3data+(mem^S16));
 }
 
-static void swap(u32 *a, u32 *b)
+static void swap(u16 *a, u16 *b)
 {
-    u32 tmp = *b;
+    u16 tmp = *b;
     *b = *a;
     *a = tmp;
+}
+
+/* return the address of the index element of FIFO 
+ * NOTE: dmem can be any address inside desired FIFO */
+static u16 fifo16_address(u16 dmem, unsigned index)
+{
+    return (dmem & 0xffe0) | (index << 1);
 }
 
 static void butterfly(s32 *x, s32 *y, s32 w)
@@ -294,7 +301,7 @@ static void matrixing_mdct16(s32 *v)
  * -> seems to use Lee algorithm (or at least a close variant) to compute MDCT
  * ??
  * */
-static void matrixing_step(u16 dmem_src, u32 t5, u32 t6)
+static void matrixing_step(u16 dmem_src, u16 fifo1, u16 fifo2)
 {
     s32 v[32];
     s32 t[16]; // temporary values
@@ -323,24 +330,24 @@ static void matrixing_step(u16 dmem_src, u32 t5, u32 t6)
     t[14] = t[3] - v[14];
     t[15] = v[15] - t[2] - v[11];
     
-    *(s16*)(mp3data+((t6 + 0x000))) = (s16)v[1];
-    *(s16*)(mp3data+((t6 + 0x040))) = (s16)(v[9] + t[14]);
-    *(s16*)(mp3data+((t6 + 0x080))) = (s16)(t[5] - v[6]);
-    *(s16*)(mp3data+((t6 + 0x0c0))) = (s16)(t[13] - v[10]);
-    *(s16*)(mp3data+((t6 + 0x100))) = (s16)(v[3] - v[2]);
-    *(s16*)(mp3data+((t6 + 0x140))) = (s16)(v[11] - t[13]);
-    *(s16*)(mp3data+((t6 + 0x180))) = (s16)(v[7] - t[5]);
-    *(s16*)(mp3data+((t6 + 0x1c0))) = (s16)t[15];
+    *(s16*)(mp3data+((fifo1 + 0x000))) = (s16)v[1];
+    *(s16*)(mp3data+((fifo1 + 0x040))) = (s16)(v[9] + t[14]);
+    *(s16*)(mp3data+((fifo1 + 0x080))) = (s16)(t[5] - v[6]);
+    *(s16*)(mp3data+((fifo1 + 0x0c0))) = (s16)(t[13] - v[10]);
+    *(s16*)(mp3data+((fifo1 + 0x100))) = (s16)(v[3] - v[2]);
+    *(s16*)(mp3data+((fifo1 + 0x140))) = (s16)(v[11] - t[13]);
+    *(s16*)(mp3data+((fifo1 + 0x180))) = (s16)(v[7] - t[5]);
+    *(s16*)(mp3data+((fifo1 + 0x1c0))) = (s16)t[15];
 
-    *(s16*)(mp3data+((t5 + 0x000))) = (s16)(-v[1]);
-    *(s16*)(mp3data+((t5 + 0x040))) = (s16)t[14];
-    *(s16*)(mp3data+((t5 + 0x080))) = (s16)(v[4] - v[6]);
-    *(s16*)(mp3data+((t5 + 0x0c0))) = (s16)(v[12] - v[10] - v[8]);
-    *(s16*)(mp3data+((t5 + 0x100))) = (s16)(-v[2]);
-    *(s16*)(mp3data+((t5 + 0x140))) = (s16)(v[8] - v[12]);
-    *(s16*)(mp3data+((t5 + 0x180))) = (s16)(-v[4]);
-    *(s16*)(mp3data+((t5 + 0x1c0))) = (s16)(-v[8]);
-    *(s16*)(mp3data+((t5 + 0x200))) = (s16)(-v[0]);
+    *(s16*)(mp3data+((fifo2 + 0x000))) = (s16)(-v[1]);
+    *(s16*)(mp3data+((fifo2 + 0x040))) = (s16)t[14];
+    *(s16*)(mp3data+((fifo2 + 0x080))) = (s16)(v[4] - v[6]);
+    *(s16*)(mp3data+((fifo2 + 0x0c0))) = (s16)(v[12] - v[10] - v[8]);
+    *(s16*)(mp3data+((fifo2 + 0x100))) = (s16)(-v[2]);
+    *(s16*)(mp3data+((fifo2 + 0x140))) = (s16)(v[8] - v[12]);
+    *(s16*)(mp3data+((fifo2 + 0x180))) = (s16)(-v[4]);
+    *(s16*)(mp3data+((fifo2 + 0x1c0))) = (s16)(-v[8]);
+    *(s16*)(mp3data+((fifo2 + 0x200))) = (s16)(-v[0]);
 
     /* odd indices */
     matrixing_mdct16(v + 16);
@@ -364,61 +371,60 @@ static void matrixing_step(u16 dmem_src, u32 t5, u32 t6)
     t[5] = t[4] + t[5];
     t[9] = v[25] + t[10];
 
-    *(s16 *)(mp3data+((t5 + 0x020))) = (s16)t[14];
-    *(s16 *)(mp3data+((t5 + 0x060))) = (s16)(t[10] - t[6]);
-    *(s16 *)(mp3data+((t5 + 0x0a0))) = (s16)(t[4] - t[10] + v[18]);
-    *(s16 *)(mp3data+((t5 + 0x0e0))) = (s16)(-t[12] - v[18]);
-    *(s16 *)(mp3data+((t5 + 0x120))) = (s16)t[12];
-    *(s16 *)(mp3data+((t5 + 0x160))) = (s16)(v[24] - t[4]);
-    *(s16 *)(mp3data+((t5 + 0x1a0))) = (s16)(t[0] - v[24]);
-    *(s16 *)(mp3data+((t5 + 0x1e0))) = (s16)(-t[0]);
+    *(s16 *)(mp3data+((fifo2 + 0x020))) = (s16)t[14];
+    *(s16 *)(mp3data+((fifo2 + 0x060))) = (s16)(t[10] - t[6]);
+    *(s16 *)(mp3data+((fifo2 + 0x0a0))) = (s16)(t[4] - t[10] + v[18]);
+    *(s16 *)(mp3data+((fifo2 + 0x0e0))) = (s16)(-t[12] - v[18]);
+    *(s16 *)(mp3data+((fifo2 + 0x120))) = (s16)t[12];
+    *(s16 *)(mp3data+((fifo2 + 0x160))) = (s16)(v[24] - t[4]);
+    *(s16 *)(mp3data+((fifo2 + 0x1a0))) = (s16)(t[0] - v[24]);
+    *(s16 *)(mp3data+((fifo2 + 0x1e0))) = (s16)(-t[0]);
     
-    *(s16 *)(mp3data+((t6 + 0x020))) = (s16)(t[14] + v[17]);
-    *(s16 *)(mp3data+((t6 + 0x060))) = (s16)(t[9] - v[17] - t[6]);
-    *(s16 *)(mp3data+((t6 + 0x0a0))) = (s16)(t[5] + v[18] - t[9]);
-    *(s16 *)(mp3data+((t6 + 0x0e0))) = (s16)(t[13] - v[18]);
-    *(s16 *)(mp3data+((t6 + 0x120))) = (s16)(v[19] - t[13]);
-    *(s16 *)(mp3data+((t6 + 0x160))) = (s16)(t[11] - v[19] - t[5]);
-    *(s16 *)(mp3data+((t6 + 0x1a0))) = (s16)(t[7] - t[11]);
-    *(s16 *)(mp3data+((t6 + 0x1e0))) = (s16)t[15];
+    *(s16 *)(mp3data+((fifo1 + 0x020))) = (s16)(t[14] + v[17]);
+    *(s16 *)(mp3data+((fifo1 + 0x060))) = (s16)(t[9] - v[17] - t[6]);
+    *(s16 *)(mp3data+((fifo1 + 0x0a0))) = (s16)(t[5] + v[18] - t[9]);
+    *(s16 *)(mp3data+((fifo1 + 0x0e0))) = (s16)(t[13] - v[18]);
+    *(s16 *)(mp3data+((fifo1 + 0x120))) = (s16)(v[19] - t[13]);
+    *(s16 *)(mp3data+((fifo1 + 0x160))) = (s16)(t[11] - v[19] - t[5]);
+    *(s16 *)(mp3data+((fifo1 + 0x1a0))) = (s16)(t[7] - t[11]);
+    *(s16 *)(mp3data+((fifo1 + 0x1e0))) = (s16)t[15];
 }
 
-static void windowing_step(unsigned index, u32 t6, u16 dmem_dst)
+static void windowing_step(u16 dmem_dst, u16 fifo16_base, unsigned index)
 {
     unsigned i;
     u32 offset = 0x10-index;
-    u32 addptr = t6 & 0xFFE0;
     s32 v2=0, v4=0, v6=0;
 
     for (i = 0; i < 16; ++i)
     {
-        idot8(&v2, &v6, (s16*)(mp3data + addptr), (s16*)(WINDOW_LUT + offset));
+        idot8(&v2, &v6, (s16*)(mp3data + fifo16_base), (s16*)(WINDOW_LUT + offset));
         // clamp ?
         *sample_at(dmem_dst) = v2 + v6;
 
         dmem_dst += 2;
-        addptr += 0x20;
+        fifo16_base += 0x20;
         offset += 0x20;
     }
 
-    idot8(&v2, &v4, (s16*)(mp3data + addptr), (s16*)(WINDOW_LUT + offset));
+    idot8(&v2, &v4, (s16*)(mp3data + fifo16_base), (s16*)(WINDOW_LUT + offset));
     *sample_at(dmem_dst) = (index & 0x1) ? v2 : v4;
     dmem_dst += 2;
 
-    addptr -= 0x40;
+    fifo16_base -= 0x40;
     offset  = 0x22f - index;
     for (i = 0; i < 8; ++i)
     {
-        idot8(&v2, &v4, (s16*)(mp3data+addptr+0x20), (s16*)(WINDOW_LUT + offset + 0x00));
+        idot8(&v2, &v4, (s16*)(mp3data+fifo16_base+0x20), (s16*)(WINDOW_LUT + offset + 0x00));
         v2 -= v4;
-        idot8(&v6, &v4, (s16*)(mp3data+addptr+0x00), (s16*)(WINDOW_LUT + offset + 0x20));
+        idot8(&v6, &v4, (s16*)(mp3data+fifo16_base+0x00), (s16*)(WINDOW_LUT + offset + 0x20));
         v6 -= v4;
         // clamp ?
         *sample_at(dmem_dst) = v2;
         *sample_at(dmem_dst + 2) = v6;
         
         dmem_dst += 4;
-        addptr -= 0x40;
+        fifo16_base -= 0x40;
         offset += 0x40;
     }
 }
@@ -433,7 +439,6 @@ static void apply_gain(u16 mem, unsigned count, s16 gain)
     }
 }
 
-
 /* global function */
 
 /**
@@ -446,8 +451,8 @@ void mp3_decode(u32 address, unsigned index)
     s16 gains[2];
     unsigned i, j;
 
-    u32 t6 = 0x08a0; // I think these are temporary storage buffers
-    u32 t5 = 0x0ac0;
+    u16 fifo1 = 0x08a0;         /* t6 */
+    u16 fifo2 = fifo1 + 0x220;  /* t5 */
 
     dram_dst = dram_src = address;
 
@@ -465,15 +470,15 @@ void mp3_decode(u32 address, unsigned index)
 
         for (j = 0; j < 6; ++j)
         {
-            t6 = (t6 & 0xffe0) | (index << 1);
-            t5 = (t5 & 0xffe0) | (index << 1);
+            fifo1 = fifo16_address(fifo1, index);
+            fifo2 = fifo16_address(fifo2, index);
 
-            matrixing_step(dmem_src, t5, t6);
-            windowing_step(index, t6, dmem_dst);
+            matrixing_step(dmem_src, fifo1, fifo2);
+            windowing_step(dmem_dst, fifo16_address(fifo1,0), index);
             apply_gain(dmem_dst + 0x00, 17, gains[0]);
             apply_gain(dmem_dst + 0x22, 16, gains[index & 0x1]);
                 
-            swap(&t5, &t6);
+            swap(&fifo1, &fifo2);
             index = (index - 1) & 0x0f;
             dmem_dst += 0x40; dmem_src += 0x40;
         }
