@@ -29,14 +29,13 @@
 
 #include "mp3.h"
 
-static void butterfly(s32 *x, s32 *y, s32 w);
-static void apply_gain(u16 mem, unsigned count, s16 gain);
-static void idot8(s32 *dot1, s32 *dot2, const s16 *x, const s16 *y);
-static void mdct32(u16 dmem_src, u32 t5, u32 t6);
-static void window(unsigned index, u32 t6, u16 dmem_dst);
-
 static u8 mp3data[0x1000];
 
+static const unsigned REORDERED_OFFSETS[16] = 
+{
+    0x00, 0x02, 0x06, 0x04, 0x0e, 0x0c, 0x08, 0x0a,
+    0x1e, 0x1c, 0x18, 0x1a, 0x10, 0x12, 0x16, 0x14
+};
 
 /* {2*cos((2k+1)PI/64)} with k = {0,1,3,2,7,6,4,5,15,14,12,13,8,9,11,10} */
 static const s32 C64_ODD[16] =
@@ -60,7 +59,7 @@ static const u16 C64_EVEN3[2] = { 0xec84, 0x61f8 };
 /* {1/sqrt(2), sqrt(2), 2*sqrt(2), 4*sqrt(2) } */
 static const s32 K[] = { 0xb504, 0x16a09, 0x2d413, 0x5a827 };
 
-static const u16 DEWINDOW_LUT[0x420] =
+static const u16 WINDOW_LUT[0x420] =
 {
     0x0000, 0xfff3, 0x005d, 0xff38, 0x037a, 0xf736, 0x0b37, 0xc00e,
     0x7fff, 0x3ff2, 0x0b37, 0x08ca, 0x037a, 0x00c8, 0x005d, 0x000d,
@@ -196,6 +195,7 @@ static const u16 DEWINDOW_LUT[0x420] =
     0x0b37, 0xf736, 0x037a, 0xff38, 0x005d, 0xfff3, 0x0000, 0x0000
 };
 
+/* local functions */
 static s16 clamp_s16(s32 x)
 {
     if (x > 32767) { x = 32767; } else if (x < -32768) { x = -32768; }
@@ -232,59 +232,30 @@ static void swap(u32 *a, u32 *b)
     *a = tmp;
 }
 
-/* global function */
-
-/**
- * Perform the synthesis polyphase filter bank step.
- **/
-void mp3_decode(u32 address, unsigned index)
+static void butterfly(s32 *x, s32 *y, s32 w)
 {
-    u32 dram_dst, dram_src; /* s6, s5 */
-    u16 dmem_dst, dmem_src; /* s3, s7 */
-    s16 gains[2];
-    unsigned i, j;
+    s32 sum  = *x + *y;
+    s32 diff = *x - *y;
 
-    u32 t6 = 0x08a0; // I think these are temporary storage buffers
-    u32 t5 = 0x0ac0;
+    *x = sum;
+    *y = mul(diff, w);
+}
 
-    dram_dst = dram_src = address;
+static void idot8(s32 *dot_even, s32 *dot_odd, const s16 *x, const s16 *y)
+{
+    unsigned i;
 
-    /* read gains */
-    memcpy (mp3data+0xce8, rsp.RDRAM+dram_src, 8);
-    gains[0] = *(s32*)(mp3data+0xce8) >> 16;
-    gains[1] = *(s32*)(mp3data+0xcec) >> 16;
-
-    dram_src += 8;
-
-    /* process frequency lines */
-    for (i = 0; i < 3; ++i)
+    *dot_even = 0;
+    *dot_odd  = 0;
+    
+    for(i = 0; i < 8; ++i)
     {
-        dmem_src = 0xcf0; dmem_dst = 0xe70;
-        memcpy(mp3data+dmem_src, rsp.RDRAM+dram_src, 0x180);
-
-        for (j = 0; j < 6; ++j)
-        {
-            t6 = (t6 & 0xffe0) | (index << 1);
-            t5 = (t5 & 0xffe0) | (index << 1);
-
-            /* synthesis polyphase filter bank */
-            mdct32(dmem_src, t5, t6);
-            window(index, t6, dmem_dst);
-            apply_gain(dmem_dst + 0x00, 17, gains[0]);
-            apply_gain(dmem_dst + 0x22, 16, gains[index & 0x1]);
-                
-            swap(&t5, &t6);
-            index = (index - 1) & 0x0f;
-            dmem_dst += 0x40; dmem_src += 0x40;
-        }
-
-        memcpy(rsp.RDRAM+dram_dst, mp3data+0xe70, 0x180);
-        dram_dst += 0x180; dram_src += 0x180;
+        *dot_even += dmul_round(*(x++), *(y++));
+        *dot_odd  += dmul_round(*(x++), *(y++));
     }
 }
 
-/* local functions */
-static void MP3AB0(s32 *v)
+static void matrixing_mdct16(s32 *v)
 {
     unsigned i;
 
@@ -315,44 +286,35 @@ static void MP3AB0(s32 *v)
     butterfly(&v[10], &v[11], K[2]);
     butterfly(&v[12], &v[13], K[2]);
     butterfly(&v[14], &v[15], K[3]);
+}
+
+/**
+ * ??
+ * Matrixing step:
+ * -> seems to use Lee algorithm (or at least a close variant) to compute MDCT
+ * ??
+ * */
+static void matrixing_step(u16 dmem_src, u32 t5, u32 t6)
+{
+    s32 v[32];
+    s32 t[16]; // temporary values
+    int i;
+
+    /* 1 16-wide butterfly */
+    for(i = 0; i < 16; ++i)
+    {
+        v[i]    = *sample_at(dmem_src + REORDERED_OFFSETS[i]);
+        v[i+16] = *sample_at(dmem_src + 0x3e - REORDERED_OFFSETS[i]);
+        butterfly(&v[i], &v[i+16], C64_ODD[i]);
+    }
+
+    /* even indices */
+    matrixing_mdct16(v);
 
     v[6]  <<= 1;
     v[10] <<= 1;
     v[12] <<= 1;
     v[14] <<= 2;
-}
-
-static void load_v(s32 *v, u16 dmem_src)
-{
-    v[0] = *sample_at(dmem_src+0x00) + *sample_at(dmem_src+0x3E);
-    v[1] = *sample_at(dmem_src+0x02) + *sample_at(dmem_src+0x3C);
-    v[2] = *sample_at(dmem_src+0x06) + *sample_at(dmem_src+0x38);
-    v[3] = *sample_at(dmem_src+0x04) + *sample_at(dmem_src+0x3A);
-    v[4] = *sample_at(dmem_src+0x0E) + *sample_at(dmem_src+0x30);
-    v[5] = *sample_at(dmem_src+0x0C) + *sample_at(dmem_src+0x32);
-    v[6] = *sample_at(dmem_src+0x08) + *sample_at(dmem_src+0x36);
-    v[7] = *sample_at(dmem_src+0x0A) + *sample_at(dmem_src+0x34);
-    v[8] = *sample_at(dmem_src+0x1E) + *sample_at(dmem_src+0x20);
-    v[9] = *sample_at(dmem_src+0x1C) + *sample_at(dmem_src+0x22);
-    v[10]= *sample_at(dmem_src+0x18) + *sample_at(dmem_src+0x26);
-    v[11]= *sample_at(dmem_src+0x1A) + *sample_at(dmem_src+0x24);
-    v[12]= *sample_at(dmem_src+0x10) + *sample_at(dmem_src+0x2E);
-    v[13]= *sample_at(dmem_src+0x12) + *sample_at(dmem_src+0x2C);
-    v[14]= *sample_at(dmem_src+0x16) + *sample_at(dmem_src+0x28);
-    v[15]= *sample_at(dmem_src+0x14) + *sample_at(dmem_src+0x2A);
-}
-
-/* Looks like a 32 point MDCT (not sure)
- * It outputs 33 values (spaced by 30 bytes) */
-static void mdct32(u16 dmem_src, u32 t5, u32 t6)
-{
-    s32 v[16];
-    s32 t[16]; // temporary values
-    int i;
-
-    load_v(v, dmem_src);
-
-    MP3AB0(v);
 
     t[5]  = v[5] + v[4];
     t[2]  = v[8] + v[9];
@@ -380,47 +342,48 @@ static void mdct32(u16 dmem_src, u32 t5, u32 t6)
     *(s16*)(mp3data+((t5 + 0x1c0))) = (s16)(-v[8]);
     *(s16*)(mp3data+((t5 + 0x200))) = (s16)(-v[0]);
 
-    load_v(v, dmem_src);
+    /* odd indices */
+    matrixing_mdct16(v + 16);
 
-    for (i = 0; i < 16; i++)
-        v[i] = mul(v[i], C64_ODD[i]);
-    
-    MP3AB0(v);
+    v[22] <<= 1;
+    v[26] <<= 1;
+    v[28] <<= 1;
+    v[30] <<= 2;
 
-    t[0] = v[0] >> 1;
-    t[4] = v[4] + t[0];
-    t[5] = v[5] + v[1];
-    t[6] = v[6] + t[0] + v[2];
-    t[7] = v[7] + t[0] + v[1] + v[3];
-    t[10] = v[10] + v[8];
-    t[11] = v[11] + v[8] + v[9];
-    t[12] = t[4] - v[12];
-    t[13] = v[13] - t[12] - t[5];
-    t[14] = t[6] - v[14];
-    t[15] = v[15] - t[7];
+    t[0] = v[16] >> 1;
+    t[4] = v[20] + t[0];
+    t[5] = v[21] + v[17];
+    t[6] = v[22] + t[0] + v[18];
+    t[7] = v[23] + t[0] + v[17] + v[19];
+    t[10] = v[26] + v[24];
+    t[11] = v[27] + v[24] + v[25];
+    t[12] = t[4] - v[28];
+    t[13] = v[29] - t[12] - t[5];
+    t[14] = t[6] - v[30];
+    t[15] = v[31] - t[7];
     t[5] = t[4] + t[5];
-    t[9] = v[9] + t[10];
+    t[9] = v[25] + t[10];
 
     *(s16 *)(mp3data+((t5 + 0x020))) = (s16)t[14];
     *(s16 *)(mp3data+((t5 + 0x060))) = (s16)(t[10] - t[6]);
-    *(s16 *)(mp3data+((t5 + 0x0a0))) = (s16)(t[4] - t[10] + v[2]);
-    *(s16 *)(mp3data+((t5 + 0x0e0))) = (s16)(-t[12] - v[2]);
+    *(s16 *)(mp3data+((t5 + 0x0a0))) = (s16)(t[4] - t[10] + v[18]);
+    *(s16 *)(mp3data+((t5 + 0x0e0))) = (s16)(-t[12] - v[18]);
     *(s16 *)(mp3data+((t5 + 0x120))) = (s16)t[12];
-    *(s16 *)(mp3data+((t5 + 0x160))) = (s16)(v[8] - t[4]);
-    *(s16 *)(mp3data+((t5 + 0x1a0))) = (s16)(t[0] - v[8]);
+    *(s16 *)(mp3data+((t5 + 0x160))) = (s16)(v[24] - t[4]);
+    *(s16 *)(mp3data+((t5 + 0x1a0))) = (s16)(t[0] - v[24]);
     *(s16 *)(mp3data+((t5 + 0x1e0))) = (s16)(-t[0]);
     
-    *(s16 *)(mp3data+((t6 + 0x020))) = (s16)(t[14] + v[1]);
-    *(s16 *)(mp3data+((t6 + 0x060))) = (s16)(t[9] - v[1] - t[6]);
-    *(s16 *)(mp3data+((t6 + 0x0a0))) = (s16)(t[5] + v[2] - t[9]);
-    *(s16 *)(mp3data+((t6 + 0x0e0))) = (s16)(t[13] - v[2]);
-    *(s16 *)(mp3data+((t6 + 0x120))) = (s16)(v[3] - t[13]);
-    *(s16 *)(mp3data+((t6 + 0x160))) = (s16)(t[11] - v[3] - t[5]);
+    *(s16 *)(mp3data+((t6 + 0x020))) = (s16)(t[14] + v[17]);
+    *(s16 *)(mp3data+((t6 + 0x060))) = (s16)(t[9] - v[17] - t[6]);
+    *(s16 *)(mp3data+((t6 + 0x0a0))) = (s16)(t[5] + v[18] - t[9]);
+    *(s16 *)(mp3data+((t6 + 0x0e0))) = (s16)(t[13] - v[18]);
+    *(s16 *)(mp3data+((t6 + 0x120))) = (s16)(v[19] - t[13]);
+    *(s16 *)(mp3data+((t6 + 0x160))) = (s16)(t[11] - v[19] - t[5]);
     *(s16 *)(mp3data+((t6 + 0x1a0))) = (s16)(t[7] - t[11]);
     *(s16 *)(mp3data+((t6 + 0x1e0))) = (s16)t[15];
 }
 
-static void window(unsigned index, u32 t6, u16 dmem_dst)
+static void windowing_step(unsigned index, u32 t6, u16 dmem_dst)
 {
     unsigned i;
     u32 offset = 0x10-index;
@@ -429,7 +392,7 @@ static void window(unsigned index, u32 t6, u16 dmem_dst)
 
     for (i = 0; i < 16; ++i)
     {
-        idot8(&v2, &v6, (s16*)(mp3data + addptr), (s16*)(DEWINDOW_LUT + offset));
+        idot8(&v2, &v6, (s16*)(mp3data + addptr), (s16*)(WINDOW_LUT + offset));
         // clamp ?
         *sample_at(dmem_dst) = v2 + v6;
 
@@ -438,7 +401,7 @@ static void window(unsigned index, u32 t6, u16 dmem_dst)
         offset += 0x20;
     }
 
-    idot8(&v2, &v4, (s16*)(mp3data + addptr), (s16*)(DEWINDOW_LUT + offset));
+    idot8(&v2, &v4, (s16*)(mp3data + addptr), (s16*)(WINDOW_LUT + offset));
     *sample_at(dmem_dst) = (index & 0x1) ? v2 : v4;
     dmem_dst += 2;
 
@@ -446,9 +409,9 @@ static void window(unsigned index, u32 t6, u16 dmem_dst)
     offset  = 0x22f - index;
     for (i = 0; i < 8; ++i)
     {
-        idot8(&v2, &v4, (s16*)(mp3data+addptr+0x20), (s16*)(DEWINDOW_LUT + offset + 0x00));
+        idot8(&v2, &v4, (s16*)(mp3data+addptr+0x20), (s16*)(WINDOW_LUT + offset + 0x00));
         v2 -= v4;
-        idot8(&v6, &v4, (s16*)(mp3data+addptr+0x00), (s16*)(DEWINDOW_LUT + offset + 0x20));
+        idot8(&v6, &v4, (s16*)(mp3data+addptr+0x00), (s16*)(WINDOW_LUT + offset + 0x20));
         v6 -= v4;
         // clamp ?
         *sample_at(dmem_dst) = v2;
@@ -470,26 +433,53 @@ static void apply_gain(u16 mem, unsigned count, s16 gain)
     }
 }
 
-static void idot8(s32 *dot1, s32 *dot2, const s16 *x, const s16 *y)
-{
-    unsigned i;
 
-    *dot1 = 0;
-    *dot2 = 0;
-    
-    for(i = 0; i < 8; ++i)
+/* global function */
+
+/**
+ * Perform the synthesis polyphase filter bank step.
+ **/
+void mp3_decode(u32 address, unsigned index)
+{
+    u32 dram_dst, dram_src; /* s6, s5 */
+    u16 dmem_dst, dmem_src; /* s3, s7 */
+    s16 gains[2];
+    unsigned i, j;
+
+    u32 t6 = 0x08a0; // I think these are temporary storage buffers
+    u32 t5 = 0x0ac0;
+
+    dram_dst = dram_src = address;
+
+    /* read gains */
+    memcpy (mp3data+0xce8, rsp.RDRAM+dram_src, 8);
+    gains[0] = *(s32*)(mp3data+0xce8) >> 16;
+    gains[1] = *(s32*)(mp3data+0xcec) >> 16;
+
+    dram_src += 8;
+
+    for (i = 0; i < 3; ++i)
     {
-        *dot1 += dmul_round(*(x++), *(y++));
-        *dot2 += dmul_round(*(x++), *(y++));
+        dmem_src = 0xcf0; dmem_dst = 0xe70;
+        memcpy(mp3data+dmem_src, rsp.RDRAM+dram_src, 0x180);
+
+        for (j = 0; j < 6; ++j)
+        {
+            t6 = (t6 & 0xffe0) | (index << 1);
+            t5 = (t5 & 0xffe0) | (index << 1);
+
+            matrixing_step(dmem_src, t5, t6);
+            windowing_step(index, t6, dmem_dst);
+            apply_gain(dmem_dst + 0x00, 17, gains[0]);
+            apply_gain(dmem_dst + 0x22, 16, gains[index & 0x1]);
+                
+            swap(&t5, &t6);
+            index = (index - 1) & 0x0f;
+            dmem_dst += 0x40; dmem_src += 0x40;
+        }
+
+        memcpy(rsp.RDRAM+dram_dst, mp3data+0xe70, 0x180);
+        dram_dst += 0x180; dram_src += 0x180;
     }
-}
-
-static void butterfly(s32 *x, s32 *y, s32 w)
-{
-    s32 sum  = *x + *y;
-    s32 diff = *x - *y;
-
-    *x = sum;
-    *y = mul(diff, w);
 }
 
