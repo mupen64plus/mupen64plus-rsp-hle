@@ -38,23 +38,23 @@ static const unsigned REORDERED_OFFSETS[16] =
 };
 
 /* {2*cos((2k+1)PI/64)} with k = {0,1,3,2,7,6,4,5,15,14,12,13,8,9,11,10} */
-static const s32 C64_ODD[16] =
+static const s32 C64[16] =
 {
     0x1ff64, 0x1fa74, 0x1e214, 0x1f0a8, 0x17b5c, 0x19b40, 0x1ced8, 0x1b728,
     0x01920, 0x04b20, 0x0ac7c, 0x07c68, 0x157d8, 0x13100, 0x0dae8, 0x10738
 };
 
-/* {cos(2*(2k+1)PI/64)} with k = {0,1,3,2,7,6,4,5} */
-static const u16 C64_EVEN1[8] =
+/* {cos((2k+1)PI/32)} with k = {0,1,3,2,7,6,4,5} */
+static const u16 C32[8] =
 {
     0xfec4, 0xf4fa, 0xc5e4, 0xe1c4, 0x1916, 0x4a50, 0xa268, 0x78ae
 };
 
-/* {cos(2*(2k)PI/64)} with k = {1,3,7,5} */
-static const u16 C64_EVEN2[4] = { 0xfb14, 0xd4dc, 0x31f2, 0x8e3a };
+/* {cos((2k+1)*PI/16)} with k = {0,1,3,2} */
+static const u16 C16[4] = { 0xfb14, 0xd4dc, 0x31f2, 0x8e3a };
 
-/* {cos(2*(2k)PI/64)} with k = {2,6} */
-static const u16 C64_EVEN3[2] = { 0xec84, 0x61f8 };
+/* {cos((2k+1)*PI/8)} with k = {0,1} */
+static const u16 C8[2] = { 0xec84, 0x61f8 };
 
 /* {1/sqrt(2), sqrt(2), 2*sqrt(2), 4*sqrt(2) } */
 static const s32 K[] = { 0xb504, 0x16a09, 0x2d413, 0x5a827 };
@@ -268,20 +268,20 @@ static void matrixing_mdct16(s32 *v)
 
     /* 1 8-wide butterfly */
     for (i = 0; i < 8; ++i)
-        butterfly(&v[0 + i], &v[ 8 + i], C64_EVEN1[i]);
+        butterfly(&v[0 + i], &v[ 8 + i], C32[i]);
 
     /* 2 4-wide butterfly */
     for (i = 0; i < 4; ++i)
     {
-        butterfly(&v[0 + i], &v[ 4 + i], C64_EVEN2[i]);
-        butterfly(&v[8 + i], &v[12 + i], C64_EVEN2[i]);
+        butterfly(&v[0 + i], &v[ 4 + i], C16[i]);
+        butterfly(&v[8 + i], &v[12 + i], C16[i]);
     }
 
     /* 4 2-wide butterfly */
     for (i = 0; i < 16; i += 4)
     {
-        butterfly(&v[0 + i], &v[ 2 + i], C64_EVEN3[0]);
-        butterfly(&v[1 + i], &v[ 3 + i], C64_EVEN3[1]);
+        butterfly(&v[0 + i], &v[ 2 + i], C8[0]);
+        butterfly(&v[1 + i], &v[ 3 + i], C8[1]);
     }
 
     /* 8 1-wide butterfly */
@@ -312,7 +312,7 @@ static void matrixing_step(u16 dmem_src, u16 fifo1, u16 fifo2)
     {
         v[i]    = *sample_at(dmem_src + REORDERED_OFFSETS[i]);
         v[i+16] = *sample_at(dmem_src + 0x3e - REORDERED_OFFSETS[i]);
-        butterfly(&v[i], &v[i+16], C64_ODD[i]);
+        butterfly(&v[i], &v[i+16], C64[i]);
     }
 
     /* even indices */
