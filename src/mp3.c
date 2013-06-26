@@ -268,20 +268,20 @@ static void matrixing_mdct16(s32 *v)
 
     /* 1 8-wide butterfly */
     for (i = 0; i < 8; ++i)
-        butterfly(&v[0+i], &v[8+i], C64_EVEN1[i]);
+        butterfly(&v[0 + i], &v[ 8 + i], C64_EVEN1[i]);
 
     /* 2 4-wide butterfly */
     for (i = 0; i < 4; ++i)
     {
-        butterfly(&v[0+i], &v[ 4+i], C64_EVEN2[i]);
-        butterfly(&v[8+i], &v[12+i], C64_EVEN2[i]);
+        butterfly(&v[0 + i], &v[ 4 + i], C64_EVEN2[i]);
+        butterfly(&v[8 + i], &v[12 + i], C64_EVEN2[i]);
     }
 
     /* 4 2-wide butterfly */
-    for (i = 0; i < 16; i+=4)
+    for (i = 0; i < 16; i += 4)
     {
-        butterfly(&v[0+i], &v[2+i], C64_EVEN3[0]);
-        butterfly(&v[1+i], &v[3+i], C64_EVEN3[1]);
+        butterfly(&v[0 + i], &v[ 2 + i], C64_EVEN3[0]);
+        butterfly(&v[1 + i], &v[ 3 + i], C64_EVEN3[1]);
     }
 
     /* 8 1-wide butterfly */
