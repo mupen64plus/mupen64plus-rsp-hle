@@ -679,12 +679,12 @@ static void SETVOL3(void * const data, u32 w1, u32 w2)
     u8 flags = parse(w1, 16, 8);
 
     if (flags & 0x4)
-    { // 288
+    {
         if (flags & 0x2)
-        { // 290
+        {
             naudio->env_vol[0]  = (s16)parse(w1,  0, 16); // 0x50
-            naudio->dry         = (s16)parse(w2, 16, 16); // 0x4E
-            naudio->wet         = (s16)parse(w2,  0, 16); // 0x4C
+            naudio->dry         = (s16)parse(w2, 16, 16); // 0x4c
+            naudio->wet         = (s16)parse(w2,  0, 16); // 0x4e
         }
         else
         {
