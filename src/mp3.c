@@ -22,10 +22,8 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 #include <assert.h>
-#include <stdio.h>
 #include <string.h>
 #include "hle.h"
-#include "m64p_types.h"
 
 #include "mp3.h"
 

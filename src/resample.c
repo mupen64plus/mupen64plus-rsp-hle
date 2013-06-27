@@ -21,11 +21,7 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-#include <assert.h>
-#include <stdio.h>
-#include <string.h>
 #include "hle.h"
-#include "m64p_types.h"
 
 static const u16 RESAMPLE_LUT [4 * 64] =
 {
