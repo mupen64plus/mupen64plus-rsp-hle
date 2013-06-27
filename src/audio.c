@@ -558,7 +558,7 @@ static void ADPCM(void * const data, u32 w1, u32 w2)
     adpcm_decode(
             flags & A_INIT,
             flags & A_LOOP,
-            0, // not supported in this version
+            0, // not supported in this ucode version
             (s16*)audio->adpcm_codebook,
             audio->loop,
             address,
@@ -870,7 +870,7 @@ static void ADPCM3(void * const data, u32 w1, u32 w2)
     adpcm_decode(
             flags & A_INIT,
             flags & A_LOOP,
-            0, // not supported in this version
+            0, // not supported in this ucode version
             (s16*)naudio->adpcm_codebook,
             naudio->loop,
             address,
