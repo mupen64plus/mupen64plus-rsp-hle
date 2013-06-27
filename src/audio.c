@@ -1256,19 +1256,15 @@ static void ADDMIXER(void * const data, u32 w1, u32 w2)
 static void HILOGAIN(void * const data, u32 w1, u32 w2)
 {
     u16 count = parse(w1,  0, 16);
-    s16 hi    = (s16)(parse(w1, 16, 4) << 12);
-    u16 lo    = parse(w1, 20, 4);
+    u8  gain  = parse(w1, 16,  8);  /* Q4.4 */
     u16 dmem  = parse(w2, 16, 16);
 
     s16 *ptr = (s16*)(rsp.DMEM + dmem);
 
-    s32 tmp, val;
-
     while(count)
     {
-        val = (s32)*ptr;
-        tmp = ((val * (s32)hi) >> 16) + (u32)(val * lo);
-        *ptr = clamp_s16(tmp);
+        *ptr = clamp_s16(((s32)(*ptr) * gain) >> 4);
+
         ++ptr;
         count -= 2;
     }
