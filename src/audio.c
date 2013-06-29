@@ -1239,13 +1239,14 @@ static void ADDMIXER(void * const data, u32 w1, u32 w2)
     u16 dmemi = parse(w2, 16, 16);
     u16 dmemo = parse(w2,  0, 16);
 
-    unsigned i;
-
     const s16 *src = (s16 *)(rsp.DMEM + dmemi);
     s16 *dst       = (s16 *)(rsp.DMEM + dmemo);
 
-    for (i = 0; i < count; i += 2)
+    while (count != 0)
+    {
         sadd(dst++, *(src++));
+        count -= 2;
+    }
 }
 
 static void HILOGAIN(void * const data, u32 w1, u32 w2)
