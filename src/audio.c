@@ -59,10 +59,8 @@ static struct audio_t
     s16 env_target[2];
     s32 env_rate[2];
 
-    // loop
-    u32 loop;           // 0x0010(t8)
-
     // adpcm
+    u32 adpcm_loop;     // 0x0010(t8)
     u16 adpcm_codebook[0x80];
 } l_audio;
 
@@ -77,10 +75,8 @@ static struct naudio_t
     s16 env_target[2];
     s32 env_rate[2];
 
-    // loop
-    u32 loop;
-
     // adpcm
+    u32 adpcm_loop;
     u16 adpcm_codebook[0x80];
 } l_naudio;
 
@@ -94,10 +90,8 @@ static struct audio2_t
     u16 out;            // 0x0002(t8)
     u16 count;          // 0x0004(t8)
 
-    // loop
-    u32 loop;           // 0x0010(t8)
-
     // adpcm
+    u32 adpcm_loop;     // 0x0010(t8)
     u16 adpcm_codebook[0x80];
 
     //envmixer2 related variables
@@ -545,7 +539,7 @@ static void SETLOOP(void * const data, u32 w1, u32 w2)
 {
     struct audio_t * const audio = (struct audio_t *)data;
 
-    audio->loop = segoffset_load(w2, audio->segments, N_SEGMENTS);
+    audio->adpcm_loop = segoffset_load(w2, audio->segments, N_SEGMENTS);
 }
 
 static void ADPCM(void * const data, u32 w1, u32 w2)
@@ -560,7 +554,7 @@ static void ADPCM(void * const data, u32 w1, u32 w2)
             flags & A_LOOP,
             0, // not supported in this ucode version
             (s16*)audio->adpcm_codebook,
-            audio->loop,
+            audio->adpcm_loop,
             address,
             audio->in,
             audio->out,
@@ -854,7 +848,7 @@ static void SETLOOP3(void * const data, u32 w1, u32 w2)
 
     u32 address = parse(w2, 0, 24);
 
-    naudio->loop = address;
+    naudio->adpcm_loop = address;
 }
 
 static void ADPCM3(void * const data, u32 w1, u32 w2)
@@ -872,7 +866,7 @@ static void ADPCM3(void * const data, u32 w1, u32 w2)
             flags & A_LOOP,
             0, // not supported in this ucode version
             (s16*)naudio->adpcm_codebook,
-            naudio->loop,
+            naudio->adpcm_loop,
             address,
             0x4f0 + dmemi,
             0x4f0 + dmemo,
@@ -941,7 +935,7 @@ static void SETLOOP2(void * const data, u32 w1, u32 w2)
 
     u32 address = parse(w2, 0, 24);
 
-    audio2->loop = address; // No segment?
+    audio2->adpcm_loop = address; // No segment?
 }
 
 static void SETBUFF2(void * const data, u32 w1, u32 w2)
@@ -965,7 +959,7 @@ static void ADPCM2(void * const data, u32 w1, u32 w2)
             flags & A_LOOP,
             flags & 0x4,
             (s16*)audio2->adpcm_codebook,
-            audio2->loop,
+            audio2->adpcm_loop,
             address,
             audio2->in,
             audio2->out,
