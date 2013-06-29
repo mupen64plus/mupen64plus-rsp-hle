@@ -311,7 +311,7 @@ static void interleave_buffers(u16 dmemo, u16 left, u16 right, u16 count)
 {
     u16 l1, l2, r1, r2;
 
-    count >>= 2;
+    count >>= 1;
 
     u16 *dst  = (u16*)(rsp.DMEM + dmemo);
     u16 *srcL = (u16*)(rsp.DMEM + left);
@@ -644,7 +644,7 @@ static void INTERLEAVE(void * const data, u32 w1, u32 w2)
             audio->out,
             left,
             right,
-            audio->count);
+            audio->count >> 1);
 }
 
 
@@ -898,7 +898,7 @@ static void INTERLEAVE3(void * const data, u32 w1, u32 w2)
             NAUDIO_MAIN,
             NAUDIO_DRY_LEFT,
             NAUDIO_DRY_RIGHT,
-            NAUDIO_SUBFRAME_SIZE);
+            NAUDIO_SUBFRAME_SIZE >> 1);
 }
 
 static void MP3ADDY(void * const data, u32 w1, u32 w2)
@@ -1230,7 +1230,7 @@ static void INTERLEAVE2(void * const data, u32 w1, u32 w2)
             out,
             left,
             right,
-            count);
+            count >> 1);
 }
 
 static void ADDMIXER(void * const data, u32 w1, u32 w2)
