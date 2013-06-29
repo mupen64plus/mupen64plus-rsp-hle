@@ -46,9 +46,9 @@ static struct audio_t
     u16 count;          // 0x0004(t8)
 
     // auxiliary buffers
-    u16 aux_dry_left;   // 0x000a(t8)
-    u16 aux_wet_right;  // 0x000c(t8)
-    u16 aux_wet_left;   // 0x000e(t8)
+    u16 aux_dry_right;  // 0x000a(t8)
+    u16 aux_wet_left;   // 0x000c(t8)
+    u16 aux_wet_right;  // 0x000e(t8)
 
     // envmixer gains
     s16 dry;            // 0x001c(t8)
@@ -380,11 +380,11 @@ static void ENVMIXER(void * const data, u32 w1, u32 w2)
 
     int x,y;
     short state_buffer[40];
-    short *inp=(short *)(rsp.DMEM+audio->in);
-    short *out=(short *)(rsp.DMEM+audio->out);
-    short *aux1=(short *)(rsp.DMEM+audio->aux_dry_left);
-    short *aux2=(short *)(rsp.DMEM+audio->aux_wet_right);
-    short *aux3=(short *)(rsp.DMEM+audio->aux_wet_left);
+    short *in = (short *)(rsp.DMEM+audio->in);
+    short *dl = (short *)(rsp.DMEM+audio->out);
+    short *dr = (short *)(rsp.DMEM+audio->aux_dry_right);
+    short *wl = (short *)(rsp.DMEM+audio->aux_wet_left);
+    short *wr = (short *)(rsp.DMEM+audio->aux_wet_right);
 
     unsigned flag_aux = ((flags & A_AUX) != 0);
 
@@ -443,16 +443,16 @@ static void ENVMIXER(void * const data, u32 w1, u32 w2)
                 RAdderStart = ramps[1].target;
             }
 
-            value = inp[ptr^S];
+            value = in[ptr^S];
             envL = ramps[0].value >> 16;
             envR = ramps[1].value >> 16;
 
-            sadd(&out[ptr^S],  dmul_round(value, dmul_round(Dry, envR)));
-            sadd(&aux1[ptr^S], dmul_round(value, dmul_round(Dry, envL)));
+            sadd(&dl[ptr^S], dmul_round(value, dmul_round(Dry, envL)));
+            sadd(&dr[ptr^S], dmul_round(value, dmul_round(Dry, envR)));
             if (flag_aux)
             {
-                sadd(&aux2[ptr^S], dmul_round(value, dmul_round(Wet, envR)));
-                sadd(&aux3[ptr^S], dmul_round(value, dmul_round(Wet, envL)));
+                sadd(&wl[ptr^S], dmul_round(value, dmul_round(Wet, envL)));
+                sadd(&wr[ptr^S], dmul_round(value, dmul_round(Wet, envR)));
             }
             ++ptr;
         }
@@ -583,9 +583,9 @@ static void SETBUFF(void * const data, u32 w1, u32 w2)
 
     if (flags & A_AUX)
     {
-        audio->aux_dry_left  = parse(w1,  0, 16);
-        audio->aux_wet_right = parse(w2, 16, 16);
-        audio->aux_wet_left  = parse(w2,  0, 16);
+        audio->aux_dry_right = parse(w1,  0, 16);
+        audio->aux_wet_left  = parse(w2, 16, 16);
+        audio->aux_wet_right = parse(w2,  0, 16);
     }
     else
     {
