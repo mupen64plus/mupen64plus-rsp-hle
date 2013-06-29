@@ -402,7 +402,7 @@ static void ENVMIXER(void * const data, u32 w1, u32 w2)
     s32 rates[2];
     s16 value, envL, envR;
 
-    s16 wet, dry;
+    s16 dry, wet;
     u32 ptr = 0;
     s32 LAdderStart, RAdderStart, LAdderEnd, RAdderEnd;
 
@@ -705,17 +705,17 @@ static void ENVMIXER3(void * const data, u32 w1, u32 w2)
     int y;
     short state_buffer[40];
 
-    short *inp=(short *)(rsp.DMEM + NAUDIO_MAIN);
-    short *out=(short *)(rsp.DMEM + NAUDIO_DRY_LEFT);
-    short *aux1=(short *)(rsp.DMEM + NAUDIO_DRY_RIGHT);
-    short *aux2=(short *)(rsp.DMEM + NAUDIO_WET_LEFT);
-    short *aux3=(short *)(rsp.DMEM + NAUDIO_WET_RIGHT);
+    short *in = (short*)(rsp.DMEM + NAUDIO_MAIN);
+    short *dl = (short*)(rsp.DMEM + NAUDIO_DRY_LEFT);
+    short *dr = (short*)(rsp.DMEM + NAUDIO_DRY_RIGHT);
+    short *wl = (short*)(rsp.DMEM + NAUDIO_WET_LEFT);
+    short *wr = (short*)(rsp.DMEM + NAUDIO_WET_RIGHT);
 
     s16 envL, envR, value;
 
     /* 0 -> Left, 1->Right */
     struct ramp_t ramps[2];
-    s16 Wet, Dry;
+    s16 dry, wet;
 
     naudio->env_vol[1] = (s16)w1;
 
@@ -729,15 +729,15 @@ static void ENVMIXER3(void * const data, u32 w1, u32 w2)
         ramps[1].value  = (s32)naudio->env_vol[1] << 16;
         ramps[1].target = (s32)naudio->env_target[1] << 16;
 
-        Wet = (s16)naudio->wet;
-        Dry = (s16)naudio->dry;
+        wet = (s16)naudio->wet;
+        dry = (s16)naudio->dry;
     }
     else
     {
         memcpy((u8 *)state_buffer, rsp.RDRAM+address, 80);
 
-        Wet             = *(s16 *)(state_buffer +  0); // 0-1
-        Dry             = *(s16 *)(state_buffer +  2); // 2-3
+        wet             = *(s16 *)(state_buffer +  0); // 0-1
+        dry             = *(s16 *)(state_buffer +  2); // 2-3
         ramps[0].target = (s32)*(s16 *)(state_buffer +  4) << 16; // 4-5
         ramps[1].target = (s32)*(s16 *)(state_buffer +  6) << 16; // 6-7
         ramps[0].step   = *(s32 *)(state_buffer +  8); // 8-9 (state_buffer is a 16bit pointer)
@@ -753,18 +753,18 @@ static void ENVMIXER3(void * const data, u32 w1, u32 w2)
         if (ramp_next(&ramps[0])) { ramps[0].value = ramps[0].target; }
         if (ramp_next(&ramps[1])) { ramps[1].value = ramps[1].target; }
 
-        value = inp[y^S];
+        value = in[y^S];
         envL = ramps[0].value >> 16;
         envR = ramps[1].value >> 16;
 
-        sadd(&out[y^S],  dmul_round(value, dmul_round(Dry, envL)));
-        sadd(&aux1[y^S], dmul_round(value, dmul_round(Dry, envR)));
-        sadd(&aux2[y^S], dmul_round(value, dmul_round(Wet, envL)));
-        sadd(&aux3[y^S], dmul_round(value, dmul_round(Wet, envR)));
+        sadd(&dl[y^S], dmul_round(value, dmul_round(dry, envL)));
+        sadd(&dr[y^S], dmul_round(value, dmul_round(dry, envR)));
+        sadd(&wl[y^S], dmul_round(value, dmul_round(wet, envL)));
+        sadd(&wr[y^S], dmul_round(value, dmul_round(wet, envR)));
     }
 
-    *(s16 *)(state_buffer +  0) = Wet; // 0-1
-    *(s16 *)(state_buffer +  2) = Dry; // 2-3
+    *(s16 *)(state_buffer +  0) = wet; // 0-1
+    *(s16 *)(state_buffer +  2) = dry; // 2-3
     *(s16 *)(state_buffer +  4) = ramps[0].target >> 16; // 4-5
     *(s16 *)(state_buffer +  6) = ramps[1].target >> 16; // 6-7
     *(s32 *)(state_buffer +  8) = ramps[0].step; // 8-9 (state_buffer is a 16bit pointer)
@@ -1183,7 +1183,7 @@ static void DUPLICATE2(void * const data, u32 w1, u32 w2)
     
     memcpy(buff, rsp.DMEM + dmemi, 128);
 
-    while(count)
+    while (count != 0)
     {
         memcpy(rsp.DMEM + dmemo, buff, 128);
         dmemo += 128;
@@ -1197,7 +1197,7 @@ static void INTERL2(void * const data, u32 w1, u32 w2)
     u16 dmemi = parse(w2, 16, 16);
     u16 dmemo = parse(w2,  0, 16);
 
-    while(count)
+    while (count != 0)
     {
         *(u16*)(rsp.DMEM + (dmemo ^ S8)) = *(u16*)(rsp.DMEM + (dmemi ^ S8));
 
@@ -1235,7 +1235,7 @@ static void INTERLEAVE2(void * const data, u32 w1, u32 w2)
 
 static void ADDMIXER(void * const data, u32 w1, u32 w2)
 {
-    u16 count = parse(w1, 16, 8) << 4;
+    u16 count = parse(w1, 16,  8) << 4;
     u16 dmemi = parse(w2, 16, 16);
     u16 dmemo = parse(w2,  0, 16);
 
@@ -1256,7 +1256,7 @@ static void HILOGAIN(void * const data, u32 w1, u32 w2)
 
     s16 *ptr = (s16*)(rsp.DMEM + dmem);
 
-    while(count)
+    while (count != 0)
     {
         *ptr = clamp_s16(((s32)(*ptr) * gain) >> 4);
 
