@@ -299,33 +299,35 @@ static void mix_buffers(u16 dmemo, u16 dmemi, u16 count, s16 gain)
     }
 }
 
-static void interleave_buffers(u16 right, u16 left, u16 out, int count)
+static void interleave_buffers(u16 dmemo, u16 left, u16 right, u16 count)
 {
-    int i;
-    u16 Left, Right, Left2, Right2;
+    u16 l1, l2, r1, r2;
 
-    u16 *srcR = (u16*)(rsp.DMEM + right);
+    count >>= 2;
+
+    u16 *dst  = (u16*)(rsp.DMEM + dmemo);
     u16 *srcL = (u16*)(rsp.DMEM + left);
-    u16 *dst = (u16*)(rsp.DMEM + out);
+    u16 *srcR = (u16*)(rsp.DMEM + right);
 
-    for (i = 0; i < count; ++i)
+    while (count != 0)
     {
-        Left=*(srcL++);
-        Right=*(srcR++);
-        Left2=*(srcL++);
-        Right2=*(srcR++);
+        l1 = *(srcL++);
+        l2 = *(srcL++);
+        r1 = *(srcR++);
+        r2 = *(srcR++);
 
 #ifdef M64P_BIG_ENDIAN
-        *(dst++)=Right;
-        *(dst++)=Left;
-        *(dst++)=Right2;
-        *(dst++)=Left2;
+        *(dst++) = l1;
+        *(dst++) = r1;
+        *(dst++) = l2;
+        *(dst++) = r2;
 #else
-        *(dst++)=Right2;
-        *(dst++)=Left2;
-        *(dst++)=Right;
-        *(dst++)=Left;
+        *(dst++) = r2;
+        *(dst++) = l2;
+        *(dst++) = r1;
+        *(dst++) = l1;
 #endif
+        --count;
     }
 }
 
@@ -631,10 +633,10 @@ static void INTERLEAVE(void * const data, u32 w1, u32 w2)
     u16 right = parse(w2,  0, 16);
 
     interleave_buffers(
+            audio->out,
             left,
             right,
-            audio->out,
-            audio->count >> 2);
+            audio->count);
 }
 
 
@@ -885,10 +887,10 @@ static void RESAMPLE3(void * const data, u32 w1, u32 w2)
 static void INTERLEAVE3(void * const data, u32 w1, u32 w2)
 {
     interleave_buffers(
-            0xb40,
-            0x9d0,
             0x4f0,
-            0x170 >> 2);
+            0x9d0,
+            0xb40,
+            0x170);
 }
 
 static void MP3ADDY(void * const data, u32 w1, u32 w2)
@@ -1202,8 +1204,8 @@ static void INTERLEAVE2(void * const data, u32 w1, u32 w2)
     struct audio2_t * const audio2 = (struct audio2_t *)data;
 
     u16 count = parse(w1, 16,  8) << 4;
-    u16 right = parse(w2, 16, 16);
-    u16 left  = parse(w2,  0, 16);
+    u16 left  = parse(w2, 16, 16);
+    u16 right = parse(w2,  0, 16);
     
     u16 out;
     if (count == 0)
@@ -1216,12 +1218,11 @@ static void INTERLEAVE2(void * const data, u32 w1, u32 w2)
         out = parse(w1, 0, 16);
     }
 
-    // TODO: verify L/R order ?
     interleave_buffers(
+            out,
             left,
             right,
-            out,
-            count >> 2);
+            count);
 }
 
 static void ADDMIXER(void * const data, u32 w1, u32 w2)
