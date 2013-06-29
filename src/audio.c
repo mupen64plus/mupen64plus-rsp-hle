@@ -389,12 +389,13 @@ static void ENVMIXER(void * const data, u32 w1, u32 w2)
     u32 address = segoffset_load(w2, audio->segments, N_SEGMENTS);
 
     int x,y;
-    short state_buffer[40];
-    short *in = (short *)(rsp.DMEM+audio->in);
-    short *dl = (short *)(rsp.DMEM+audio->out);
-    short *dr = (short *)(rsp.DMEM+audio->aux_dry_right);
-    short *wl = (short *)(rsp.DMEM+audio->aux_wet_left);
-    short *wr = (short *)(rsp.DMEM+audio->aux_wet_right);
+    s16 state_buffer[40];
+
+    s16 *in = (s16*)(rsp.DMEM + audio->in);
+    s16 *dl = (s16*)(rsp.DMEM + audio->out);
+    s16 *dr = (s16*)(rsp.DMEM + audio->aux_dry_right);
+    s16 *wl = (s16*)(rsp.DMEM + audio->aux_wet_left);
+    s16 *wr = (s16*)(rsp.DMEM + audio->aux_wet_right);
 
     unsigned flag_aux = ((flags & A_AUX) != 0);
 
@@ -703,13 +704,13 @@ static void ENVMIXER3(void * const data, u32 w1, u32 w2)
     u32 address = parse(w2,  0, 24);
 
     int y;
-    short state_buffer[40];
+    s16 state_buffer[40];
 
-    short *in = (short*)(rsp.DMEM + NAUDIO_MAIN);
-    short *dl = (short*)(rsp.DMEM + NAUDIO_DRY_LEFT);
-    short *dr = (short*)(rsp.DMEM + NAUDIO_DRY_RIGHT);
-    short *wl = (short*)(rsp.DMEM + NAUDIO_WET_LEFT);
-    short *wr = (short*)(rsp.DMEM + NAUDIO_WET_RIGHT);
+    s16 *in = (s16*)(rsp.DMEM + NAUDIO_MAIN);
+    s16 *dl = (s16*)(rsp.DMEM + NAUDIO_DRY_LEFT);
+    s16 *dr = (s16*)(rsp.DMEM + NAUDIO_DRY_RIGHT);
+    s16 *wl = (s16*)(rsp.DMEM + NAUDIO_WET_LEFT);
+    s16 *wr = (s16*)(rsp.DMEM + NAUDIO_WET_RIGHT);
 
     s16 envL, envR, value;
 
