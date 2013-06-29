@@ -287,23 +287,15 @@ static void dmem_move(u16 dmemo, u16 dmemi, u16 count)
     }
 }
 
-
-
-
-
-
-
-static void mix_buffers(u16 in, u16 out, int count, s16 gain)
+static void mix_buffers(u16 dmemo, u16 dmemi, u16 count, s16 gain)
 {
-    int i;
+    s16 *dst = (s16*)(rsp.DMEM + dmemo);
+    s16 *src = (s16*)(rsp.DMEM + dmemi);
 
-    s16 *src = (s16*)(rsp.DMEM+in);
-    s16 *dst = (s16*)(rsp.DMEM+out);
-
-    for (i = 0; i < count; ++i)
+    while (count != 0)
     {
-        sadd(dst, dmul(*src, gain));
-        ++src; ++dst;
+        sadd(dst++, dmul(*src++, gain));
+        --count;
     }
 }
 
@@ -655,8 +647,8 @@ static void MIXER(void * const data, u32 w1, u32 w2)
     u16 dmemo = parse(w2,  0, 16);
 
     mix_buffers(
-            dmemi,
             dmemo,
+            dmemi,
             audio->count >> 1,
             (s16)gain);
 }
@@ -789,8 +781,8 @@ static void MIXER3(void * const data, u32 w1, u32 w2)
     u16 dmemo = parse(w2,  0, 16);
 
     mix_buffers(
-            dmemi + 0x4f0,
             dmemo + 0x4f0,
+            dmemi + 0x4f0,
             0x170 >> 1,
             (s16)gain);
 }
@@ -1002,8 +994,8 @@ static void MIXER2(void * const data, u32 w1, u32 w2)
     u16 dmemo = parse(w2,  0, 16);
 
     mix_buffers(
-            dmemi,
             dmemo,
+            dmemi,
             (count & ~0xf) >> 1,
             (s16)gain);
 }
