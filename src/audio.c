@@ -31,6 +31,14 @@
 
 #define N_SEGMENTS 16
 
+#define NAUDIO_SUBFRAME_SIZE 0x170  /* ie 184 samples */
+#define NAUDIO_MAIN     0x4f0
+#define NAUDIO_MAIN2    0x660
+#define NAUDIO_DRY_LEFT     0x9d0
+#define NAUDIO_DRY_RIGHT    0xb40
+#define NAUDIO_WET_LEFT     0xcb0
+#define NAUDIO_WET_RIGHT    0xe20
+
 /* types defintions */
 typedef void (*acmd_callback_t)(void * const data, u32 w1, u32 w2);
 
@@ -697,11 +705,11 @@ static void ENVMIXER3(void * const data, u32 w1, u32 w2)
     int y;
     short state_buffer[40];
 
-    short *inp=(short *)(rsp.DMEM+0x4F0);
-    short *out=(short *)(rsp.DMEM+0x9D0);
-    short *aux1=(short *)(rsp.DMEM+0xB40);
-    short *aux2=(short *)(rsp.DMEM+0xCB0);
-    short *aux3=(short *)(rsp.DMEM+0xE20);
+    short *inp=(short *)(rsp.DMEM + NAUDIO_MAIN);
+    short *out=(short *)(rsp.DMEM + NAUDIO_DRY_LEFT);
+    short *aux1=(short *)(rsp.DMEM + NAUDIO_DRY_RIGHT);
+    short *aux2=(short *)(rsp.DMEM + NAUDIO_WET_LEFT);
+    short *aux3=(short *)(rsp.DMEM + NAUDIO_WET_RIGHT);
 
     s16 envL, envR, value;
 
@@ -740,7 +748,7 @@ static void ENVMIXER3(void * const data, u32 w1, u32 w2)
         ramps[1].value  = *(s32 *)(state_buffer + 18); // 18-19
     }
 
-    for (y = 0; y < (0x170/2); ++y)
+    for (y = 0; y < (NAUDIO_SUBFRAME_SIZE/2); ++y)
     {
         if (ramp_next(&ramps[0])) { ramps[0].value = ramps[0].target; }
         if (ramp_next(&ramps[1])) { ramps[1].value = ramps[1].target; }
@@ -773,7 +781,7 @@ static void CLEARBUFF3(void * const data, u32 w1, u32 w2)
     u16 dmem  = parse(w1, 0, 16);
     u16 count = parse(w2, 0, 16);
 
-    memset(rsp.DMEM + dmem + 0x4f0, 0, count);
+    memset(rsp.DMEM + NAUDIO_MAIN + dmem, 0, count);
 }
 
 static void MIXER3(void * const data, u32 w1, u32 w2)
@@ -783,9 +791,9 @@ static void MIXER3(void * const data, u32 w1, u32 w2)
     u16 dmemo = parse(w2,  0, 16);
 
     mix_buffers(
-            dmemo + 0x4f0,
-            dmemi + 0x4f0,
-            0x170 >> 1,
+            NAUDIO_MAIN + dmemo,
+            NAUDIO_MAIN + dmemi,
+            NAUDIO_SUBFRAME_SIZE >> 1,
             (s16)gain);
 }
 
@@ -797,7 +805,7 @@ static void LOADBUFF3(void * const data, u32 w1, u32 w2)
 
     if (length == 0) { return; }
 
-    dma_read_fast((dmem + 0x4f0) & 0xff8, address & ~7, length - 1);
+    dma_read_fast((NAUDIO_MAIN + dmem) & 0xff8, address & ~7, length - 1);
 }
 
 static void SAVEBUFF3(void * const data, u32 w1, u32 w2)
@@ -808,7 +816,7 @@ static void SAVEBUFF3(void * const data, u32 w1, u32 w2)
 
     if (length == 0) { return; }
 
-    dma_write_fast(address & ~7, (dmem + 0x4f0) & 0xff8, length - 1);
+    dma_write_fast(address & ~7, (NAUDIO_MAIN + dmem) & 0xff8, length - 1);
 }
 
 static void LOADADPCM3(void * const data, u32 w1, u32 w2)
@@ -831,8 +839,8 @@ static void DMEMMOVE3(void * const data, u32 w1, u32 w2)
     u16 count = parse(w2,  0, 16);
 
     dmem_move(
-            dmemo + 0x4f0,
-            dmemi + 0x4f0,
+            NAUDIO_MAIN + dmemo,
+            NAUDIO_MAIN + dmemi,
             align(count, 4));
 }
 
@@ -862,8 +870,8 @@ static void ADPCM3(void * const data, u32 w1, u32 w2)
             (s16*)naudio->adpcm_codebook,
             naudio->adpcm_loop,
             address,
-            0x4f0 + dmemi,
-            0x4f0 + dmemo,
+            NAUDIO_MAIN + dmemi,
+            NAUDIO_MAIN + dmemo,
             align(count, 32) >> 5);
 }
 
@@ -879,18 +887,18 @@ static void RESAMPLE3(void * const data, u32 w1, u32 w2)
             flags & A_INIT,
             address,
             (u32)pitch << 1,
-            (dmemi + 0x4f0) >> 1,
-            ((dmemo) ? 0x660 : 0x4f0) >> 1,
-            0x170 >> 1);
+            (dmemi + NAUDIO_MAIN) >> 1,
+            ((dmemo) ? NAUDIO_MAIN2 : NAUDIO_MAIN) >> 1,
+            NAUDIO_SUBFRAME_SIZE >> 1);
 }
 
 static void INTERLEAVE3(void * const data, u32 w1, u32 w2)
 {
     interleave_buffers(
-            0x4f0,
-            0x9d0,
-            0xb40,
-            0x170);
+            NAUDIO_MAIN,
+            NAUDIO_DRY_LEFT,
+            NAUDIO_DRY_RIGHT,
+            NAUDIO_SUBFRAME_SIZE);
 }
 
 static void MP3ADDY(void * const data, u32 w1, u32 w2)
