@@ -392,14 +392,14 @@ static void ENVMIXER(void * const data, u32 w1, u32 w2)
     s32 rates[2];
     s16 value, envL, envR;
 
-    s16 Wet, Dry;
+    s16 wet, dry;
     u32 ptr = 0;
     s32 LAdderStart, RAdderStart, LAdderEnd, RAdderEnd;
 
     if (flags & A_INIT)
     {
-        Wet             = audio->wet;
-        Dry             = audio->dry;
+        wet             = audio->wet;
+        dry             = audio->dry;
         ramps[0].target = audio->env_target[0] << 16;
         ramps[1].target = audio->env_target[1] << 16;
         rates[0]        = audio->env_rate[0];
@@ -413,8 +413,8 @@ static void ENVMIXER(void * const data, u32 w1, u32 w2)
     {
         memcpy((u8 *)state_buffer, (rsp.RDRAM+address), 80);
 
-        Wet             = *(s16*)(state_buffer + 0);
-        Dry             = *(s16*)(state_buffer + 2);
+        wet             = *(s16*)(state_buffer + 0);
+        dry             = *(s16*)(state_buffer + 2);
         ramps[0].target = *(s32*)(state_buffer + 4);
         ramps[1].target = *(s32*)(state_buffer + 6);
         rates[0]        = *(s32*)(state_buffer + 8);
@@ -447,19 +447,19 @@ static void ENVMIXER(void * const data, u32 w1, u32 w2)
             envL = ramps[0].value >> 16;
             envR = ramps[1].value >> 16;
 
-            sadd(&dl[ptr^S], dmul_round(value, dmul_round(Dry, envL)));
-            sadd(&dr[ptr^S], dmul_round(value, dmul_round(Dry, envR)));
+            sadd(&dl[ptr^S], dmul_round(value, dmul_round(dry, envL)));
+            sadd(&dr[ptr^S], dmul_round(value, dmul_round(dry, envR)));
             if (flag_aux)
             {
-                sadd(&wl[ptr^S], dmul_round(value, dmul_round(Wet, envL)));
-                sadd(&wr[ptr^S], dmul_round(value, dmul_round(Wet, envR)));
+                sadd(&wl[ptr^S], dmul_round(value, dmul_round(wet, envL)));
+                sadd(&wr[ptr^S], dmul_round(value, dmul_round(wet, envR)));
             }
             ++ptr;
         }
     }
 
-    *(s16 *)(state_buffer +  0) = Wet;
-    *(s16 *)(state_buffer +  2) = Dry;
+    *(s16 *)(state_buffer +  0) = wet;
+    *(s16 *)(state_buffer +  2) = dry;
     *(s32 *)(state_buffer +  4) = ramps[0].target;
     *(s32 *)(state_buffer +  6) = ramps[1].target;
     *(s32 *)(state_buffer +  8) = rates[0];
