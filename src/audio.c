@@ -1049,8 +1049,6 @@ static void ENVSETUP1(void * const data, u32 w1, u32 w2)
     audio2->s6 = parse(w2,  0, 16);
 
     audio2->env[4] = (u16)tmp;
-    tmp += audio2->t3;
-    audio2->env[5] = (u16)tmp;
 }
 
 static void ENVSETUP2(void * const data, u32 w1, u32 w2)
@@ -1061,12 +1059,7 @@ static void ENVSETUP2(void * const data, u32 w1, u32 w2)
     u32 tmp2 = parse(w2,  0, 16);
 
     audio2->env[0] = (u16)tmp1;
-    tmp1 += audio2->s5;
-    audio2->env[1] = (u16)tmp1;
-
     audio2->env[2] = (u16)tmp2;
-    tmp2 += audio2->s6;
-    audio2->env[3] = (u16)tmp2;
 }
 
 static void ENVMIXER2(void * const data, u32 w1, u32 w2)
@@ -1074,7 +1067,6 @@ static void ENVMIXER2(void * const data, u32 w1, u32 w2)
     struct audio2_t * const audio2 = (struct audio2_t *)data;
 
     s16 v2[4];
-    u32 adder;
     int x;
     s16 vec9, vec10;
 
@@ -1096,15 +1088,11 @@ static void ENVMIXER2(void * const data, u32 w1, u32 w2)
     s16 *wl = (s16*)(rsp.DMEM + dmem_wet_left);
     s16 *wr = (s16*)(rsp.DMEM + dmem_wet_right);
 
-    if (!isMKABI)
-    {
-        audio2->s5 *= 2; audio2->s6 *= 2; audio2->t3 *= 2;
-        adder = 0x10;
-    }
-    else
+    /* wet gain enveloppe and swap L/R wet buffers is not
+     * supported by MKABI ? */
+    if (isMKABI)
     {
         swap_wet_LR = 0;
-        adder = 0x8;
         audio2->t3 = 0;
     }
 
@@ -1133,37 +1121,12 @@ static void ENVMIXER2(void * const data, u32 w1, u32 w2)
             }
         }
 
-        if (!isMKABI)
-        {
-            for (x = 8; x < 16; ++x)
-            {
-                vec9  = (s16)(((s32)in[x^S] * (u32)audio2->env[1]) >> 0x10) ^ v2[0];
-                vec10 = (s16)(((s32)in[x^S] * (u32)audio2->env[3]) >> 0x10) ^ v2[1];
-                
-                sadd(&dl[x^S], vec9);
-                sadd(&dr[x^S], vec10);
-
-                vec9  = (s16)(((s32)vec9  * (u32)audio2->env[5]) >> 0x10) ^ v2[2];
-                vec10 = (s16)(((s32)vec10 * (u32)audio2->env[5]) >> 0x10) ^ v2[3];
-                if (swap_wet_LR)
-                {
-                    sadd(&wl[x^S], vec10);
-                    sadd(&wr[x^S], vec9);
-                }
-                else
-                {
-                    sadd(&wl[x^S], vec9);
-                    sadd(&wr[x^S], vec10);
-                }
-            }
-        }
-
-        dl += adder; dr += adder;
-        wl += adder; wr += adder;
-        in += adder; count  -= adder;
-        audio2->env[0] += (u16)audio2->s5; audio2->env[1] += (u16)audio2->s5;
-        audio2->env[2] += (u16)audio2->s6; audio2->env[3] += (u16)audio2->s6;
-        audio2->env[4] += (u16)audio2->t3; audio2->env[5] += (u16)audio2->t3;
+        dl += 8; dr += 8;
+        wl += 8; wr += 8;
+        in += 8; count  -= 8;
+        audio2->env[0] += (u16)audio2->s5;
+        audio2->env[2] += (u16)audio2->s6;
+        audio2->env[4] += (u16)audio2->t3;
     }
 }
 
