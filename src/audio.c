@@ -167,6 +167,13 @@ int isZeldaABI = 0;
 #define A_MIX           0x10
 
 /* local functions */
+static void swap(s16 **a, s16 **b)
+{
+    s16* tmp = *b;
+    *b = *a;
+    *a = tmp;
+}
+
 static unsigned align(unsigned x, unsigned m)
 {
     --m;
@@ -1089,6 +1096,10 @@ static void ENVMIXER2(void * const data, u32 w1, u32 w2)
         audio2->env_step[2] = 0;
     }
 
+    if (swap_wet_LR)
+    {
+        swap(&wl, &wr);
+    }
 
     while (count > 0)
     {
@@ -1102,16 +1113,9 @@ static void ENVMIXER2(void * const data, u32 w1, u32 w2)
 
             vec9  = (s16)(((s32)vec9  * (u32)audio2->env_value[2]) >> 16) ^ v2[2];
             vec10 = (s16)(((s32)vec10 * (u32)audio2->env_value[2]) >> 16) ^ v2[3];
-            if (swap_wet_LR)
-            {
-                sadd(&wl[x^S], vec10);
-                sadd(&wr[x^S], vec9);
-            }
-            else
-            {
-                sadd(&wl[x^S], vec9);
-                sadd(&wr[x^S], vec10);
-            }
+
+            sadd(&wl[x^S], vec9);
+            sadd(&wr[x^S], vec10);
         }
 
         dl += 8; dr += 8;
