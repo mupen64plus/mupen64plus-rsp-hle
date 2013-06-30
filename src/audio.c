@@ -1073,32 +1073,27 @@ static void ENVMIXER2(void * const data, u32 w1, u32 w2)
 {
     struct audio2_t * const audio2 = (struct audio2_t *)data;
 
-    u16 s3 = parse(w1, 16, 8) << 4;
-    u16 t6 = parse(w2, 24, 8) << 4;
-    u16 t7 = parse(w2, 16, 8) << 4;
-    u16 s0 = parse(w2,  8, 8) << 4;
-    u16 s1 = parse(w2,  0, 8) << 4;
-    s32 count = (s32)parse(w1, 8, 8);
-
-    s16 *bufft6, *bufft7, *buffs0, *buffs1;
-    s16 *buffs3;
+    s16 v2[8];
     u32 adder;
     int x;
-
     s16 vec9, vec10;
 
-    s16 v2[8];
-
-    buffs3 = (s16 *)(rsp.DMEM + s3);
-    bufft6 = (s16 *)(rsp.DMEM + t6);
-    bufft7 = (s16 *)(rsp.DMEM + t7);
-    buffs0 = (s16 *)(rsp.DMEM + s0);
-    buffs1 = (s16 *)(rsp.DMEM + s1);
-
-    v2[0] = 0 - (s16)parse(w1, 1, 1);
-    v2[1] = 0 - (s16)parse(w1, 0, 1);
+    u16 dmemi = parse(w1, 16, 8) << 4;
+    s32 count = (s32)parse(w1, 8, 8);
     v2[2] = 0 - (s16)(parse(w1, 3, 1) << 2);
     v2[3] = 0 - (s16)(parse(w1, 2, 1) << 1);
+    v2[0] = 0 - (s16)parse(w1, 1, 1);
+    v2[1] = 0 - (s16)parse(w1, 0, 1);
+    u16 t6    = parse(w2, 24, 8) << 4;
+    u16 t7    = parse(w2, 16, 8) << 4;
+    u16 s0    = parse(w2,  8, 8) << 4;
+    u16 s1    = parse(w2,  0, 8) << 4;
+
+    s16 *in     = (s16*)(rsp.DMEM + dmemi);
+    s16 *bufft6 = (s16*)(rsp.DMEM + t6);
+    s16 *bufft7 = (s16*)(rsp.DMEM + t7);
+    s16 *buffs0 = (s16*)(rsp.DMEM + s0);
+    s16 *buffs1 = (s16*)(rsp.DMEM + s1);
 
     if (!isMKABI)
     {
@@ -1117,8 +1112,8 @@ static void ENVMIXER2(void * const data, u32 w1, u32 w2)
     {
         for (x = 0; x < 8; ++x)
         {
-            vec9  = (s16)(((s32)buffs3[x^S] * (u32)audio2->env[0]) >> 0x10) ^ v2[0];
-            vec10 = (s16)(((s32)buffs3[x^S] * (u32)audio2->env[2]) >> 0x10) ^ v2[1];
+            vec9  = (s16)(((s32)in[x^S] * (u32)audio2->env[0]) >> 0x10) ^ v2[0];
+            vec10 = (s16)(((s32)in[x^S] * (u32)audio2->env[2]) >> 0x10) ^ v2[1];
 
             sadd(&bufft6[x^S], vec9);
             sadd(&bufft7[x^S], vec10);
@@ -1141,8 +1136,8 @@ static void ENVMIXER2(void * const data, u32 w1, u32 w2)
         {
             for (x = 8; x < 16; ++x)
             {
-                vec9  = (s16)(((s32)buffs3[x^S] * (u32)audio2->env[1]) >> 0x10) ^ v2[0];
-                vec10 = (s16)(((s32)buffs3[x^S] * (u32)audio2->env[3]) >> 0x10) ^ v2[1];
+                vec9  = (s16)(((s32)in[x^S] * (u32)audio2->env[1]) >> 0x10) ^ v2[0];
+                vec10 = (s16)(((s32)in[x^S] * (u32)audio2->env[3]) >> 0x10) ^ v2[1];
                 
                 sadd(&bufft6[x^S], vec9);
                 sadd(&bufft7[x^S], vec10);
@@ -1164,7 +1159,7 @@ static void ENVMIXER2(void * const data, u32 w1, u32 w2)
 
         bufft6 += adder; bufft7 += adder;
         buffs0 += adder; buffs1 += adder;
-        buffs3 += adder; count  -= adder;
+        in += adder; count  -= adder;
         audio2->env[0] += (u16)audio2->s5; audio2->env[1] += (u16)audio2->s5;
         audio2->env[2] += (u16)audio2->s6; audio2->env[3] += (u16)audio2->s6;
         audio2->env[4] += (u16)audio2->t3; audio2->env[5] += (u16)audio2->t3;
