@@ -102,11 +102,9 @@ static struct audio2_t
     u32 adpcm_loop;     // 0x0010(t8)
     u16 adpcm_codebook[0x80];
 
-    //envmixer2 related variables
-    u32 t3;
-    u32 s5;
-    u32 s6;
-    u16 env[8];
+    //envmixer2 envelopes (0: dry left, 1: dry right, 2: wet)
+    u16 env_value[3];
+    u16 env_step[3];
 } l_audio2;
 
 
@@ -1043,23 +1041,18 @@ static void ENVSETUP1(void * const data, u32 w1, u32 w2)
 {
     struct audio2_t * const audio2 = (struct audio2_t *)data;
 
-    u32 tmp    = parse(w1, 16,  8) << 8;
-    audio2->t3 = parse(w1,  0, 16);
-    audio2->s5 = parse(w2, 16, 16);
-    audio2->s6 = parse(w2,  0, 16);
-
-    audio2->env[4] = (u16)tmp;
+    audio2->env_value[2] = parse(w1, 16,  8) << 8;
+    audio2->env_step[2]  = parse(w1,  0, 16);
+    audio2->env_step[0]  = parse(w2, 16, 16);
+    audio2->env_step[1]  = parse(w2,  0, 16);
 }
 
 static void ENVSETUP2(void * const data, u32 w1, u32 w2)
 {
     struct audio2_t * const audio2 = (struct audio2_t *)data;
 
-    u32 tmp1 = parse(w2, 16, 16);
-    u32 tmp2 = parse(w2,  0, 16);
-
-    audio2->env[0] = (u16)tmp1;
-    audio2->env[2] = (u16)tmp2;
+    audio2->env_value[0] = parse(w2, 16, 16);
+    audio2->env_value[1] = parse(w2,  0, 16);
 }
 
 static void ENVMIXER2(void * const data, u32 w1, u32 w2)
@@ -1093,7 +1086,7 @@ static void ENVMIXER2(void * const data, u32 w1, u32 w2)
     if (isMKABI)
     {
         swap_wet_LR = 0;
-        audio2->t3 = 0;
+        audio2->env_step[2] = 0;
     }
 
 
@@ -1101,14 +1094,14 @@ static void ENVMIXER2(void * const data, u32 w1, u32 w2)
     {
         for (x = 0; x < 8; ++x)
         {
-            vec9  = (s16)(((s32)in[x^S] * (u32)audio2->env[0]) >> 0x10) ^ v2[0];
-            vec10 = (s16)(((s32)in[x^S] * (u32)audio2->env[2]) >> 0x10) ^ v2[1];
+            vec9  = (s16)(((s32)in[x^S] * (u32)audio2->env_value[0]) >> 16) ^ v2[0];
+            vec10 = (s16)(((s32)in[x^S] * (u32)audio2->env_value[1]) >> 16) ^ v2[1];
 
             sadd(&dl[x^S], vec9);
             sadd(&dr[x^S], vec10);
 
-            vec9  = (s16)(((s32)vec9  * (u32)audio2->env[4]) >> 0x10) ^ v2[2];
-            vec10 = (s16)(((s32)vec10 * (u32)audio2->env[4]) >> 0x10) ^ v2[3];
+            vec9  = (s16)(((s32)vec9  * (u32)audio2->env_value[2]) >> 16) ^ v2[2];
+            vec10 = (s16)(((s32)vec10 * (u32)audio2->env_value[2]) >> 16) ^ v2[3];
             if (swap_wet_LR)
             {
                 sadd(&wl[x^S], vec10);
@@ -1123,10 +1116,10 @@ static void ENVMIXER2(void * const data, u32 w1, u32 w2)
 
         dl += 8; dr += 8;
         wl += 8; wr += 8;
-        in += 8; count  -= 8;
-        audio2->env[0] += (u16)audio2->s5;
-        audio2->env[2] += (u16)audio2->s6;
-        audio2->env[4] += (u16)audio2->t3;
+        in += 8; count -= 8;
+        audio2->env_value[0] += audio2->env_step[0];
+        audio2->env_value[1] += audio2->env_step[1];
+        audio2->env_value[2] += audio2->env_step[2];
     }
 }
 
