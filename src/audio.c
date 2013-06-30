@@ -1080,6 +1080,7 @@ static void ENVMIXER2(void * const data, u32 w1, u32 w2)
 
     u16 dmemi = parse(w1, 16, 8) << 4;
     s32 count = (s32)parse(w1, 8, 8);
+    unsigned swap_wet_LR = parse(w1, 4, 1);
     v2[2] = 0 - (s16)(parse(w1, 3, 1) << 2);
     v2[3] = 0 - (s16)(parse(w1, 2, 1) << 1);
     v2[0] = 0 - (s16)parse(w1, 1, 1);
@@ -1102,7 +1103,7 @@ static void ENVMIXER2(void * const data, u32 w1, u32 w2)
     }
     else
     {
-        w1 = 0;
+        swap_wet_LR = 0;
         adder = 0x8;
         audio2->t3 = 0;
     }
@@ -1120,7 +1121,7 @@ static void ENVMIXER2(void * const data, u32 w1, u32 w2)
 
             vec9  = (s16)(((s32)vec9  * (u32)audio2->env[4]) >> 0x10) ^ v2[2];
             vec10 = (s16)(((s32)vec10 * (u32)audio2->env[4]) >> 0x10) ^ v2[3];
-            if (w1 & 0x10)
+            if (swap_wet_LR)
             {
                 sadd(&wl[x^S], vec10);
                 sadd(&wr[x^S], vec9);
@@ -1144,7 +1145,7 @@ static void ENVMIXER2(void * const data, u32 w1, u32 w2)
 
                 vec9  = (s16)(((s32)vec9  * (u32)audio2->env[5]) >> 0x10) ^ v2[2];
                 vec10 = (s16)(((s32)vec10 * (u32)audio2->env[5]) >> 0x10) ^ v2[3];
-                if (w1 & 0x10)
+                if (swap_wet_LR)
                 {
                     sadd(&wl[x^S], vec10);
                     sadd(&wr[x^S], vec9);
