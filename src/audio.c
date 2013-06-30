@@ -537,7 +537,6 @@ static void SETVOL(void * const data, u32 w1, u32 w2)
     }
 }
 
-
 static void SETLOOP(void * const data, u32 w1, u32 w2)
 {
     struct audio_t * const audio = (struct audio_t *)data;
@@ -633,7 +632,6 @@ static void LOADADPCM(void * const data, u32 w1, u32 w2)
             count);
 }
 
-
 static void INTERLEAVE(void * const data, u32 w1, u32 w2)
 {
     struct audio_t * const audio = (struct audio_t *)data;
@@ -647,7 +645,6 @@ static void INTERLEAVE(void * const data, u32 w1, u32 w2)
             right,
             audio->count >> 1);
 }
-
 
 static void MIXER(void * const data, u32 w1, u32 w2)
 {
