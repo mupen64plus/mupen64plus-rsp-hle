@@ -139,20 +139,46 @@ static int try_fast_audio_dispatching()
         }
         else
         {
-            /**
-            * Mario Kart / Wave Race,
-            * LylatWars,
-            * FZeroX,
-            * Yoshi Story,
-            * 1080 Snowboarding,
-            * Zelda Ocarina of Time,
-            * Zelda Majoras Mask / Pokemon Stadium 2,
-            * Animal Crossing
-            *
-            * FIXME: in fact, all these games do not share the same ABI.
-            * That's the reason of the workaround in ucode2.cpp with isZeldaABI and isMKABI
-            **/
-            alist_process_ABI2(); return 1;
+            /* use first word of ACMD table to select adequate ABI */
+            u32 v = *(u32*)(udata_ptr + 0x10);
+            switch(v)
+            {
+            case 0x11181350: /* Mario Kart / Wave Race (E) */
+                alist_process_mk(); return 1;
+
+            case 0x111812e0: /* StarFox (J) */
+                alist_process_sfj(); return 1;
+
+            case 0x110412ac: /* Wave Race (J RevB) */
+                alist_process_wrjb(); return 1;
+
+            case 0x110412cc: /* StarFox/LylatWars (except J) */
+                alist_process_sf(); return 1;
+
+            case 0x1cd01250: /* FZeroX */
+                alist_process_fz(); return 1;
+
+            case 0x1f08122c: /* Yoshi Story */
+                alist_process_ys(); return 1;
+
+            case 0x1f38122c: /* 1080° Snowboarding */
+                alist_process_1080(); return 1;
+
+            case 0x1f681230: /* Zelda Ocarina of Time / Zelda Majoras Mask (J, J RevA) */
+                alist_process_oot(); return 1;
+
+            case 0x1f801250: /* Zelda Majoras Mask (except J, J RevA, E Beta)/ Pokemon Stadium 2 */
+                alist_process_mm(); return 1;
+
+            case 0x109411f8: /* Zelda Majoras Mask (E Beta) */
+                alist_process_mmb(); return 1;
+
+            case 0x1eac11b8: /* Animal Crossing */
+                alist_process_ac(); return 1;
+
+            default:
+                DebugMessage(M64MSG_WARNING, "ABI2 identification regression: v=%08x", v);
+            }
         }
     }
     else

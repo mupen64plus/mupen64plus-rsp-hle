@@ -23,8 +23,21 @@
 #define AUDIO_H
 
 void alist_process_ABI1();
-void alist_process_ABI2();
 void alist_process_ABI3();
+
+void alist_process_mk();
+void alist_process_sfj();
+void alist_process_sf();
+void alist_process_wrjb();
+void alist_process_fz();
+void alist_process_ys();
+void alist_process_1080();
+void alist_process_oot();
+void alist_process_mm();
+void alist_process_mmb();
+void alist_process_ac();
+
+
 
 // FIXME: to remove when isZeldaABI/isMKABI workaround is gone
 void init_ucode2();

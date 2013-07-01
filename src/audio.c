@@ -1419,13 +1419,63 @@ void alist_process_ABI1()
 // FIXME: get rid of that function
 void init_ucode2() { isMKABI = isZeldaABI = 0; }
 
-void alist_process_ABI2()
+void alist_process_ABI3()
+{
+    alist_process(&l_naudio, ABI3, 0x10);
+}
+
+void alist_process_mk()
 {
     alist_process(&l_audio2, ABI2, 0x20);
 }
 
-void alist_process_ABI3()
+void alist_process_sfj()
 {
-    alist_process(&l_naudio, ABI3, 0x10);
+    alist_process(&l_audio2, ABI2, 0x20);
+}
+
+void alist_process_sf()
+{
+    alist_process(&l_audio2, ABI2, 0x20);
+}
+
+void alist_process_fz()
+{
+    alist_process(&l_audio2, ABI2, 0x20);
+}
+
+void alist_process_wrjb()
+{
+    alist_process(&l_audio2, ABI2, 0x20);
+}
+
+void alist_process_ys()
+{
+    alist_process(&l_audio2, ABI2, 0x20);
+}
+
+void alist_process_1080()
+{
+    alist_process(&l_audio2, ABI2, 0x20);
+}
+
+void alist_process_oot()
+{
+    alist_process(&l_audio2, ABI2, 0x20);
+}
+
+void alist_process_mm()
+{
+    alist_process(&l_audio2, ABI2, 0x20);
+}
+
+void alist_process_mmb()
+{
+    alist_process(&l_audio2, ABI2, 0x20);
+}
+
+void alist_process_ac()
+{
+    alist_process(&l_audio2, ABI2, 0x20);
 }
 
