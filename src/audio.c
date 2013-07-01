@@ -107,8 +107,6 @@ static struct audio2_t
     u16 env_step[3];
 } l_audio2;
 
-
-
 struct ramp_t
 {
     s32 value;
@@ -1448,6 +1446,18 @@ static const acmd_callback_t ABI_MK[0x20] =
     SPNOOP,     SPNOOP,         SPNOOP,     SPNOOP
 };
 
+static const acmd_callback_t ABI_SF[0x20] =
+{
+    SPNOOP,     ADPCM2,         CLEARBUFF2, SPNOOP,
+    ADDMIXER,   RESAMPLE2,      UNKNOWN,    SPNOOP,
+    SETBUFF2,   SPNOOP,         DMEMMOVE2,  LOADADPCM2,
+    MIXER2,     INTERLEAVE2,    POLEF2,     SETLOOP2,
+    COPYBLOCKS2,INTERL2,        ENVSETUP1,  ENVMIXER2,
+    LOADBUFF2,  SAVEBUFF2,      ENVSETUP2,  SPNOOP,
+    HILOGAIN,   UNKNOWN,        DUPLICATE2, SPNOOP,
+    SPNOOP,     SPNOOP,         SPNOOP,     SPNOOP
+};
+
 /* global functions */
 void alist_process_ABI1()
 {
@@ -1475,7 +1485,8 @@ void alist_process_sfj()
 
 void alist_process_sf()
 {
-    alist_process(&l_audio2, ABI2, 0x20);
+    // FIXME: no segments
+    alist_process(&l_audio2, ABI_SF, 0x20);
 }
 
 void alist_process_fz()
