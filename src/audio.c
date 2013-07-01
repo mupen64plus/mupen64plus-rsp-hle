@@ -1458,6 +1458,18 @@ static const acmd_callback_t ABI_SF[0x20] =
     SPNOOP,     SPNOOP,         SPNOOP,     SPNOOP
 };
 
+static const acmd_callback_t ABI_SFJ[0x20] =
+{
+    SPNOOP,     ADPCM2,         CLEARBUFF2, SPNOOP,
+    ADDMIXER,   RESAMPLE2,      UNKNOWN,    SPNOOP,
+    SETBUFF2,   SPNOOP,         DMEMMOVE2,  LOADADPCM2,
+    MIXER2,     INTERLEAVE2,    POLEF2,     SETLOOP2,
+    COPYBLOCKS2,INTERL2,        ENVSETUP1,  ENVMIXER2,
+    LOADBUFF2,  SAVEBUFF2,      ENVSETUP2,  UNKNOWN,
+    HILOGAIN,   UNKNOWN,        DUPLICATE2, SPNOOP,
+    SPNOOP,     SPNOOP,         SPNOOP,     SPNOOP
+};
+
 static const acmd_callback_t ABI_FZ[0x20] =
 {
     UNKNOWN,    ADPCM2,         CLEARBUFF2, SPNOOP,
@@ -1542,7 +1554,7 @@ void alist_process_mk()
 
 void alist_process_sfj()
 {
-    alist_process(&l_audio2, ABI2, 0x20);
+    alist_process(&l_audio2, ABI_SFJ, 0x20);
 }
 
 void alist_process_sf()
