@@ -1490,6 +1490,16 @@ static const acmd_callback_t ABI_1080[0x18] =
     LOADBUFF2,  SAVEBUFF2,      ENVSETUP2,  UNKNOWN
 };
 
+static const acmd_callback_t ABI_OOT[0x18] =
+{
+    UNKNOWN,    ADPCM2,         CLEARBUFF2, UNKNOWN,
+    ADDMIXER,   RESAMPLE2,      UNKNOWN,    FILTER2,
+    SETBUFF2,   DUPLICATE2,     DMEMMOVE2,  LOADADPCM2,
+    MIXER2,     INTERLEAVE2,    HILOGAIN,   SETLOOP2,
+    COPYBLOCKS2,INTERL2,        ENVSETUP1,  ENVMIXER2,
+    LOADBUFF2,  SAVEBUFF2,      ENVSETUP2,  UNKNOWN
+};
+
 /* global functions */
 void alist_process_ABI1()
 {
@@ -1546,7 +1556,8 @@ void alist_process_1080()
 
 void alist_process_oot()
 {
-    alist_process(&l_audio2, ABI2, 0x20);
+    // FIXME: no segments
+    alist_process(&l_audio2, ABI_OOT, 0x18);
 }
 
 void alist_process_mm()
