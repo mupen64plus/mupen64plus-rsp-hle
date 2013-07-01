@@ -1372,9 +1372,37 @@ static void SEGMENT2(void * const data, u32 w1, u32 w2)
     }
 }
 
+static void POLEF2(void * const data, u32 w1, u32 w2)
+{
+    // TODO
+}
 
+static void COPYBLOCKS2(void * const data, u32 w1, u32 w2)
+{
+    u8  count      = parse(w1, 16,  8);
+    u16 dmemi      = parse(w1,  0, 16);
+    u16 dmemo      = parse(w2, 16, 16);
+    u16 block_size = parse(w2,  0, 16);
 
+    assert((dmemi & 0x3) == 0);
+    assert((dmemo & 0x3) == 0);
 
+    u16 t4;
+    do
+    {
+        --count;
+        t4 = block_size;
+
+        do
+        {
+            memcpy(rsp.DMEM + dmemo, rsp.DMEM + dmemi, 0x20);
+            t4 -= 0x20;
+            dmemi += 0x20;
+            dmemo += 0x20;
+        } while(t4 > 0);
+
+    } while(count > 0);
+}
 
 
 /* Audio Binary Interface tables */
@@ -1408,6 +1436,17 @@ static const acmd_callback_t ABI3[0x10] =
     MIXER3,     INTERLEAVE3,    UNKNOWN,    SETLOOP3
 };
 
+static const acmd_callback_t ABI_MK[0x20] =
+{
+    SPNOOP,     ADPCM2,         CLEARBUFF2, SPNOOP,
+    SPNOOP,     RESAMPLE2,      SPNOOP,     SEGMENT2,
+    SETBUFF2,   SPNOOP,         DMEMMOVE2,  LOADADPCM2,
+    MIXER2,     INTERLEAVE2,    POLEF2,     SETLOOP2,
+    COPYBLOCKS2,INTERL2,        ENVSETUP1,  ENVMIXER2,
+    LOADBUFF2,  SAVEBUFF2,      ENVSETUP2,  SPNOOP,
+    SPNOOP,     SPNOOP,         SPNOOP,     SPNOOP,
+    SPNOOP,     SPNOOP,         SPNOOP,     SPNOOP
+};
 
 /* global functions */
 void alist_process_ABI1()
@@ -1426,7 +1465,7 @@ void alist_process_ABI3()
 
 void alist_process_mk()
 {
-    alist_process(&l_audio2, ABI2, 0x20);
+    alist_process(&l_audio2, ABI_MK, 0x20);
 }
 
 void alist_process_sfj()
