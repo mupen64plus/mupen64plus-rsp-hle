@@ -1482,6 +1482,18 @@ static const acmd_callback_t ABI_FZ[0x20] =
     SPNOOP,     SPNOOP,         SPNOOP,     SPNOOP
 };
 
+static const acmd_callback_t ABI_WRJB[0x20] =
+{
+    SPNOOP,     ADPCM2,         CLEARBUFF2, UNKNOWN,
+    ADDMIXER,   RESAMPLE2,      UNKNOWN,    SPNOOP,
+    SETBUFF2,   SPNOOP,         DMEMMOVE2,  LOADADPCM2,
+    MIXER2,     INTERLEAVE2,    SPNOOP,     SETLOOP2,
+    COPYBLOCKS2,INTERL2,        ENVSETUP1,  ENVMIXER2,
+    LOADBUFF2,  SAVEBUFF2,      ENVSETUP2,  UNKNOWN,
+    HILOGAIN,   UNKNOWN,        DUPLICATE2, FILTER2,
+    SPNOOP,     SPNOOP,         SPNOOP,     SPNOOP
+};
+
 static const acmd_callback_t ABI_YS[0x18] =
 {
     UNKNOWN,    ADPCM2,         CLEARBUFF2, UNKNOWN,
@@ -1571,7 +1583,8 @@ void alist_process_fz()
 
 void alist_process_wrjb()
 {
-    alist_process(&l_audio2, ABI2, 0x20);
+    // FIXME: no segments
+    alist_process(&l_audio2, ABI_WRJB, 0x20);
 }
 
 void alist_process_ys()
