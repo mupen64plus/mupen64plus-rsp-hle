@@ -1412,20 +1412,6 @@ static const acmd_callback_t ABI1[0x10] =
     MIXER,      INTERLEAVE, POLEF,      SETLOOP
 };
 
-// FIXME: ABI2 in fact is a mix of at least 7 differents ABI which are mostly compatible
-// but not totally, that's why there is a isZeldaABI/isMKABI workaround.
-static const acmd_callback_t ABI2[0x20] =
-{
-    SPNOOP,     ADPCM2,         CLEARBUFF2, UNKNOWN,
-    ADDMIXER,   RESAMPLE2,      UNKNOWN,    SEGMENT2,
-    SETBUFF2,   DUPLICATE2,     DMEMMOVE2,  LOADADPCM2,
-    MIXER2,     INTERLEAVE2,    HILOGAIN,   SETLOOP2,
-    SPNOOP,     INTERL2,        ENVSETUP1,  ENVMIXER2,
-    LOADBUFF2,  SAVEBUFF2,      ENVSETUP2,  SPNOOP,
-    HILOGAIN,   SPNOOP,         DUPLICATE2, UNKNOWN,
-    SPNOOP,     SPNOOP,         SPNOOP,     SPNOOP
-};
-
 static const acmd_callback_t ABI3[0x10] = 
 {
     UNKNOWN,    ADPCM3,         CLEARBUFF3, ENVMIXER3,
