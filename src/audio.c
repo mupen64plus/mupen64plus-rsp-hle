@@ -142,11 +142,6 @@ static void envmix_exp_next_ramp(struct ramp_t *ramp, s32 *start, s32 *end, s32 
     }
 }
 
-
-// FIXME: remove these flags
-int isMKABI = 0;
-int isZeldaABI = 0;
-
 /*
  * Audio flags
  */
@@ -1398,23 +1393,6 @@ static void FILTER2(void * const data, u32 w1, u32 w2)
 
 static void SEGMENT2(void * const data, u32 w1, u32 w2)
 {
-    if (isZeldaABI)
-    {
-        FILTER2(data, w1, w2);
-        return;
-    }
-
-    if (parse(w1, 0, 24) == 0)
-    {
-        isMKABI = 1;
-        //SEGMENTS[(w2>>24)&0xf] = (w2 & 0xffffff);
-    }
-    else
-    {
-        isMKABI = 0;
-        isZeldaABI = 1;
-        FILTER2(data, w1, w2);
-    }
 }
 
 static void POLEF2(void * const data, u32 w1, u32 w2)
@@ -1594,9 +1572,6 @@ void alist_process_ABI1()
     memset(l_audio.segments, 0, sizeof(l_audio.segments[0])*N_SEGMENTS);
     alist_process(&l_audio, ABI1, 0x10);
 }
-
-// FIXME: get rid of that function
-void init_ucode2() { isMKABI = isZeldaABI = 0; }
 
 void alist_process_ABI3()
 {

@@ -37,10 +37,5 @@ void alist_process_mm();
 void alist_process_mmb();
 void alist_process_ac();
 
-
-
-// FIXME: to remove when isZeldaABI/isMKABI workaround is gone
-void init_ucode2();
-
 #endif
 
