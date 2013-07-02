@@ -342,6 +342,57 @@ static void interleave_buffers(u16 dmemo, u16 left, u16 right, u16 count)
     }
 }
 
+static void envmixer2(
+        struct audio2_t* const audio2,
+        const s16* const xor_masks,
+        unsigned swap_wet_LR,
+        u16 dmemi,
+        u16 dmem_dry_left,
+        u16 dmem_dry_right,
+        u16 dmem_wet_left,
+        u16 dmem_wet_right,
+        s32 count)
+{
+    unsigned i;
+    s16 vec9, vec10;
+
+    s16 *in = (s16*)(rsp.DMEM + dmemi);
+    s16 *dl = (s16*)(rsp.DMEM + dmem_dry_left);
+    s16 *dr = (s16*)(rsp.DMEM + dmem_dry_right);
+    s16 *wl = (s16*)(rsp.DMEM + dmem_wet_left);
+    s16 *wr = (s16*)(rsp.DMEM + dmem_wet_right);
+
+    if (swap_wet_LR)
+    {
+        swap(&wl, &wr);
+    }
+
+    while (count > 0)
+    {
+        for (i = 0; i < 8; ++i)
+        {
+            vec9  = (s16)(((s32)in[i^S] * (u32)audio2->env_value[0]) >> 16) ^ xor_masks[0];
+            vec10 = (s16)(((s32)in[i^S] * (u32)audio2->env_value[1]) >> 16) ^ xor_masks[1];
+
+            sadd(&dl[i^S], vec9);
+            sadd(&dr[i^S], vec10);
+
+            vec9  = (s16)(((s32)vec9  * (u32)audio2->env_value[2]) >> 16) ^ xor_masks[2];
+            vec10 = (s16)(((s32)vec10 * (u32)audio2->env_value[2]) >> 16) ^ xor_masks[3];
+
+            sadd(&wl[i^S], vec9);
+            sadd(&wr[i^S], vec10);
+        }
+
+        dl += 8; dr += 8;
+        wl += 8; wr += 8;
+        in += 8; count -= 8;
+        audio2->env_value[0] += audio2->env_step[0];
+        audio2->env_value[1] += audio2->env_step[1];
+        audio2->env_value[2] += audio2->env_step[2];
+    }
+}
+
 
 
 
@@ -1060,69 +1111,65 @@ static void ENVSETUP2(void * const data, u32 w1, u32 w2)
     audio2->env_value[1] = parse(w2,  0, 16);
 }
 
-static void ENVMIXER2(void * const data, u32 w1, u32 w2)
+static void ENVMIXER_MK(void * const data, u32 w1, u32 w2)
 {
     struct audio2_t * const audio2 = (struct audio2_t *)data;
 
-    s16 v2[4];
-    int x;
-    s16 vec9, vec10;
+    s16 xor_masks[4];
 
     u16 dmemi = parse(w1, 16, 8) << 4;
     s32 count = (s32)parse(w1, 8, 8);
-    unsigned swap_wet_LR = parse(w1, 4, 1);
-    v2[2] = 0 - (s16)(parse(w1, 3, 1) << 2);
-    v2[3] = 0 - (s16)(parse(w1, 2, 1) << 1);
-    v2[0] = 0 - (s16)parse(w1, 1, 1);
-    v2[1] = 0 - (s16)parse(w1, 0, 1);
+    xor_masks[2] = 0 - (s16)(parse(w1, 3, 1) << 2);
+    xor_masks[3] = 0 - (s16)(parse(w1, 2, 1) << 1);
+    xor_masks[0] = 0 - (s16)parse(w1, 1, 1);
+    xor_masks[1] = 0 - (s16)parse(w1, 0, 1);
     u16 dmem_dry_left  = parse(w2, 24, 8) << 4;
     u16 dmem_dry_right = parse(w2, 16, 8) << 4;
     u16 dmem_wet_left  = parse(w2,  8, 8) << 4;
     u16 dmem_wet_right = parse(w2,  0, 8) << 4;
+    
+    audio2->env_step[2] = 0;
 
-    s16 *in = (s16*)(rsp.DMEM + dmemi);
-    s16 *dl = (s16*)(rsp.DMEM + dmem_dry_left);
-    s16 *dr = (s16*)(rsp.DMEM + dmem_dry_right);
-    s16 *wl = (s16*)(rsp.DMEM + dmem_wet_left);
-    s16 *wr = (s16*)(rsp.DMEM + dmem_wet_right);
+    envmixer2(
+        audio2,
+        xor_masks,
+        0,
+        dmemi,
+        dmem_dry_left,
+        dmem_dry_right,
+        dmem_wet_left,
+        dmem_wet_right,
+        count);
+}
 
-    /* wet gain enveloppe and swap L/R wet buffers is not
-     * supported by MKABI ? */
-    if (isMKABI)
-    {
-        swap_wet_LR = 0;
-        audio2->env_step[2] = 0;
-    }
+static void ENVMIXER2(void * const data, u32 w1, u32 w2)
+{
+    struct audio2_t * const audio2 = (struct audio2_t *)data;
 
-    if (swap_wet_LR)
-    {
-        swap(&wl, &wr);
-    }
+    s16 xor_masks[4];
 
-    while (count > 0)
-    {
-        for (x = 0; x < 8; ++x)
-        {
-            vec9  = (s16)(((s32)in[x^S] * (u32)audio2->env_value[0]) >> 16) ^ v2[0];
-            vec10 = (s16)(((s32)in[x^S] * (u32)audio2->env_value[1]) >> 16) ^ v2[1];
-
-            sadd(&dl[x^S], vec9);
-            sadd(&dr[x^S], vec10);
-
-            vec9  = (s16)(((s32)vec9  * (u32)audio2->env_value[2]) >> 16) ^ v2[2];
-            vec10 = (s16)(((s32)vec10 * (u32)audio2->env_value[2]) >> 16) ^ v2[3];
-
-            sadd(&wl[x^S], vec9);
-            sadd(&wr[x^S], vec10);
-        }
-
-        dl += 8; dr += 8;
-        wl += 8; wr += 8;
-        in += 8; count -= 8;
-        audio2->env_value[0] += audio2->env_step[0];
-        audio2->env_value[1] += audio2->env_step[1];
-        audio2->env_value[2] += audio2->env_step[2];
-    }
+    u16 dmemi = parse(w1, 16, 8) << 4;
+    s32 count = (s32)parse(w1, 8, 8);
+    unsigned swap_wet_LR = parse(w1, 4, 1);
+    xor_masks[2] = 0 - (s16)(parse(w1, 3, 1) << 2);
+    xor_masks[3] = 0 - (s16)(parse(w1, 2, 1) << 1);
+    xor_masks[0] = 0 - (s16)parse(w1, 1, 1);
+    xor_masks[1] = 0 - (s16)parse(w1, 0, 1);
+    u16 dmem_dry_left  = parse(w2, 24, 8) << 4;
+    u16 dmem_dry_right = parse(w2, 16, 8) << 4;
+    u16 dmem_wet_left  = parse(w2,  8, 8) << 4;
+    u16 dmem_wet_right = parse(w2,  0, 8) << 4;
+    
+    envmixer2(
+        audio2,
+        xor_masks,
+        swap_wet_LR,
+        dmemi,
+        dmem_dry_left,
+        dmem_dry_right,
+        dmem_wet_left,
+        dmem_wet_right,
+        count);
 }
 
 static void DUPLICATE2(void * const data, u32 w1, u32 w2)
@@ -1426,7 +1473,7 @@ static const acmd_callback_t ABI_MK[0x20] =
     SPNOOP,     RESAMPLE2,      SPNOOP,     SEGMENT2,
     SETBUFF2,   SPNOOP,         DMEMMOVE2,  LOADADPCM2,
     MIXER2,     INTERLEAVE2,    POLEF2,     SETLOOP2,
-    COPYBLOCKS2,INTERL2,        ENVSETUP1,  ENVMIXER2,
+    COPYBLOCKS2,INTERL2,        ENVSETUP1,  ENVMIXER_MK,
     LOADBUFF2,  SAVEBUFF2,      ENVSETUP2,  SPNOOP,
     SPNOOP,     SPNOOP,         SPNOOP,     SPNOOP,
     SPNOOP,     SPNOOP,         SPNOOP,     SPNOOP
