@@ -984,7 +984,7 @@ static void ADPCM_MK(u32 w1, u32 w2)
     adpcm_decode(
             flags & A_INIT,
             flags & A_LOOP,
-            flags & 0x4,
+            0, // not supported in this ucode version
             (s16*)l_audio_mk.adpcm_codebook,
             l_audio_mk.adpcm_loop,
             address,
