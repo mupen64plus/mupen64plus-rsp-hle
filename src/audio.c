@@ -1070,26 +1070,16 @@ static void ENVMIXER_MK(u32 w1, u32 w2)
 
 static void INTERLEAVE_MK(u32 w1, u32 w2)
 {
-    u16 count = parse(w1, 16,  8) << 4;
+    if (l_audio_mk.count == 0) { return; }
+
     u16 left  = parse(w2, 16, 16);
     u16 right = parse(w2,  0, 16);
     
-    u16 out;
-    if (count == 0)
-    {
-        out = l_audio_mk.out;
-        count = l_audio_mk.count;
-    }
-    else
-    {
-        out = parse(w1, 0, 16);
-    }
-
     interleave_buffers(
-            out,
+            l_audio_mk.out,
             left,
             right,
-            count >> 1);
+            l_audio_mk.count >> 1);
 }
 
 
