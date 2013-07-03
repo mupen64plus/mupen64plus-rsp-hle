@@ -1029,7 +1029,7 @@ static void RESAMPLE_MK(u32 w1, u32 w2)
 static void ENVSETUP1_MK(u32 w1, u32 w2)
 {
     l_audio_mk.env_value[2] = parse(w1, 16,  8) << 8;
-    l_audio_mk.env_step[2]  = parse(w1,  0, 16);
+    l_audio_mk.env_step[2]  = 0; // not supported in this ucode version
     l_audio_mk.env_step[0]  = parse(w2, 16, 16);
     l_audio_mk.env_step[1]  = parse(w2,  0, 16);
 }
@@ -1046,8 +1046,8 @@ static void ENVMIXER_MK(u32 w1, u32 w2)
 
     u16 dmemi = parse(w1, 16, 8) << 4;
     s32 count = (s32)parse(w1, 8, 8);
-    xor_masks[2] = 0 - (s16)(parse(w1, 3, 1) << 2);
-    xor_masks[3] = 0 - (s16)(parse(w1, 2, 1) << 1);
+    xor_masks[2] = 0;
+    xor_masks[3] = 0;
     xor_masks[0] = 0 - (s16)parse(w1, 1, 1);
     xor_masks[1] = 0 - (s16)parse(w1, 0, 1);
     u16 dmem_dry_left  = parse(w2, 24, 8) << 4;
@@ -1055,8 +1055,6 @@ static void ENVMIXER_MK(u32 w1, u32 w2)
     u16 dmem_wet_left  = parse(w2,  8, 8) << 4;
     u16 dmem_wet_right = parse(w2,  0, 8) << 4;
     
-    l_audio_mk.env_step[2] = 0;
-
     envmixer2(
         l_audio_mk.env_value,
         l_audio_mk.env_step,
