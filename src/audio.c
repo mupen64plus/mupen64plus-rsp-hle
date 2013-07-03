@@ -1106,7 +1106,7 @@ static void SETLOOP2(u32 w1, u32 w2)
 {
     u32 address = parse(w2, 0, 24);
 
-    l_audio2.adpcm_loop = address; // No segment?
+    l_audio2.adpcm_loop = address;
 }
 
 static void SETBUFF2(u32 w1, u32 w2)
