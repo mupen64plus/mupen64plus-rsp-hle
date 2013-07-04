@@ -23,6 +23,7 @@
 #define RESAMPLE_H
 
 void resample_buffer(int init, u32 address, u32 pitch, u16 samplei, u16 sampleo, u16 count);
+void resample_zoh(u32 pitch_accu, u32 pitch, u16 samplei, u16 sampleo, u16 count);
 
 #endif
 

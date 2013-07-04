@@ -166,3 +166,22 @@ void resample_buffer(
     save(samplei, &pitch_accu, address);
 }
 
+/* zero order hold resample */
+void resample_zoh(
+        u32 pitch_accu, // Q16.16
+        u32 pitch,      // Q16.16
+        u16 samplei,
+        u16 sampleo,
+        u16 count)
+{
+    while (count != 0)
+    {
+        *sample(sampleo++) = *sample(samplei);
+
+        pitch_accu += pitch;
+        samplei += (pitch_accu >> 16);
+        pitch_accu &= 0xffff;
+
+        --count;
+    }
+}
