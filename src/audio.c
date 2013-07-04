@@ -102,7 +102,7 @@ static struct audio_mk_t
     u32 adpcm_loop;     // 0x0010(t8)
     u16 adpcm_codebook[0x80];
 
-    //envmixer2 envelopes (0: dry left, 1: dry right, 2: wet)
+    // envmixer2 envelopes (0: dry left, 1: dry right, 2: wet)
     u16 env_value[3];
     u16 env_step[3];
 } l_audio_mk;
@@ -118,7 +118,7 @@ static struct audio2_t
     u32 adpcm_loop;     // 0x0010(t8)
     u16 adpcm_codebook[0x80];
 
-    //envmixer2 envelopes (0: dry left, 1: dry right, 2: wet)
+    // envmixer2 envelopes (0: dry left, 1: dry right, 2: wet)
     u16 env_value[3];
     u16 env_step[3];
 } l_audio2;
@@ -1516,6 +1516,8 @@ static void COPYBLOCKS2(u32 w1, u32 w2)
 
 
 /* Audio Binary Interface tables */
+
+// TODO: split ABI1 into various versions {audio, goldeneye, ddkr}
 static const acmd_callback_t ABI1[0x10] =
 {
     SPNOOP,     ADPCM,      CLEARBUFF,  ENVMIXER,
@@ -1524,6 +1526,7 @@ static const acmd_callback_t ABI1[0x10] =
     MIXER,      INTERLEAVE, POLEF,      SETLOOP
 };
 
+// TODO: split ABI3 into various versions {naudio, bk, dk, bt/jfg/msu/pd, cbfd}
 static const acmd_callback_t ABI3[0x10] = 
 {
     UNKNOWN,    ADPCM3,         CLEARBUFF3, ENVMIXER3,
