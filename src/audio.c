@@ -569,31 +569,20 @@ static void SETVOL(u32 w1, u32 w2)
     {
         l_audio.dry = (s16)parse(w1, 0, 16);
         l_audio.wet = (s16)parse(w2, 0, 16);
-        return;
     }
-
-    if (flags & A_VOL)
+    else
     {
-        if (flags & A_LEFT)
+        unsigned lr = (flags & A_LEFT) ? 0 : 1;
+
+        if (flags & A_VOL)
         {
-            l_audio.env_vol[0] = (s16)parse(w1, 0, 16);
+            l_audio.env_vol[lr] = (s16)parse(w1, 0, 16);
         }
         else
         {
-            l_audio.env_vol[1] = (s16)parse(w1, 0, 16);
+            l_audio.env_target[lr] = (s16)parse(w1, 0, 16);
+            l_audio.env_rate[lr]   = (s32)w2;
         }
-        return;
-    }
-
-    if (flags & A_LEFT)
-    {
-        l_audio.env_target[0] = (s16)parse(w1, 0, 16);
-        l_audio.env_rate[0]   = (s32)w2;
-    }
-    else
-    { // A_RIGHT
-        l_audio.env_target[1] = (s16)parse(w1, 0, 16);
-        l_audio.env_rate[1]   = (s32)w2;
     }
 }
 
