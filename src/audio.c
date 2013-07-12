@@ -701,7 +701,17 @@ static void MIXER(u32 w1, u32 w2)
 
 
 
+static void NAUDIO_0000(u32 w1, u32 w2)
+{
+    /* ??? */
+    UNKNOWN(w1, w2);
+}
 
+static void NAUDIO_02B0(u32 w1, u32 w2)
+{
+    /* ??? */
+    /* UNKNOWN(w1, w2); commented to avoid constant spamming during gameplay */
+}
 
 static void SETVOL3(u32 w1, u32 w2)
 {
@@ -1523,26 +1533,26 @@ static const acmd_callback_t ABI1[0x10] =
 
 static const acmd_callback_t ABI_NAUDIO[0x10] = 
 {
-    UNKNOWN,    ADPCM3,         CLEARBUFF3, ENVMIXER3,
-    LOADBUFF3,  RESAMPLE3,      SAVEBUFF3,  MP3,
-    MP3ADDY,    SETVOL3,        DMEMMOVE3,  LOADADPCM3,
-    MIXER3,     INTERLEAVE3,    UNKNOWN,    SETLOOP3
+    SPNOOP,         ADPCM3,         CLEARBUFF3,     ENVMIXER3,
+    LOADBUFF3,      RESAMPLE3,      SAVEBUFF3,      NAUDIO_0000,
+    NAUDIO_0000,    SETVOL3,        DMEMMOVE3,      LOADADPCM3,
+    MIXER3,         INTERLEAVE3,    NAUDIO_02B0,    SETLOOP3
 };
 
 static const acmd_callback_t ABI_NAUDIO_BK[0x10] = 
 {
-    UNKNOWN,    ADPCM3,         CLEARBUFF3, ENVMIXER3,
-    LOADBUFF3,  RESAMPLE3,      SAVEBUFF3,  MP3,
-    MP3ADDY,    SETVOL3,        DMEMMOVE3,  LOADADPCM3,
-    MIXER3,     INTERLEAVE3,    UNKNOWN,    SETLOOP3
+    SPNOOP,         ADPCM3,         CLEARBUFF3,     ENVMIXER3,
+    LOADBUFF3,      RESAMPLE3,      SAVEBUFF3,      NAUDIO_0000,
+    NAUDIO_0000,    SETVOL3,        DMEMMOVE3,      LOADADPCM3,
+    MIXER3,         INTERLEAVE3,    NAUDIO_02B0,    SETLOOP3
 };
 
 static const acmd_callback_t ABI_NAUDIO_DK[0x10] = 
 {
-    UNKNOWN,    ADPCM3,         CLEARBUFF3, ENVMIXER3,
-    LOADBUFF3,  RESAMPLE3,      SAVEBUFF3,  MP3,
-    MP3ADDY,    SETVOL3,        DMEMMOVE3,  LOADADPCM3,
-    MIXER3,     INTERLEAVE3,    UNKNOWN,    SETLOOP3
+    SPNOOP,         ADPCM3,         CLEARBUFF3,     ENVMIXER3,
+    LOADBUFF3,      RESAMPLE3,      SAVEBUFF3,      MIXER3,
+    MIXER3,         SETVOL3,        DMEMMOVE3,      LOADADPCM3,
+    MIXER3,         INTERLEAVE3,    NAUDIO_02B0,    SETLOOP3
 };
 
 static const acmd_callback_t ABI_NAUDIO_MP3[0x10] = 
