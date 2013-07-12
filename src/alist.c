@@ -1525,9 +1525,23 @@ static void COPYBLOCKS2(u32 w1, u32 w2)
 
 
 /* Audio Binary Interface tables */
+static const acmd_callback_t ABI_AUDIO[0x10] =
+{
+    SPNOOP,     ADPCM,      CLEARBUFF,  ENVMIXER,
+    LOADBUFF,   RESAMPLE,   SAVEBUFF,   SEGMENT,
+    SETBUFF,    SETVOL,     DMEMMOVE,   LOADADPCM,
+    MIXER,      INTERLEAVE, POLEF,      SETLOOP
+};
 
-// TODO: split ABI1 into various versions {audio, goldeneye, ddkr}
-static const acmd_callback_t ABI1[0x10] =
+static const acmd_callback_t ABI_AUDIO_GE[0x10] =
+{
+    SPNOOP,     ADPCM,      CLEARBUFF,  ENVMIXER,
+    LOADBUFF,   RESAMPLE,   SAVEBUFF,   SEGMENT,
+    SETBUFF,    SETVOL,     DMEMMOVE,   LOADADPCM,
+    MIXER,      INTERLEAVE, POLEF,      SETLOOP
+};
+
+static const acmd_callback_t ABI_AUDIO_BC[0x10] =
 {
     SPNOOP,     ADPCM,      CLEARBUFF,  ENVMIXER,
     LOADBUFF,   RESAMPLE,   SAVEBUFF,   SEGMENT,
@@ -1697,10 +1711,22 @@ static const acmd_callback_t ABI_AC[0x18] =
 };
 
 /* global functions */
-void alist_process_ABI1()
+void alist_process_audio()
 {
     memset(l_audio.segments, 0, sizeof(l_audio.segments[0])*N_SEGMENTS);
-    alist_process(ABI1, 0x10);
+    alist_process(ABI_AUDIO, 0x10);
+}
+
+void alist_process_audio_ge()
+{
+    memset(l_audio.segments, 0, sizeof(l_audio.segments[0])*N_SEGMENTS);
+    alist_process(ABI_AUDIO_GE, 0x10);
+}
+
+void alist_process_audio_bc()
+{
+    memset(l_audio.segments, 0, sizeof(l_audio.segments[0])*N_SEGMENTS);
+    alist_process(ABI_AUDIO_BC, 0x10);
 }
 
 void alist_process_naudio()

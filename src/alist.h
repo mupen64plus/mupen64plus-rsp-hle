@@ -22,7 +22,9 @@
 #ifndef ALIST_H
 #define ALIST_H
 
-void alist_process_ABI1();
+void alist_process_audio();
+void alist_process_audio_ge();
+void alist_process_audio_bc();
 
 void alist_process_naudio();
 void alist_process_naudio_bk();

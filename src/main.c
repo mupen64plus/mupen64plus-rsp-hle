@@ -126,21 +126,29 @@ static int try_fast_audio_dispatching()
     /* identify audio ucode by using the content of ucode_data */
     const OSTask_t * const task = get_task();
     const unsigned char * const udata_ptr = rsp.RDRAM + task->ucode_data;
+    u32 v;
 
     if (*(unsigned int*)(udata_ptr + 0) == 0x00000001)
     {
         if (*(unsigned int*)(udata_ptr + 0x30) == 0xf0000f00)
         {
-            /**
-            * Many games including:
-            * Super Mario 64, Diddy Kong Racing, BlastCorp, GoldenEye, ... (most common)
-            **/
-            alist_process_ABI1(); return 1;
+            v = *(u32*)(udata_ptr + 0x28);
+            switch(v)
+            {
+            case 0x1e24138c: /* audio ABI (most common) */
+                alist_process_audio(); return 1;
+            case 0x1dc8138c: /* GoldenEye */
+                alist_process_audio_ge(); return 1;
+            case 0x1e3c1390: /* BlastCorp, DiddyKongRacing */
+                alist_process_audio_bc(); return 1;
+            default:
+                DebugMessage(M64MSG_WARNING, "ABI1 identification regression: v=%08x", v);
+            }
         }
         else
         {
             /* use first word of ACMD table to select adequate ABI */
-            u32 v = *(u32*)(udata_ptr + 0x10);
+            v = *(u32*)(udata_ptr + 0x10);
             switch(v)
             {
             case 0x11181350: /* Mario Kart / Wave Race (E) */
@@ -183,8 +191,7 @@ static int try_fast_audio_dispatching()
     }
     else
     {
-        u32 v = *(u32*)(udata_ptr + 0x10);
-
+        v = *(u32*)(udata_ptr + 0x10);
         switch(v)
         {
         case 0x00000001:
