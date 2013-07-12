@@ -441,7 +441,9 @@ static void CLEARBUFF(u32 w1, u32 w2)
 {
     u16 dmem  = parse(w1, 0, 16);
     u16 count = parse(w2, 0, 16);
-    
+   
+    if (count == 0) { return; }
+
     memset(rsp.DMEM + (dmem & ~3), 0, align(count, 4));
 }
 
@@ -680,6 +682,8 @@ static void LOADADPCM(u32 w1, u32 w2)
 
 static void INTERLEAVE(u32 w1, u32 w2)
 {
+    if (l_audio.count == 0) { return; }
+
     u16 left  = parse(w2, 16, 16);
     u16 right = parse(w2,  0, 16);
 
@@ -692,6 +696,8 @@ static void INTERLEAVE(u32 w1, u32 w2)
 
 static void MIXER(u32 w1, u32 w2)
 {
+    if (l_audio.count == 0) { return; }
+
     u16 gain  = parse(w1,  0, 16);
     u16 dmemi = parse(w2, 16, 16);
     u16 dmemo = parse(w2,  0, 16);
