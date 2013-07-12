@@ -179,11 +179,11 @@
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
 			>
 			<File
-				RelativePath="..\..\src\audio.c"
+				RelativePath="..\..\src\adpcm.c"
 				>
 			</File>
 			<File
-				RelativePath="..\..\src\adpcm.c"
+				RelativePath="..\..\src\alist.c"
 				>
 			</File>
 			<File
@@ -213,11 +213,11 @@
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
 			<File
-				RelativePath="..\..\src\audio.h"
+				RelativePath="..\..\src\adpcm.h"
 				>
 			</File>
 			<File
-				RelativePath="..\..\src\adpcm.h"
+				RelativePath="..\..\src\alist.h"
 				>
 			</File>
 			<File

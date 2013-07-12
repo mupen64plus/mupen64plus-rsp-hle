@@ -240,7 +240,7 @@ OBJDIR = _obj$(POSTFIX)
 SOURCE = \
 	$(SRCDIR)/main.c \
 	$(SRCDIR)/adpcm.c \
-	$(SRCDIR)/audio.c \
+	$(SRCDIR)/alist.c \
 	$(SRCDIR)/cicx105.c \
 	$(SRCDIR)/jpeg.c \
 	$(SRCDIR)/mp3.c \
