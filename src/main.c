@@ -183,8 +183,11 @@ static int try_fast_audio_dispatching()
     }
     else
     {
-        if (*(unsigned int*)(udata_ptr + 0x10) == 0x00000001)
+        u32 v = *(u32*)(udata_ptr + 0x10);
+
+        switch(v)
         {
+        case 0x00000001:
             /**
              * Musyx ucode found in following games:
              * RogueSquadron, ResidentEvil2, SnowCrossPolaris, TheWorldIsNotEnough,
@@ -194,15 +197,25 @@ static int try_fast_audio_dispatching()
              **/
             DebugMessage(M64MSG_WARNING, "MusyX ucode not implemented.");
             /* return 1; */
-        }
-        else
-        {
-            /**
-             * Many games including:
-             * Pokemon Stadium, Banjo Kazooie, Donkey Kong, Banjo Tooie, Jet Force Gemini,
-             * Mickey SpeedWay USA, Perfect Dark, Conker Bad Fur Day ...
-             **/
-            alist_process_ABI3(); return 1;
+            break;
+
+        case 0x0000127c: /* naudio ABI (many games) */
+            alist_process_naudio(); return 1;
+
+        case 0x00001280: /* Banjo Kazooie */
+            alist_process_naudio_bk(); return 1;
+
+        case 0x1c58126c: /* Donkey Kong */
+            alist_process_naudio_dk(); return 1;
+
+        case 0x1ae8143c: /* Banjo Tooie, Jet Force Gemini, Mickey SpeedWay USA, Perfect Dark */
+            alist_process_naudio_mp3(); return 1;
+
+        case 0x1ab0140c: /* Conker Bad Fur Day */ 
+            alist_process_naudio_cbfd(); return 1;
+            
+        default:
+            DebugMessage(M64MSG_WARNING, "ABI3 identification regression: v=%08x", v);
         }
     }
     

@@ -23,7 +23,12 @@
 #define AUDIO_H
 
 void alist_process_ABI1();
-void alist_process_ABI3();
+
+void alist_process_naudio();
+void alist_process_naudio_bk();
+void alist_process_naudio_dk();
+void alist_process_naudio_mp3();
+void alist_process_naudio_cbfd();
 
 void alist_process_mk();
 void alist_process_sfj();

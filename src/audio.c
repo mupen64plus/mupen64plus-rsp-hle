@@ -1521,8 +1521,39 @@ static const acmd_callback_t ABI1[0x10] =
     MIXER,      INTERLEAVE, POLEF,      SETLOOP
 };
 
-// TODO: split ABI3 into various versions {naudio, bk, dk, bt/jfg/msu/pd, cbfd}
-static const acmd_callback_t ABI3[0x10] = 
+static const acmd_callback_t ABI_NAUDIO[0x10] = 
+{
+    UNKNOWN,    ADPCM3,         CLEARBUFF3, ENVMIXER3,
+    LOADBUFF3,  RESAMPLE3,      SAVEBUFF3,  MP3,
+    MP3ADDY,    SETVOL3,        DMEMMOVE3,  LOADADPCM3,
+    MIXER3,     INTERLEAVE3,    UNKNOWN,    SETLOOP3
+};
+
+static const acmd_callback_t ABI_NAUDIO_BK[0x10] = 
+{
+    UNKNOWN,    ADPCM3,         CLEARBUFF3, ENVMIXER3,
+    LOADBUFF3,  RESAMPLE3,      SAVEBUFF3,  MP3,
+    MP3ADDY,    SETVOL3,        DMEMMOVE3,  LOADADPCM3,
+    MIXER3,     INTERLEAVE3,    UNKNOWN,    SETLOOP3
+};
+
+static const acmd_callback_t ABI_NAUDIO_DK[0x10] = 
+{
+    UNKNOWN,    ADPCM3,         CLEARBUFF3, ENVMIXER3,
+    LOADBUFF3,  RESAMPLE3,      SAVEBUFF3,  MP3,
+    MP3ADDY,    SETVOL3,        DMEMMOVE3,  LOADADPCM3,
+    MIXER3,     INTERLEAVE3,    UNKNOWN,    SETLOOP3
+};
+
+static const acmd_callback_t ABI_NAUDIO_MP3[0x10] = 
+{
+    UNKNOWN,    ADPCM3,         CLEARBUFF3, ENVMIXER3,
+    LOADBUFF3,  RESAMPLE3,      SAVEBUFF3,  MP3,
+    MP3ADDY,    SETVOL3,        DMEMMOVE3,  LOADADPCM3,
+    MIXER3,     INTERLEAVE3,    UNKNOWN,    SETLOOP3
+};
+
+static const acmd_callback_t ABI_NAUDIO_CBFD[0x10] = 
 {
     UNKNOWN,    ADPCM3,         CLEARBUFF3, ENVMIXER3,
     LOADBUFF3,  RESAMPLE3,      SAVEBUFF3,  MP3,
@@ -1658,9 +1689,29 @@ void alist_process_ABI1()
     alist_process(ABI1, 0x10);
 }
 
-void alist_process_ABI3()
+void alist_process_naudio()
 {
-    alist_process(ABI3, 0x10);
+    alist_process(ABI_NAUDIO, 0x10);
+}
+
+void alist_process_naudio_bk()
+{
+    alist_process(ABI_NAUDIO_BK, 0x10);
+}
+
+void alist_process_naudio_dk()
+{
+    alist_process(ABI_NAUDIO_DK, 0x10);
+}
+
+void alist_process_naudio_mp3()
+{
+    alist_process(ABI_NAUDIO_MP3, 0x10);
+}
+
+void alist_process_naudio_cbfd()
+{
+    alist_process(ABI_NAUDIO_CBFD, 0x10);
 }
 
 void alist_process_mk()
