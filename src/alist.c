@@ -1299,23 +1299,27 @@ static void INTERL2(u32 w1, u32 w2)
     }
 }
 
+static void INTERLEAVE2_SF(u32 w1, u32 w2)
+{
+    if (l_audio2.count == 0) { return; }
+
+    u16 left  = parse(w2, 16, 16);
+    u16 right = parse(w2,  0, 16);
+
+    interleave_buffers(
+            l_audio2.out,
+            left,
+            right,
+            l_audio2.count >> 1);
+}
+
 static void INTERLEAVE2(u32 w1, u32 w2)
 {
     u16 count = parse(w1, 16,  8) << 4;
+    u16 out   = parse(w1, 0, 16);
     u16 left  = parse(w2, 16, 16);
     u16 right = parse(w2,  0, 16);
     
-    u16 out;
-    if (count == 0)
-    {
-        out = l_audio2.out;
-        count = l_audio2.count;
-    }
-    else
-    {
-        out = parse(w1, 0, 16);
-    }
-
     interleave_buffers(
             out,
             left,
@@ -1588,7 +1592,7 @@ static const acmd_callback_t ABI_SF[0x20] =
     SPNOOP,     ADPCM2,         CLEARBUFF2,     SPNOOP,
     ADDMIXER,   RESAMPLE2,      RESAMPLE2_ZOH,  SPNOOP,
     SETBUFF2,   SPNOOP,         DMEMMOVE2,      LOADADPCM2,
-    MIXER2,     INTERLEAVE2,    POLEF2,         SETLOOP2,
+    MIXER2,     INTERLEAVE2_SF, POLEF2,         SETLOOP2,
     COPYBLOCKS2,INTERL2,        ENVSETUP1,      ENVMIXER2,
     LOADBUFF2,  SAVEBUFF2,      ENVSETUP2,      SPNOOP,
     HILOGAIN,   UNKNOWN,        DUPLICATE2,     SPNOOP,
@@ -1600,7 +1604,7 @@ static const acmd_callback_t ABI_SFJ[0x20] =
     SPNOOP,     ADPCM2,         CLEARBUFF2,     SPNOOP,
     ADDMIXER,   RESAMPLE2,      RESAMPLE2_ZOH,  SPNOOP,
     SETBUFF2,   SPNOOP,         DMEMMOVE2,      LOADADPCM2,
-    MIXER2,     INTERLEAVE2,    POLEF2,         SETLOOP2,
+    MIXER2,     INTERLEAVE2_SF, POLEF2,         SETLOOP2,
     COPYBLOCKS2,INTERL2,        ENVSETUP1,      ENVMIXER2,
     LOADBUFF2,  SAVEBUFF2,      ENVSETUP2,      UNKNOWN,
     HILOGAIN,   UNKNOWN,        DUPLICATE2,     SPNOOP,
