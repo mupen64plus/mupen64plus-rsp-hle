@@ -271,7 +271,7 @@ static void alist_process(const acmd_callback_t abi[], unsigned int abi_size)
 /* segment / offset related functions */
 static u32 segoffset_load(u32 so, const u32* const segments, size_t n)
 {
-    u8 segment = parse(so, 24,  8);
+    u8 segment = parse(so, 24,  6);
     u32 offset = parse(so,  0, 24);
 
     if (segment < n)
@@ -287,7 +287,7 @@ static u32 segoffset_load(u32 so, const u32* const segments, size_t n)
 
 static void segoffset_store(u32 so, u32* const segments, size_t n)
 {
-    u8 segment = parse(so, 24,  8);
+    u8 segment = parse(so, 24,  6);
     u32 offset = parse(so,  0, 24);
 
     if (segment < n)
