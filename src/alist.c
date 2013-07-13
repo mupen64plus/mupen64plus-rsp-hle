@@ -994,6 +994,24 @@ static void SETBUFF_MK(u32 w1, u32 w2)
     l_audio_mk.count = parse(w2,  0, 16);
 }
 
+static void POLEF_MK(u32 w1, u32 w2)
+{
+    if (l_audio_mk.count == 0) { return; }
+
+    u16 flags = parse(w1, 16, 16);
+    u16 gain  = parse(w1,  0, 16);
+    u32 address = segoffset_load(w2, l_audio_mk.segments, N_SEGMENTS);
+
+    adpcm_polef(
+            flags & A_INIT,
+            gain,
+            (s16*)l_audio_mk.adpcm_codebook,
+            address,
+            l_audio_mk.in,
+            l_audio_mk.out,
+            align(l_audio_mk.count, 16));
+}
+
 static void ADPCM_MK(u32 w1, u32 w2)
 {
     u8  flags   = parse(w1, 16,  8);
@@ -1506,7 +1524,20 @@ static void FILTER2(u32 w1, u32 w2)
 
 static void POLEF2(u32 w1, u32 w2)
 {
-    // TODO
+    if (l_audio2.count == 0) { return; }
+
+    u16 flags   = parse(w1, 16, 16);
+    u16 gain    = parse(w1,  0, 16);
+    u32 address = parse(w2,  0, 24);
+
+    adpcm_polef(
+            flags & A_INIT,
+            gain,
+            (s16*)l_audio2.adpcm_codebook,
+            address,
+            l_audio2.in,
+            l_audio2.out,
+            align(l_audio2.count, 16));
 }
 
 static void COPYBLOCKS2(u32 w1, u32 w2)
@@ -1607,7 +1638,7 @@ static const acmd_callback_t ABI_MK[0x20] =
     SPNOOP,     ADPCM_MK,       CLEARBUFF2,     SPNOOP,
     SPNOOP,     RESAMPLE_MK,    SPNOOP,         SEGMENT_MK,
     SETBUFF_MK, SPNOOP,         DMEMMOVE2,      LOADADPCM_MK,
-    MIXER2,     INTERLEAVE_MK,  POLEF2,         SETLOOP_MK,
+    MIXER2,     INTERLEAVE_MK,  POLEF_MK,         SETLOOP_MK,
     COPYBLOCKS2,INTERL2,        ENVSETUP1_MK,   ENVMIXER_MK,
     LOADBUFF_MK,SAVEBUFF_MK,    ENVSETUP2_MK,   SPNOOP,
     SPNOOP,     SPNOOP,         SPNOOP,         SPNOOP,
