@@ -434,7 +434,20 @@ static void SEGMENT(u32 w1, u32 w2)
 
 static void POLEF(u32 w1, u32 w2)
 {
-    // TODO
+    if (l_audio.count == 0) { return; }
+
+    u16 flags = parse(w1, 16, 16);
+    u16 gain  = parse(w1,  0, 16);
+    u32 address = segoffset_load(w2, l_audio.segments, N_SEGMENTS);
+
+    adpcm_polef(
+            flags & A_INIT,
+            gain,
+            (s16*)l_audio.adpcm_codebook,
+            address,
+            l_audio.in,
+            l_audio.out,
+            align(l_audio.count, 16));
 }
 
 static void CLEARBUFF(u32 w1, u32 w2)

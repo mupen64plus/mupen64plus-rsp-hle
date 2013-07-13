@@ -84,6 +84,68 @@ void adpcm_load_codebook(u16 *dst, u32 address, int count)
         dst[i^S] = *(src++);
 }
 
+void adpcm_polef(
+        int init, u16 gain, s16* codebook, u32 address,
+        u16 in, u16 out, int count)
+{
+    s16 *dst = (s16*)(rsp.DMEM + out);
+
+    const s16 * const book1 = codebook;
+    const s16 * const book2 = codebook + 8;
+
+    s16 l1, l2;
+    unsigned i;
+    s32 accu;
+    s16 frame[8]; /* buffer for samples being processed
+                     (needed because processing is usually done inplace [in == out]) */
+
+    if (init)
+    {
+        /* FIXME: original ucode doesn't do it that way */
+        l1 = 0;
+        l2 = 0;
+    }
+    else
+    {
+        /* only the last 2 samples are needed */
+        l1 = rsp.RDRAM[(address + 4) ^ S16];
+        l2 = rsp.RDRAM[(address + 6) ^ S16];
+    }
+
+    do
+    {
+        for(i = 0; i < 8; ++i)
+        {
+            frame[i] = rsp.DMEM[in^S16];
+            in += 2;
+        }
+
+        for(i = 0; i < 8; ++i)
+        {
+            accu = frame[i] * gain;
+            accu += compute_residuals(i, frame, book1, book2, l1, l2);
+            dst[i ^ S] = clamp_s16(accu << 2);
+        }
+
+        dst += 8;
+        count -= 0x10;
+
+        l1 = dst[-2^S];
+        l2 = dst[-1^S];
+
+    } while (count > 0);
+
+    /* update codebook */
+    s16 * const book = codebook + 8;
+    for(i = 0; i < 8; ++i)
+    {
+        book[i] = clamp_s16(((s32)book[i] * ((u32)gain << 2)) >> 16);
+    }
+
+    /* save last 4 samples */
+    memcpy(rsp.RDRAM + address, dst - 8, 8);
+}
+
 /* local functions */
 static unsigned int get_scale_shift(unsigned char scale, unsigned char range)
 {
