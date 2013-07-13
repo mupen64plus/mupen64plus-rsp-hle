@@ -39,7 +39,7 @@ static unsigned int get_scale_shift(unsigned char scale, unsigned char range);
 static s16 get_predicted_sample(u8 byte, u8 mask, unsigned lshift, unsigned rshift);
 static u16 get_predicted_frame_4bits(s16 *dst, u16 src, unsigned char scale);
 static u16 get_predicted_frame_2bits(s16 *dst, u16 src, unsigned char scale);
-static s32 compute_residuals(unsigned index, const s16 *src, const s16 *book1, const s16 *book2, s16 l1, s16 l2);
+static s32 compute_adaptive_contribution(unsigned index, const s16 *src, const s16 *book);
 static void decode_8_samples(s16 *dst, const s16 *src, const s16 *cb_entry);
 static s16* decode_frames(get_predicted_frame_t get_predicted_frame, s16 *dst, u16 src, int count, s16 *codebook);
 
@@ -91,11 +91,12 @@ void adpcm_polef(
     s16 *dst = (s16*)(rsp.DMEM + out);
 
     const s16 * const book1 = codebook;
-    const s16 * const book2 = codebook + 8;
+          s16 * const book2 = codebook + 8;
 
     s16 l1, l2;
     unsigned i;
     s32 accu;
+    s16 book2_before[8];
     s16 frame[8]; /* buffer for samples being processed
                      (needed because processing is usually done inplace [in == out]) */
 
@@ -112,6 +113,12 @@ void adpcm_polef(
         l2 = rsp.RDRAM[(address + 6) ^ S16];
     }
 
+    for(i = 0; i < 8; ++i)
+    {
+        book2_before[i] = book2[i];
+        book2[i] = (s16)(((s32)book2[i] * gain) >> 14);
+    }
+
     do
     {
         for(i = 0; i < 8; ++i)
@@ -123,27 +130,20 @@ void adpcm_polef(
         for(i = 0; i < 8; ++i)
         {
             accu = frame[i] * gain;
-            accu += compute_residuals(i, frame, book1, book2, l1, l2);
-            dst[i ^ S] = clamp_s16(accu << 2);
+            accu += book1[i]*l1 + book2_before[i]*l2;
+            accu += compute_adaptive_contribution(i, frame, book2);
+            dst[i ^ S] = clamp_s16(accu >> 14);
         }
+
+        l1 = dst[6^S];
+        l2 = dst[7^S];
 
         dst += 8;
         count -= 0x10;
-
-        l1 = dst[-2^S];
-        l2 = dst[-1^S];
-
     } while (count > 0);
 
-    /* update codebook */
-    s16 * const book = codebook + 8;
-    for(i = 0; i < 8; ++i)
-    {
-        book[i] = clamp_s16(((s32)book[i] * ((u32)gain << 2)) >> 16);
-    }
-
     /* save last 4 samples */
-    memcpy(rsp.RDRAM + address, dst - 8, 8);
+    memcpy(rsp.RDRAM + address, dst - 4, 8);
 }
 
 /* local functions */
@@ -197,17 +197,15 @@ static u16 get_predicted_frame_2bits(s16 *dst, u16 src, unsigned char scale)
     return src;
 }
 
-static s32 compute_residuals(unsigned index, const s16 *src, const s16 *book1, const s16 *book2, s16 l1, s16 l2)
+static s32 compute_adaptive_contribution(unsigned index, const s16 *src, const s16 *book)
 {
     unsigned i;
-    s32 residuals;
+    s32 accu = 0;
 
-    residuals =  book1[index]*l1 + book2[index]*l2;
-    
     for(i = 0; i < index; ++i)
-        residuals += book2[index - i - 1] * src[i];
+        accu += book[index - i - 1] * src[i];
 
-    return residuals;
+    return accu;
 }
 
 static void decode_8_samples(s16 *dst, const s16 *src, const s16 *cb_entry)
@@ -224,7 +222,8 @@ static void decode_8_samples(s16 *dst, const s16 *src, const s16 *cb_entry)
     for(i = 0; i < 8; ++i)
     {
         accu = src[i] << 11;
-        accu += compute_residuals(i, src, book1, book2, l1, l2);
+        accu += book1[i]*l1 + book2[i]*l2;
+        accu += compute_adaptive_contribution(i, src, book2);
         dst[i ^ S] = clamp_s16(accu >> 11);
     }
 }
