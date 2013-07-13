@@ -240,10 +240,10 @@ static void dma_write_fast(u32 dram, u16 mem, u16 length)
 }
 
 
-static void alist_process(const acmd_callback_t abi[], unsigned int abi_size)
+static void alist_process(const acmd_callback_t abi[], size_t n)
 {
     u32 w1, w2;
-    unsigned int acmd;
+    u8 acmd;
     const OSTask_t * const task = get_task();
 
     const unsigned int *alist = (unsigned int*)(rsp.RDRAM + task->data_ptr);
@@ -254,9 +254,9 @@ static void alist_process(const acmd_callback_t abi[], unsigned int abi_size)
         w1 = *(alist++);
         w2 = *(alist++);
 
-        acmd = parse(w1, 24, 8);
+        acmd = parse(w1, 24, 7);
 
-        if (acmd < abi_size)
+        if (acmd < n)
         {
             (*abi[acmd])(w1, w2);
         }
