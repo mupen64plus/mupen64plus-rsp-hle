@@ -903,6 +903,33 @@ static void SETLOOP3(u32 w1, u32 w2)
     l_naudio.adpcm_loop = address;
 }
 
+static void NAUDIO_14(u32 w1, u32 w2)
+{
+    if (l_naudio.adpcm_codebook[0] == 0 && l_naudio.adpcm_codebook[1] == 0)
+    {
+        u8  flags       = parse(w1, 16,  8);
+        u16 gain        = parse(w1,  0, 16);
+        u8  select_main = parse(w2, 24,  8);
+        u32 address     = parse(w2,  0, 24);
+
+        u16 dmem = (select_main == 0) ? NAUDIO_MAIN : NAUDIO_MAIN2;
+
+        // FIXME: use only l2, not l1
+        adpcm_polef(
+            flags & A_INIT,
+            gain,
+            (s16*)l_naudio.adpcm_codebook,
+            address,
+            dmem + 0x10,
+            dmem,
+            NAUDIO_SUBFRAME_SIZE);
+    }
+    else
+    {
+        DebugMessage(M64MSG_WARNING, "NAUDIO_14: non null codebook[0-3] case not implemented !");
+    }
+}
+
 static void ADPCM3(u32 w1, u32 w2)
 {
     u32 address = parse(w1,  0, 24);
@@ -1622,7 +1649,7 @@ static const acmd_callback_t ABI_NAUDIO_MP3[0x10] =
     UNKNOWN,    ADPCM3,         CLEARBUFF3, ENVMIXER3,
     LOADBUFF3,  RESAMPLE3,      SAVEBUFF3,  MP3,
     MP3ADDY,    SETVOL3,        DMEMMOVE3,  LOADADPCM3,
-    MIXER3,     INTERLEAVE3,    UNKNOWN,    SETLOOP3
+    MIXER3,     INTERLEAVE3,    NAUDIO_14,  SETLOOP3
 };
 
 static const acmd_callback_t ABI_NAUDIO_CBFD[0x10] = 
@@ -1630,7 +1657,7 @@ static const acmd_callback_t ABI_NAUDIO_CBFD[0x10] =
     UNKNOWN,    ADPCM3,         CLEARBUFF3, ENVMIXER3,
     LOADBUFF3,  RESAMPLE3,      SAVEBUFF3,  MP3,
     MP3ADDY,    SETVOL3,        DMEMMOVE3,  LOADADPCM3,
-    MIXER3,     INTERLEAVE3,    UNKNOWN,    SETLOOP3
+    MIXER3,     INTERLEAVE3,    NAUDIO_14,  SETLOOP3
 };
 
 static const acmd_callback_t ABI_MK[0x20] =
