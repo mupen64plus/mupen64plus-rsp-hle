@@ -127,18 +127,25 @@ struct ramp_t
 {
     s32 value;
     s32 step;
-    s32 target;
+    s32 target; // lower 16 bits should be null
 };
 
 /* update ramp to its next value.
  * returns true if target has been reached, false otherwise */
 static int ramp_next(struct ramp_t *ramp)
 {
-    ramp->value += ramp->step;
+    s64 accu     = (s64)ramp->value + (s64)ramp->step;
+    s64 accu_int = accu & ~0xffff; // lower bits are discarded for the comparison to target
 
-    return (ramp->step >= 0)
-        ? (ramp->value > ramp->target)
-        : (ramp->value < ramp->target);
+    int target_reached = (ramp->step >= 0)
+        ? (accu_int > ramp->target)
+        : (accu_int < ramp->target);
+
+    ramp->value = (target_reached)
+        ? ramp->target | (accu & 0xffff) // but restored even if target is reached
+        : (s32)accu;
+
+    return target_reached;
 }
 
 static void envmix_exp_next_ramp(struct ramp_t *ramp, s32 *start, s32 *end, s32 rate)
@@ -520,16 +527,8 @@ static void ENVMIXER(u32 w1, u32 w2)
 
         for (x = 0; x < 8; ++x)
         {
-            if (ramp_next(&ramps[0]))
-            {
-                ramps[0].value = ramps[0].target;
-                LAdderStart = ramps[0].target;
-            }
-            if (ramp_next(&ramps[1]))
-            {
-                ramps[1].value = ramps[1].target;
-                RAdderStart = ramps[1].target;
-            }
+            if (ramp_next(&ramps[0])) { LAdderStart = ramps[0].value; }
+            if (ramp_next(&ramps[1])) { RAdderStart = ramps[1].value; }
 
             value = in[ptr^S];
             envL = ramps[0].value >> 16;
@@ -771,7 +770,7 @@ static void ENVMIXER3(u32 w1, u32 w2)
     struct ramp_t ramps[2];
     s16 dry, wet;
 
-    l_naudio.env_vol[1] = (s16)w1;
+    l_naudio.env_vol[1] = (s16)parse(w1, 0, 16);
 
     if (flags & A_INIT)
     {
@@ -804,8 +803,8 @@ static void ENVMIXER3(u32 w1, u32 w2)
 
     for (y = 0; y < (NAUDIO_SUBFRAME_SIZE/2); ++y)
     {
-        if (ramp_next(&ramps[0])) { ramps[0].value = ramps[0].target; }
-        if (ramp_next(&ramps[1])) { ramps[1].value = ramps[1].target; }
+        ramp_next(&ramps[0]);
+        ramp_next(&ramps[1]);
 
         value = in[y^S];
         envL = ramps[0].value >> 16;
