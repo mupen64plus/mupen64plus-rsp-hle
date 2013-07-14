@@ -207,11 +207,6 @@ static s16 clamp_s16(s32 x)
     return x;
 }
 
-static s32 dmul(s16 x, s16 y)
-{
-    return ((s32)x * (s32)y) >> 15;
-}
-
 static s32 dmul_round(s16 x, s16 y)
 {
     return ((s32)x * (s32)y + 0x4000) >> 15;
@@ -323,7 +318,7 @@ static void mix_buffers(u16 dmemo, u16 dmemi, u16 count, s16 gain)
 
     while (count != 0)
     {
-        sadd(dst++, dmul(*src++, gain));
+        sadd(dst++, dmul_round(*src++, gain));
         --count;
     }
 }
