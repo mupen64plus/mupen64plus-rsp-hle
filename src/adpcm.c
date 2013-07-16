@@ -39,7 +39,7 @@ static unsigned int get_scale_shift(unsigned char scale, unsigned char range);
 static s16 get_predicted_sample(u8 byte, u8 mask, unsigned lshift, unsigned rshift);
 static u16 get_predicted_frame_4bits(s16 *dst, u16 src, unsigned char scale);
 static u16 get_predicted_frame_2bits(s16 *dst, u16 src, unsigned char scale);
-static s32 compute_adaptive_contribution(unsigned index, const s16 *src, const s16 *book);
+static s32 rdot(size_t n, const s16 *h, const s16 *x);
 static void decode_8_samples(s16 *dst, const s16 *src, const s16 *cb_entry);
 static s16* decode_frames(get_predicted_frame_t get_predicted_frame, s16 *dst, u16 src, int count, s16 *codebook);
 
@@ -131,7 +131,7 @@ void adpcm_polef(
         {
             accu = frame[i] * gain;
             accu += book1[i]*l1 + book2_before[i]*l2;
-            accu += compute_adaptive_contribution(i, frame, book2);
+            accu += rdot(i, book2, frame);
             dst[i ^ S] = clamp_s16(accu >> 14);
         }
 
@@ -197,13 +197,15 @@ static u16 get_predicted_frame_2bits(s16 *dst, u16 src, unsigned char scale)
     return src;
 }
 
-static s32 compute_adaptive_contribution(unsigned index, const s16 *src, const s16 *book)
+static s32 rdot(size_t n, const s16 *h, const s16 *x)
 {
-    unsigned i;
+    size_t i;
     s32 accu = 0;
 
-    for(i = 0; i < index; ++i)
-        accu += book[index - i - 1] * src[i];
+    x += n - 1;
+    
+    for(i = 0; i < n; ++i)
+        accu += *(h++) * *(x--);
 
     return accu;
 }
@@ -216,14 +218,13 @@ static void decode_8_samples(s16 *dst, const s16 *src, const s16 *cb_entry)
     const s16 l1 = dst[-2 ^ S];
     const s16 l2 = dst[-1 ^ S];
 
-    unsigned i;
+    size_t i;
     s32 accu;
 
     for(i = 0; i < 8; ++i)
     {
         accu = src[i] << 11;
-        accu += book1[i]*l1 + book2[i]*l2;
-        accu += compute_adaptive_contribution(i, src, book2);
+        accu += book1[i]*l1 + book2[i]*l2 + rdot(i, book2, src);
         dst[i ^ S] = clamp_s16(accu >> 11);
     }
 }
