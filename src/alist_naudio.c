@@ -39,7 +39,7 @@
 #define NAUDIO_WET_RIGHT        0xe20
 
 /* local variables */
-static struct naudio_t
+static struct alist_t
 {
     // envmixer gains
     s16 dry;
@@ -53,7 +53,7 @@ static struct naudio_t
     // adpcm
     u32 adpcm_loop;
     u16 adpcm_codebook[0x80];
-} l_naudio;
+} l_alist;
 
 /* Audio commands */
 static void SPNOOP(u32 w1, u32 w2)
@@ -81,7 +81,7 @@ static void NAUDIO_02B0(u32 w1, u32 w2)
     /* UNKNOWN(w1, w2); commented to avoid constant spamming during gameplay */
 }
 
-static void SETVOL3(u32 w1, u32 w2)
+static void SETVOL(u32 w1, u32 w2)
 {
     u8 flags = parse(w1, 16, 8);
 
@@ -89,24 +89,24 @@ static void SETVOL3(u32 w1, u32 w2)
     {
         if (flags & 0x2)
         {
-            l_naudio.env_vol[0]  = (s16)parse(w1,  0, 16); // 0x50
-            l_naudio.dry         = (s16)parse(w2, 16, 16); // 0x4c
-            l_naudio.wet         = (s16)parse(w2,  0, 16); // 0x4e
+            l_alist.env_vol[0]  = (s16)parse(w1,  0, 16); // 0x50
+            l_alist.dry         = (s16)parse(w2, 16, 16); // 0x4c
+            l_alist.wet         = (s16)parse(w2,  0, 16); // 0x4e
         }
         else
         {
-            l_naudio.env_target[1] = (s16)parse(w1, 0, 16); // 0x46
-            l_naudio.env_rate[1]   = (s32)w2;               // 0x48/0x4A
+            l_alist.env_target[1] = (s16)parse(w1, 0, 16); // 0x46
+            l_alist.env_rate[1]   = (s32)w2;               // 0x48/0x4A
         }
     }
     else
     {
-        l_naudio.env_target[0] = (s16)parse(w1, 0, 16); // 0x40
-        l_naudio.env_rate[0]   = (s32)w2;               // 0x42/0x44
+        l_alist.env_target[0] = (s16)parse(w1, 0, 16); // 0x40
+        l_alist.env_rate[0]   = (s32)w2;               // 0x42/0x44
     }
 }
 
-static void ENVMIXER3(u32 w1, u32 w2)
+static void ENVMIXER(u32 w1, u32 w2)
 {
     u8  flags   = parse(w1, 16,  8);
     u32 address = parse(w2,  0, 24);
@@ -126,20 +126,20 @@ static void ENVMIXER3(u32 w1, u32 w2)
     struct ramp_t ramps[2];
     s16 dry, wet;
 
-    l_naudio.env_vol[1] = (s16)parse(w1, 0, 16);
+    l_alist.env_vol[1] = (s16)parse(w1, 0, 16);
 
     if (flags & A_INIT)
     {
-        ramps[0].step   = l_naudio.env_rate[0] >> 3;
-        ramps[0].value  = (s32)l_naudio.env_vol[0] << 16;
-        ramps[0].target = (s32)l_naudio.env_target[0] << 16;
+        ramps[0].step   = l_alist.env_rate[0] >> 3;
+        ramps[0].value  = (s32)l_alist.env_vol[0] << 16;
+        ramps[0].target = (s32)l_alist.env_target[0] << 16;
 
-        ramps[1].step   = l_naudio.env_rate[1] >> 3;
-        ramps[1].value  = (s32)l_naudio.env_vol[1] << 16;
-        ramps[1].target = (s32)l_naudio.env_target[1] << 16;
+        ramps[1].step   = l_alist.env_rate[1] >> 3;
+        ramps[1].value  = (s32)l_alist.env_vol[1] << 16;
+        ramps[1].target = (s32)l_alist.env_target[1] << 16;
 
-        wet = (s16)l_naudio.wet;
-        dry = (s16)l_naudio.dry;
+        wet = (s16)l_alist.wet;
+        dry = (s16)l_alist.dry;
     }
     else
     {
@@ -185,7 +185,7 @@ static void ENVMIXER3(u32 w1, u32 w2)
     memcpy(rsp.RDRAM+address, (u8 *)state_buffer,80);
 }
 
-static void CLEARBUFF3(u32 w1, u32 w2)
+static void CLEARBUFF(u32 w1, u32 w2)
 {
     u16 dmem  = parse(w1, 0, 16);
     u16 count = parse(w2, 0, 16);
@@ -193,7 +193,7 @@ static void CLEARBUFF3(u32 w1, u32 w2)
     memset(rsp.DMEM + NAUDIO_MAIN + dmem, 0, count);
 }
 
-static void MIXER3(u32 w1, u32 w2)
+static void MIXER(u32 w1, u32 w2)
 {
     u16 gain  = parse(w1,  0, 16);
     u16 dmemi = parse(w2, 16, 16);
@@ -206,7 +206,7 @@ static void MIXER3(u32 w1, u32 w2)
             (s16)gain);
 }
 
-static void LOADBUFF3(u32 w1, u32 w2)
+static void LOADBUFF(u32 w1, u32 w2)
 {
     u16 length  = parse(w1, 12, 12);
     u16 dmem    = parse(w1,  0, 12);
@@ -217,7 +217,7 @@ static void LOADBUFF3(u32 w1, u32 w2)
     dma_read_fast((NAUDIO_MAIN + dmem) & 0xff8, address & ~7, length - 1);
 }
 
-static void SAVEBUFF3(u32 w1, u32 w2)
+static void SAVEBUFF(u32 w1, u32 w2)
 {
     u16 length  = parse(w1, 12, 12);
     u16 dmem    = parse(w1,  0, 12);
@@ -228,18 +228,18 @@ static void SAVEBUFF3(u32 w1, u32 w2)
     dma_write_fast(address & ~7, (NAUDIO_MAIN + dmem) & 0xff8, length - 1);
 }
 
-static void LOADADPCM3(u32 w1, u32 w2)
+static void LOADADPCM(u32 w1, u32 w2)
 {
     u16 count   = parse(w1, 0, 16);
     u32 address = parse(w2, 0, 24);
 
     adpcm_load_codebook(
-            l_naudio.adpcm_codebook,
+            l_alist.adpcm_codebook,
             address,
             count);
 }
 
-static void DMEMMOVE3(u32 w1, u32 w2)
+static void DMEMMOVE(u32 w1, u32 w2)
 {
     u16 dmemi = parse(w1,  0, 16);
     u16 dmemo = parse(w2, 16, 16);
@@ -251,16 +251,16 @@ static void DMEMMOVE3(u32 w1, u32 w2)
             align(count, 4));
 }
 
-static void SETLOOP3(u32 w1, u32 w2)
+static void SETLOOP(u32 w1, u32 w2)
 {
     u32 address = parse(w2, 0, 24);
 
-    l_naudio.adpcm_loop = address;
+    l_alist.adpcm_loop = address;
 }
 
 static void NAUDIO_14(u32 w1, u32 w2)
 {
-    if (l_naudio.adpcm_codebook[0] == 0 && l_naudio.adpcm_codebook[1] == 0)
+    if (l_alist.adpcm_codebook[0] == 0 && l_alist.adpcm_codebook[1] == 0)
     {
         u8  flags       = parse(w1, 16,  8);
         u16 gain        = parse(w1,  0, 16);
@@ -273,7 +273,7 @@ static void NAUDIO_14(u32 w1, u32 w2)
         adpcm_polef(
             flags & A_INIT,
             gain,
-            (s16*)l_naudio.adpcm_codebook,
+            (s16*)l_alist.adpcm_codebook,
             address,
             dmem + 0x10,
             dmem,
@@ -285,7 +285,7 @@ static void NAUDIO_14(u32 w1, u32 w2)
     }
 }
 
-static void ADPCM3(u32 w1, u32 w2)
+static void ADPCM(u32 w1, u32 w2)
 {
     u32 address = parse(w1,  0, 24);
     u8  flags   = parse(w2, 28,  4);
@@ -297,15 +297,15 @@ static void ADPCM3(u32 w1, u32 w2)
             flags & A_INIT,
             flags & A_LOOP,
             0, // not supported in this ucode version
-            (s16*)l_naudio.adpcm_codebook,
-            l_naudio.adpcm_loop,
+            (s16*)l_alist.adpcm_codebook,
+            l_alist.adpcm_loop,
             address,
             NAUDIO_MAIN + dmemi,
             NAUDIO_MAIN + dmemo,
             align(count, 32) >> 5);
 }
 
-static void RESAMPLE3(u32 w1, u32 w2)
+static void RESAMPLE(u32 w1, u32 w2)
 {
     u32 address = parse(w1,  0, 24);
     u8  flags   = parse(w2, 30,  2);
@@ -322,7 +322,7 @@ static void RESAMPLE3(u32 w1, u32 w2)
             NAUDIO_SUBFRAME_SIZE >> 1);
 }
 
-static void INTERLEAVE3(u32 w1, u32 w2)
+static void INTERLEAVE(u32 w1, u32 w2)
 {
     interleave_buffers(
             NAUDIO_MAIN,
@@ -347,42 +347,42 @@ static void MP3(u32 w1, u32 w2)
 /* Audio Binary Interface tables */
 static const acmd_callback_t ABI_NAUDIO[0x10] = 
 {
-    SPNOOP,         ADPCM3,         CLEARBUFF3,     ENVMIXER3,
-    LOADBUFF3,      RESAMPLE3,      SAVEBUFF3,      NAUDIO_0000,
-    NAUDIO_0000,    SETVOL3,        DMEMMOVE3,      LOADADPCM3,
-    MIXER3,         INTERLEAVE3,    NAUDIO_02B0,    SETLOOP3
+    SPNOOP,         ADPCM,          CLEARBUFF,      ENVMIXER,
+    LOADBUFF,       RESAMPLE,       SAVEBUFF,       NAUDIO_0000,
+    NAUDIO_0000,    SETVOL,         DMEMMOVE,       LOADADPCM,
+    MIXER,          INTERLEAVE,     NAUDIO_02B0,    SETLOOP
 };
 
 static const acmd_callback_t ABI_NAUDIO_BK[0x10] = 
 {
-    SPNOOP,         ADPCM3,         CLEARBUFF3,     ENVMIXER3,
-    LOADBUFF3,      RESAMPLE3,      SAVEBUFF3,      NAUDIO_0000,
-    NAUDIO_0000,    SETVOL3,        DMEMMOVE3,      LOADADPCM3,
-    MIXER3,         INTERLEAVE3,    NAUDIO_02B0,    SETLOOP3
+    SPNOOP,         ADPCM,          CLEARBUFF,      ENVMIXER,
+    LOADBUFF,       RESAMPLE,       SAVEBUFF,       NAUDIO_0000,
+    NAUDIO_0000,    SETVOL,         DMEMMOVE,       LOADADPCM,
+    MIXER,          INTERLEAVE,     NAUDIO_02B0,    SETLOOP
 };
 
 static const acmd_callback_t ABI_NAUDIO_DK[0x10] = 
 {
-    SPNOOP,         ADPCM3,         CLEARBUFF3,     ENVMIXER3,
-    LOADBUFF3,      RESAMPLE3,      SAVEBUFF3,      MIXER3,
-    MIXER3,         SETVOL3,        DMEMMOVE3,      LOADADPCM3,
-    MIXER3,         INTERLEAVE3,    NAUDIO_02B0,    SETLOOP3
+    SPNOOP,         ADPCM,          CLEARBUFF,      ENVMIXER,
+    LOADBUFF,       RESAMPLE,       SAVEBUFF,       MIXER,
+    MIXER,          SETVOL,         DMEMMOVE,       LOADADPCM,
+    MIXER,          INTERLEAVE,     NAUDIO_02B0,    SETLOOP
 };
 
 static const acmd_callback_t ABI_NAUDIO_MP3[0x10] = 
 {
-    UNKNOWN,    ADPCM3,         CLEARBUFF3, ENVMIXER3,
-    LOADBUFF3,  RESAMPLE3,      SAVEBUFF3,  MP3,
-    MP3ADDY,    SETVOL3,        DMEMMOVE3,  LOADADPCM3,
-    MIXER3,     INTERLEAVE3,    NAUDIO_14,  SETLOOP3
+    UNKNOWN,        ADPCM,          CLEARBUFF,      ENVMIXER,
+    LOADBUFF,       RESAMPLE,       SAVEBUFF,       MP3,
+    MP3ADDY,        SETVOL,         DMEMMOVE,       LOADADPCM,
+    MIXER,          INTERLEAVE,     NAUDIO_14,      SETLOOP
 };
 
 static const acmd_callback_t ABI_NAUDIO_CBFD[0x10] = 
 {
-    UNKNOWN,    ADPCM3,         CLEARBUFF3, ENVMIXER3,
-    LOADBUFF3,  RESAMPLE3,      SAVEBUFF3,  MP3,
-    MP3ADDY,    SETVOL3,        DMEMMOVE3,  LOADADPCM3,
-    MIXER3,     INTERLEAVE3,    NAUDIO_14,  SETLOOP3
+    UNKNOWN,        ADPCM,          CLEARBUFF,      ENVMIXER,
+    LOADBUFF,       RESAMPLE,       SAVEBUFF,       MP3,
+    MP3ADDY,        SETVOL,         DMEMMOVE,       LOADADPCM,
+    MIXER,          INTERLEAVE,     NAUDIO_14,      SETLOOP
 };
 
 /* global functions */

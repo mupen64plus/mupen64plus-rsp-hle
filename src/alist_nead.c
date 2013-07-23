@@ -32,9 +32,9 @@
 #define N_SEGMENTS 16
 
 /* local variables */
-static struct audio_mk_t
+static struct alist_t
 {
-    // segments
+    // segments (only used by MK version)
     u32 segments[N_SEGMENTS]; // 0x320
 
     // main buffers
@@ -46,26 +46,10 @@ static struct audio_mk_t
     u32 adpcm_loop;     // 0x0010(t8)
     u16 adpcm_codebook[0x80];
 
-    // envmixer2 envelopes (0: dry left, 1: dry right, 2: wet)
+    // envmixer envelopes (0: dry left, 1: dry right, 2: wet)
     u16 env_value[3];
     u16 env_step[3];
-} l_audio_mk;
-
-static struct audio2_t
-{
-    // main buffers
-    u16 in;             // 0x0000(t8)
-    u16 out;            // 0x0002(t8)
-    u16 count;          // 0x0004(t8)
-
-    // adpcm
-    u32 adpcm_loop;     // 0x0010(t8)
-    u16 adpcm_codebook[0x80];
-
-    // envmixer2 envelopes (0: dry left, 1: dry right, 2: wet)
-    u16 env_value[3];
-    u16 env_step[3];
-} l_audio2;
+} l_alist;
 
 /* local functions */
 static void swap(s16 **a, s16 **b)
@@ -75,7 +59,7 @@ static void swap(s16 **a, s16 **b)
     *a = tmp;
 }
 
-static void envmixer2(
+static void envmixer(
         u16* const env_value,
         u16* const env_step,
         const s16* const xor_masks,
@@ -143,116 +127,206 @@ static void UNKNOWN(u32 w1, u32 w2)
             acmd, w1, w2);
 }
 
-static void SEGMENT_MK(u32 w1, u32 w2)
+static void SEGMENT(u32 w1, u32 w2)
 {
-    segoffset_store(w2, l_audio_mk.segments, N_SEGMENTS);
+    segoffset_store(w2, l_alist.segments, N_SEGMENTS);
 }
 
-static void LOADADPCM_MK(u32 w1, u32 w2)
+static void LOADADPCM_seg(u32 w1, u32 w2)
 {
     u16 count   = parse(w1, 0, 16);
-    u32 address = segoffset_load(w2, l_audio_mk.segments, N_SEGMENTS);
+    u32 address = segoffset_load(w2, l_alist.segments, N_SEGMENTS);
 
     adpcm_load_codebook(
-            l_audio_mk.adpcm_codebook,
+            l_alist.adpcm_codebook,
             address,
             count);
 }
 
-static void SETLOOP_MK(u32 w1, u32 w2)
+static void LOADADPCM_flat(u32 w1, u32 w2)
 {
-    u32 address = segoffset_load(w2, l_audio_mk.segments, N_SEGMENTS);
+    u16 count   = parse(w1, 0, 16);
+    u32 address = parse(w2, 0, 24);
 
-    l_audio_mk.adpcm_loop = address;
+    adpcm_load_codebook(
+            l_alist.adpcm_codebook,
+            address,
+            count);
 }
 
-static void SETBUFF_MK(u32 w1, u32 w2)
+static void SETLOOP_seg(u32 w1, u32 w2)
 {
-    l_audio_mk.in    = parse(w1,  0, 16);
-    l_audio_mk.out   = parse(w2, 16, 16);
-    l_audio_mk.count = parse(w2,  0, 16);
+    l_alist.adpcm_loop = segoffset_load(w2, l_alist.segments, N_SEGMENTS);
 }
 
-static void POLEF_MK(u32 w1, u32 w2)
+static void SETLOOP_flat(u32 w1, u32 w2)
 {
-    if (l_audio_mk.count == 0) { return; }
+    l_alist.adpcm_loop = parse(w2, 0, 24);
+}
+
+static void SETBUFF(u32 w1, u32 w2)
+{
+    l_alist.in    = parse(w1,  0, 16);
+    l_alist.out   = parse(w2, 16, 16);
+    l_alist.count = parse(w2,  0, 16);
+}
+
+static void POLEF_seg(u32 w1, u32 w2)
+{
+    if (l_alist.count == 0) { return; }
 
     u16 flags = parse(w1, 16, 16);
     u16 gain  = parse(w1,  0, 16);
-    u32 address = segoffset_load(w2, l_audio_mk.segments, N_SEGMENTS);
+    u32 address = segoffset_load(w2, l_alist.segments, N_SEGMENTS);
 
     adpcm_polef(
             flags & A_INIT,
             gain,
-            (s16*)l_audio_mk.adpcm_codebook,
+            (s16*)l_alist.adpcm_codebook,
             address,
-            l_audio_mk.in,
-            l_audio_mk.out,
-            align(l_audio_mk.count, 16));
+            l_alist.in,
+            l_alist.out,
+            align(l_alist.count, 16));
+}
+
+static void POLEF_flat(u32 w1, u32 w2)
+{
+    if (l_alist.count == 0) { return; }
+
+    u16 flags   = parse(w1, 16, 16);
+    u16 gain    = parse(w1,  0, 16);
+    u32 address = parse(w2,  0, 24);
+
+    adpcm_polef(
+            flags & A_INIT,
+            gain,
+            (s16*)l_alist.adpcm_codebook,
+            address,
+            l_alist.in,
+            l_alist.out,
+            align(l_alist.count, 16));
 }
 
 static void ADPCM_MK(u32 w1, u32 w2)
 {
     u8  flags   = parse(w1, 16,  8);
-    u32 address = segoffset_load(w2, l_audio_mk.segments, N_SEGMENTS);
+    u32 address = segoffset_load(w2, l_alist.segments, N_SEGMENTS);
 
     adpcm_decode(
             flags & A_INIT,
             flags & A_LOOP,
             0, // not supported in this ucode version
-            (s16*)l_audio_mk.adpcm_codebook,
-            l_audio_mk.adpcm_loop,
+            (s16*)l_alist.adpcm_codebook,
+            l_alist.adpcm_loop,
             address,
-            l_audio_mk.in,
-            l_audio_mk.out,
-            align(l_audio_mk.count, 32) >> 5);
+            l_alist.in,
+            l_alist.out,
+            align(l_alist.count, 32) >> 5);
 }
 
-static void LOADBUFF_MK(u32 w1, u32 w2)
+static void ADPCM_NEAD(u32 w1, u32 w2)
+{
+    u8  flags   = parse(w1, 16,  8);
+    u32 address = parse(w2,  0, 24);
+
+    adpcm_decode(
+            flags & A_INIT,
+            flags & A_LOOP,
+            flags & 0x4,
+            (s16*)l_alist.adpcm_codebook,
+            l_alist.adpcm_loop,
+            address,
+            l_alist.in,
+            l_alist.out,
+            align(l_alist.count, 32) >> 5);
+}
+
+static void LOADBUFF_seg(u32 w1, u32 w2)
 {
     u16 count   = parse(w1, 12, 12);
     u16 dmem    = parse(w1,  0, 12);
-    u32 address = segoffset_load(w2, l_audio_mk.segments, N_SEGMENTS);
+    u32 address = segoffset_load(w2, l_alist.segments, N_SEGMENTS);
 
     dma_read_fast(dmem & ~7, address & ~7, (count & 0xff0) - 1);
 }
 
-static void SAVEBUFF_MK(u32 w1, u32 w2)
+static void LOADBUFF_flat(u32 w1, u32 w2)
 {
     u16 count   = parse(w1, 12, 12);
     u16 dmem    = parse(w1,  0, 12);
-    u32 address = segoffset_load(w2, l_audio_mk.segments, N_SEGMENTS);
+    u32 address = parse(w2,  0, 24);
+
+    dma_read_fast(dmem & ~7, address & ~7, (count & 0xff0) - 1);
+}
+
+static void SAVEBUFF_seg(u32 w1, u32 w2)
+{
+    u16 count   = parse(w1, 12, 12);
+    u16 dmem    = parse(w1,  0, 12);
+    u32 address = segoffset_load(w2, l_alist.segments, N_SEGMENTS);
 
     dma_write_fast(address & ~7, dmem & ~7, (count & 0xff0) - 1);
 }
 
-static void RESAMPLE_MK(u32 w1, u32 w2)
+static void SAVEBUFF_flat(u32 w1, u32 w2)
+{
+    u16 count   = parse(w1, 12, 12);
+    u16 dmem    = parse(w1,  0, 12);
+    u32 address = parse(w2,  0, 24);
+
+    dma_write_fast(address & ~7, dmem & ~7, (count & 0xff0) - 1);
+}
+
+static void RESAMPLE_seg(u32 w1, u32 w2)
 {
     u8  flags   = parse(w1, 16,  8);
     u16 pitch   = parse(w1,  0, 16);
-    u32 address = segoffset_load(w2, l_audio_mk.segments, N_SEGMENTS);
+    u32 address = segoffset_load(w2, l_alist.segments, N_SEGMENTS);
 
     resample_buffer(
             flags & A_INIT,
             address,
             (u32)pitch << 1,
-            l_audio_mk.in >> 1,
-            l_audio_mk.out >> 1,
-            align(l_audio_mk.count, 16) >> 1);
+            l_alist.in >> 1,
+            l_alist.out >> 1,
+            align(l_alist.count, 16) >> 1);
+}
+
+static void RESAMPLE_flat(u32 w1, u32 w2)
+{
+    u8  flags   = parse(w1, 16,  8);
+    u16 pitch   = parse(w1,  0, 16);
+    u32 address = parse(w2,  0, 24);
+
+    resample_buffer(
+            flags & A_INIT,
+            address,
+            (u32)pitch << 1,
+            l_alist.in >> 1,
+            l_alist.out >> 1,
+            align(l_alist.count, 16) >> 1);
 }
 
 static void ENVSETUP1_MK(u32 w1, u32 w2)
 {
-    l_audio_mk.env_value[2] = parse(w1, 16,  8) << 8;
-    l_audio_mk.env_step[2]  = 0; // not supported in this ucode version
-    l_audio_mk.env_step[0]  = parse(w2, 16, 16);
-    l_audio_mk.env_step[1]  = parse(w2,  0, 16);
+    l_alist.env_value[2] = parse(w1, 16,  8) << 8;
+    l_alist.env_step[2]  = 0; // not supported in this ucode version
+    l_alist.env_step[0]  = parse(w2, 16, 16);
+    l_alist.env_step[1]  = parse(w2,  0, 16);
 }
 
-static void ENVSETUP2_MK(u32 w1, u32 w2)
+static void ENVSETUP1_NEAD(u32 w1, u32 w2)
 {
-    l_audio_mk.env_value[0] = parse(w2, 16, 16);
-    l_audio_mk.env_value[1] = parse(w2,  0, 16);
+    l_alist.env_value[2] = parse(w1, 16,  8) << 8;
+    l_alist.env_step[2]  = parse(w1,  0, 16);
+    l_alist.env_step[0]  = parse(w2, 16, 16);
+    l_alist.env_step[1]  = parse(w2,  0, 16);
+}
+
+static void ENVSETUP2(u32 w1, u32 w2)
+{
+    l_alist.env_value[0] = parse(w2, 16, 16);
+    l_alist.env_value[1] = parse(w2,  0, 16);
 }
 
 static void ENVMIXER_MK(u32 w1, u32 w2)
@@ -270,9 +344,9 @@ static void ENVMIXER_MK(u32 w1, u32 w2)
     u16 dmem_wet_left  = parse(w2,  8, 8) << 4;
     u16 dmem_wet_right = parse(w2,  0, 8) << 4;
     
-    envmixer2(
-        l_audio_mk.env_value,
-        l_audio_mk.env_step,
+    envmixer(
+        l_alist.env_value,
+        l_alist.env_step,
         xor_masks,
         0,
         dmemi,
@@ -283,170 +357,7 @@ static void ENVMIXER_MK(u32 w1, u32 w2)
         count);
 }
 
-static void INTERLEAVE_MK(u32 w1, u32 w2)
-{
-    if (l_audio_mk.count == 0) { return; }
-
-    u16 left  = parse(w2, 16, 16);
-    u16 right = parse(w2,  0, 16);
-    
-    interleave_buffers(
-            l_audio_mk.out,
-            left,
-            right,
-            l_audio_mk.count >> 1);
-}
-
-
-
-
-
-
-
-
-
-
-static void LOADADPCM2(u32 w1, u32 w2)
-{
-    u16 count   = parse(w1, 0, 16);
-    u32 address = parse(w2, 0, 24);
-
-    adpcm_load_codebook(
-            l_audio2.adpcm_codebook,
-            address,
-            count);
-}
-
-static void SETLOOP2(u32 w1, u32 w2)
-{
-    u32 address = parse(w2, 0, 24);
-
-    l_audio2.adpcm_loop = address;
-}
-
-static void SETBUFF2(u32 w1, u32 w2)
-{
-    l_audio2.in    = parse(w1,  0, 16);
-    l_audio2.out   = parse(w2, 16, 16);
-    l_audio2.count = parse(w2,  0, 16);
-}
-
-static void ADPCM2(u32 w1, u32 w2)
-{
-    u8  flags   = parse(w1, 16,  8);
-    u32 address = parse(w2,  0, 24);
-
-    adpcm_decode(
-            flags & A_INIT,
-            flags & A_LOOP,
-            flags & 0x4,
-            (s16*)l_audio2.adpcm_codebook,
-            l_audio2.adpcm_loop,
-            address,
-            l_audio2.in,
-            l_audio2.out,
-            align(l_audio2.count, 32) >> 5);
-}
-
-static void CLEARBUFF2(u32 w1, u32 w2)
-{
-    u16 dmem  = parse(w1, 0, 16);
-    u16 count = parse(w2, 0, 16);
-    
-    if (count > 0)
-        memset(rsp.DMEM + dmem, 0, count);
-}
-
-static void LOADBUFF2(u32 w1, u32 w2)
-{
-    u16 count   = parse(w1, 12, 12);
-    u16 dmem    = parse(w1,  0, 12);
-    u32 address = parse(w2,  0, 24);
-
-    dma_read_fast(dmem & ~7, address & ~7, (count & 0xff0) - 1);
-}
-
-static void SAVEBUFF2(u32 w1, u32 w2)
-{
-    u16 count   = parse(w1, 12, 12);
-    u16 dmem    = parse(w1,  0, 12);
-    u32 address = parse(w2,  0, 24);
-
-    dma_write_fast(address & ~7, dmem & ~7, (count & 0xff0) - 1);
-}
-
-
-static void MIXER2(u32 w1, u32 w2)
-{
-    u16 count = parse(w1, 12, 12);
-    u16 gain  = parse(w1,  0, 16);
-    u16 dmemi = parse(w2, 16, 16);
-    u16 dmemo = parse(w2,  0, 16);
-
-    mix_buffers(
-            dmemo,
-            dmemi,
-            (count & ~0xf) >> 1,
-            (s16)gain);
-}
-
-static void RESAMPLE2(u32 w1, u32 w2)
-{
-    u8  flags   = parse(w1, 16,  8);
-    u16 pitch   = parse(w1,  0, 16);
-    u32 address = parse(w2,  0, 24);
-
-    resample_buffer(
-            flags & A_INIT,
-            address,
-            (u32)pitch << 1,
-            l_audio2.in >> 1,
-            l_audio2.out >> 1,
-            align(l_audio2.count, 16) >> 1);
-}
-
-static void RESAMPLE2_ZOH(u32 w1, u32 w2)
-{
-    u32 pitch = parse(w1, 0, 16) << 1;
-    u32 pitch_accu = parse(w2, 0, 16);
-
-    resample_zoh(
-        pitch_accu,
-        pitch,
-        l_audio2.in >> 1,
-        l_audio2.out >> 1,
-        align(l_audio2.count,8) >> 1);
-}
-
-static void DMEMMOVE2(u32 w1, u32 w2)
-{
-    u16 dmemi = parse(w1,  0, 16);
-    u16 dmemo = parse(w2, 16, 16);
-    u16 count = parse(w2,  0, 16);
-
-    if (count == 0) { return; }
-
-    dmem_move(
-        dmemo,
-        dmemi,
-        align(count, 4));
-}
-
-static void ENVSETUP1(u32 w1, u32 w2)
-{
-    l_audio2.env_value[2] = parse(w1, 16,  8) << 8;
-    l_audio2.env_step[2]  = parse(w1,  0, 16);
-    l_audio2.env_step[0]  = parse(w2, 16, 16);
-    l_audio2.env_step[1]  = parse(w2,  0, 16);
-}
-
-static void ENVSETUP2(u32 w1, u32 w2)
-{
-    l_audio2.env_value[0] = parse(w2, 16, 16);
-    l_audio2.env_value[1] = parse(w2,  0, 16);
-}
-
-static void ENVMIXER2(u32 w1, u32 w2)
+static void ENVMIXER_NEAD(u32 w1, u32 w2)
 {
     s16 xor_masks[4];
 
@@ -462,9 +373,9 @@ static void ENVMIXER2(u32 w1, u32 w2)
     u16 dmem_wet_left  = parse(w2,  8, 8) << 4;
     u16 dmem_wet_right = parse(w2,  0, 8) << 4;
     
-    envmixer2(
-        l_audio2.env_value,
-        l_audio2.env_step,
+    envmixer(
+        l_alist.env_value,
+        l_alist.env_step,
         xor_masks,
         swap_wet_LR,
         dmemi,
@@ -475,7 +386,87 @@ static void ENVMIXER2(u32 w1, u32 w2)
         count);
 }
 
-static void DUPLICATE2(u32 w1, u32 w2)
+static void INTERLEAVE_MK(u32 w1, u32 w2)
+{
+    if (l_alist.count == 0) { return; }
+
+    u16 left  = parse(w2, 16, 16);
+    u16 right = parse(w2,  0, 16);
+    
+    interleave_buffers(
+            l_alist.out,
+            left,
+            right,
+            l_alist.count >> 1);
+}
+
+static void INTERLEAVE_NEAD(u32 w1, u32 w2)
+{
+    u16 count = parse(w1, 16,  8) << 4;
+    u16 out   = parse(w1, 0, 16);
+    u16 left  = parse(w2, 16, 16);
+    u16 right = parse(w2,  0, 16);
+    
+    interleave_buffers(
+            out,
+            left,
+            right,
+            count >> 1);
+}
+
+
+static void CLEARBUFF(u32 w1, u32 w2)
+{
+    u16 dmem  = parse(w1, 0, 16);
+    u16 count = parse(w2, 0, 16);
+    
+    if (count > 0)
+        memset(rsp.DMEM + dmem, 0, count);
+}
+
+
+static void MIXER(u32 w1, u32 w2)
+{
+    u16 count = parse(w1, 12, 12);
+    u16 gain  = parse(w1,  0, 16);
+    u16 dmemi = parse(w2, 16, 16);
+    u16 dmemo = parse(w2,  0, 16);
+
+    mix_buffers(
+            dmemo,
+            dmemi,
+            (count & ~0xf) >> 1,
+            (s16)gain);
+}
+
+static void RESAMPLE_ZOH(u32 w1, u32 w2)
+{
+    u32 pitch = parse(w1, 0, 16) << 1;
+    u32 pitch_accu = parse(w2, 0, 16);
+
+    resample_zoh(
+        pitch_accu,
+        pitch,
+        l_alist.in >> 1,
+        l_alist.out >> 1,
+        align(l_alist.count,8) >> 1);
+}
+
+static void DMEMMOVE(u32 w1, u32 w2)
+{
+    u16 dmemi = parse(w1,  0, 16);
+    u16 dmemo = parse(w2, 16, 16);
+    u16 count = parse(w2,  0, 16);
+
+    if (count == 0) { return; }
+
+    dmem_move(
+        dmemo,
+        dmemi,
+        align(count, 4));
+}
+
+static void DUPLICATE(u32 w1, u32 w2)
 {
     u16 count = parse(w1, 16,  8);
     u16 dmemi = parse(w1,  0, 16);
@@ -493,7 +484,7 @@ static void DUPLICATE2(u32 w1, u32 w2)
     }
 }
 
-static void INTERL2(u32 w1, u32 w2)
+static void INTERL(u32 w1, u32 w2)
 {
     u16 count = parse(w1,  0, 16);
     u16 dmemi = parse(w2, 16, 16);
@@ -507,34 +498,6 @@ static void INTERL2(u32 w1, u32 w2)
         dmemi += 4;
         --count;
     }
-}
-
-static void INTERLEAVE2_SF(u32 w1, u32 w2)
-{
-    if (l_audio2.count == 0) { return; }
-
-    u16 left  = parse(w2, 16, 16);
-    u16 right = parse(w2,  0, 16);
-
-    interleave_buffers(
-            l_audio2.out,
-            left,
-            right,
-            l_audio2.count >> 1);
-}
-
-static void INTERLEAVE2(u32 w1, u32 w2)
-{
-    u16 count = parse(w1, 16,  8) << 4;
-    u16 out   = parse(w1, 0, 16);
-    u16 left  = parse(w2, 16, 16);
-    u16 right = parse(w2,  0, 16);
-    
-    interleave_buffers(
-            out,
-            left,
-            right,
-            count >> 1);
 }
 
 static void ADDMIXER(u32 w1, u32 w2)
@@ -570,7 +533,7 @@ static void HILOGAIN(u32 w1, u32 w2)
     }
 }
 
-static void FILTER2(u32 w1, u32 w2)
+static void FILTER(u32 w1, u32 w2)
 {
     u8  t4      = parse(w1, 16,  8);
     u16 lw1     = parse(w1,  0, 16);
@@ -701,25 +664,7 @@ static void FILTER2(u32 w1, u32 w2)
     memcpy (rsp.DMEM + lw1, outbuff, cnt);
 }
 
-static void POLEF2(u32 w1, u32 w2)
-{
-    if (l_audio2.count == 0) { return; }
-
-    u16 flags   = parse(w1, 16, 16);
-    u16 gain    = parse(w1,  0, 16);
-    u32 address = parse(w2,  0, 24);
-
-    adpcm_polef(
-            flags & A_INIT,
-            gain,
-            (s16*)l_audio2.adpcm_codebook,
-            address,
-            l_audio2.in,
-            l_audio2.out,
-            align(l_audio2.count, 16));
-}
-
-static void COPYBLOCKS2(u32 w1, u32 w2)
+static void COPYBLOCKS(u32 w1, u32 w2)
 {
     u8  count      = parse(w1, 16,  8);
     u16 dmemi      = parse(w1,  0, 16);
@@ -750,129 +695,129 @@ static void COPYBLOCKS2(u32 w1, u32 w2)
 /* Audio Binary Interface tables */
 static const acmd_callback_t ABI_MK[0x20] =
 {
-    SPNOOP,     ADPCM_MK,       CLEARBUFF2,     SPNOOP,
-    SPNOOP,     RESAMPLE_MK,    SPNOOP,         SEGMENT_MK,
-    SETBUFF_MK, SPNOOP,         DMEMMOVE2,      LOADADPCM_MK,
-    MIXER2,     INTERLEAVE_MK,  POLEF_MK,       SETLOOP_MK,
-    COPYBLOCKS2,INTERL2,        ENVSETUP1_MK,   ENVMIXER_MK,
-    LOADBUFF_MK,SAVEBUFF_MK,    ENVSETUP2_MK,   SPNOOP,
-    SPNOOP,     SPNOOP,         SPNOOP,         SPNOOP,
-    SPNOOP,     SPNOOP,         SPNOOP,         SPNOOP
+    SPNOOP,         ADPCM_MK,           CLEARBUFF,          SPNOOP,
+    SPNOOP,         RESAMPLE_seg,       SPNOOP,             SEGMENT,
+    SETBUFF,        SPNOOP,             DMEMMOVE,           LOADADPCM_seg,
+    MIXER,          INTERLEAVE_MK,      POLEF_seg,          SETLOOP_seg,
+    COPYBLOCKS,     INTERL,             ENVSETUP1_MK,       ENVMIXER_MK,
+    LOADBUFF_seg,   SAVEBUFF_seg,       ENVSETUP2,          SPNOOP,
+    SPNOOP,         SPNOOP,             SPNOOP,             SPNOOP,
+    SPNOOP,         SPNOOP,             SPNOOP,             SPNOOP
 };
 
 static const acmd_callback_t ABI_SF[0x20] =
 {
-    SPNOOP,     ADPCM2,         CLEARBUFF2,     SPNOOP,
-    ADDMIXER,   RESAMPLE2,      RESAMPLE2_ZOH,  SPNOOP,
-    SETBUFF2,   SPNOOP,         DMEMMOVE2,      LOADADPCM2,
-    MIXER2,     INTERLEAVE2_SF, POLEF2,         SETLOOP2,
-    COPYBLOCKS2,INTERL2,        ENVSETUP1,      ENVMIXER2,
-    LOADBUFF2,  SAVEBUFF2,      ENVSETUP2,      SPNOOP,
-    HILOGAIN,   UNKNOWN,        DUPLICATE2,     SPNOOP,
-    SPNOOP,     SPNOOP,         SPNOOP,         SPNOOP
+    SPNOOP,         ADPCM_NEAD,         CLEARBUFF,          SPNOOP,
+    ADDMIXER,       RESAMPLE_flat,      RESAMPLE_ZOH,       SPNOOP,
+    SETBUFF,        SPNOOP,             DMEMMOVE,           LOADADPCM_flat,
+    MIXER,          INTERLEAVE_MK,      POLEF_flat,         SETLOOP_flat,
+    COPYBLOCKS,     INTERL,             ENVSETUP1_NEAD,     ENVMIXER_NEAD,
+    LOADBUFF_flat,  SAVEBUFF_flat,      ENVSETUP2,          SPNOOP,
+    HILOGAIN,       UNKNOWN,            DUPLICATE,          SPNOOP,
+    SPNOOP,         SPNOOP,             SPNOOP,             SPNOOP
 };
 
 static const acmd_callback_t ABI_SFJ[0x20] =
 {
-    SPNOOP,     ADPCM2,         CLEARBUFF2,     SPNOOP,
-    ADDMIXER,   RESAMPLE2,      RESAMPLE2_ZOH,  SPNOOP,
-    SETBUFF2,   SPNOOP,         DMEMMOVE2,      LOADADPCM2,
-    MIXER2,     INTERLEAVE2_SF, POLEF2,         SETLOOP2,
-    COPYBLOCKS2,INTERL2,        ENVSETUP1,      ENVMIXER2,
-    LOADBUFF2,  SAVEBUFF2,      ENVSETUP2,      UNKNOWN,
-    HILOGAIN,   UNKNOWN,        DUPLICATE2,     SPNOOP,
-    SPNOOP,     SPNOOP,         SPNOOP,         SPNOOP
+    SPNOOP,         ADPCM_NEAD,         CLEARBUFF,          SPNOOP,
+    ADDMIXER,       RESAMPLE_flat,      RESAMPLE_ZOH,       SPNOOP,
+    SETBUFF,        SPNOOP,             DMEMMOVE,           LOADADPCM_flat,
+    MIXER,          INTERLEAVE_MK,      POLEF_flat,         SETLOOP_flat,
+    COPYBLOCKS,     INTERL,             ENVSETUP1_NEAD,     ENVMIXER_NEAD,
+    LOADBUFF_flat,  SAVEBUFF_flat,      ENVSETUP2,          UNKNOWN,
+    HILOGAIN,       UNKNOWN,            DUPLICATE,          SPNOOP,
+    SPNOOP,         SPNOOP,             SPNOOP,             SPNOOP
 };
 
 static const acmd_callback_t ABI_FZ[0x20] =
 {
-    UNKNOWN,    ADPCM2,         CLEARBUFF2, SPNOOP,
-    ADDMIXER,   RESAMPLE2,      SPNOOP,     SPNOOP,
-    SETBUFF2,   SPNOOP,         DMEMMOVE2,  LOADADPCM2,
-    MIXER2,     INTERLEAVE2,    SPNOOP,     SETLOOP2,
-    COPYBLOCKS2,INTERL2,        ENVSETUP1,  ENVMIXER2,
-    LOADBUFF2,  SAVEBUFF2,      ENVSETUP2,  UNKNOWN,
-    SPNOOP,     UNKNOWN,        DUPLICATE2, SPNOOP,
-    SPNOOP,     SPNOOP,         SPNOOP,     SPNOOP
+    UNKNOWN,        ADPCM_NEAD,         CLEARBUFF,          SPNOOP,
+    ADDMIXER,       RESAMPLE_flat,      SPNOOP,             SPNOOP,
+    SETBUFF,        SPNOOP,             DMEMMOVE,           LOADADPCM_flat,
+    MIXER,          INTERLEAVE_NEAD,    SPNOOP,             SETLOOP_flat,
+    COPYBLOCKS,     INTERL,             ENVSETUP1_NEAD,     ENVMIXER_NEAD,
+    LOADBUFF_flat,  SAVEBUFF_flat,      ENVSETUP2,          UNKNOWN,
+    SPNOOP,         UNKNOWN,            DUPLICATE,          SPNOOP,
+    SPNOOP,         SPNOOP,             SPNOOP,             SPNOOP
 };
 
 static const acmd_callback_t ABI_WRJB[0x20] =
 {
-    SPNOOP,     ADPCM2,         CLEARBUFF2,     UNKNOWN,
-    ADDMIXER,   RESAMPLE2,      RESAMPLE2_ZOH,  SPNOOP,
-    SETBUFF2,   SPNOOP,         DMEMMOVE2,      LOADADPCM2,
-    MIXER2,     INTERLEAVE2,    SPNOOP,         SETLOOP2,
-    COPYBLOCKS2,INTERL2,        ENVSETUP1,      ENVMIXER2,
-    LOADBUFF2,  SAVEBUFF2,      ENVSETUP2,      UNKNOWN,
-    HILOGAIN,   UNKNOWN,        DUPLICATE2,     FILTER2,
-    SPNOOP,     SPNOOP,         SPNOOP,         SPNOOP
+    SPNOOP,         ADPCM_NEAD,         CLEARBUFF,          UNKNOWN,
+    ADDMIXER,       RESAMPLE_flat,      RESAMPLE_ZOH,       SPNOOP,
+    SETBUFF,        SPNOOP,             DMEMMOVE,           LOADADPCM_flat,
+    MIXER,          INTERLEAVE_NEAD,    SPNOOP,             SETLOOP_flat,
+    COPYBLOCKS,     INTERL,             ENVSETUP1_NEAD,     ENVMIXER_NEAD,
+    LOADBUFF_flat,  SAVEBUFF_flat,      ENVSETUP2,          UNKNOWN,
+    HILOGAIN,       UNKNOWN,            DUPLICATE,          FILTER,
+    SPNOOP,         SPNOOP,             SPNOOP,             SPNOOP
 };
 
 static const acmd_callback_t ABI_YS[0x18] =
 {
-    UNKNOWN,    ADPCM2,         CLEARBUFF2,     UNKNOWN,
-    ADDMIXER,   RESAMPLE2,      RESAMPLE2_ZOH,  FILTER2,
-    SETBUFF2,   DUPLICATE2,     DMEMMOVE2,      LOADADPCM2,
-    MIXER2,     INTERLEAVE2,    HILOGAIN,       SETLOOP2,
-    COPYBLOCKS2,INTERL2,        ENVSETUP1,      ENVMIXER2,
-    LOADBUFF2,  SAVEBUFF2,      ENVSETUP2,      UNKNOWN
+    UNKNOWN,        ADPCM_NEAD,         CLEARBUFF,          UNKNOWN,
+    ADDMIXER,       RESAMPLE_flat,      RESAMPLE_ZOH,       FILTER,
+    SETBUFF,        DUPLICATE,          DMEMMOVE,           LOADADPCM_flat,
+    MIXER,          INTERLEAVE_NEAD,    HILOGAIN,           SETLOOP_flat,
+    COPYBLOCKS,     INTERL,             ENVSETUP1_NEAD,     ENVMIXER_NEAD,
+    LOADBUFF_flat,  SAVEBUFF_flat,      ENVSETUP2,          UNKNOWN
 };
 
 static const acmd_callback_t ABI_1080[0x18] =
 {
-    UNKNOWN,    ADPCM2,         CLEARBUFF2,     UNKNOWN,
-    ADDMIXER,   RESAMPLE2,      RESAMPLE2_ZOH,  FILTER2,
-    SETBUFF2,   DUPLICATE2,     DMEMMOVE2,      LOADADPCM2,
-    MIXER2,     INTERLEAVE2,    HILOGAIN,       SETLOOP2,
-    COPYBLOCKS2,INTERL2,        ENVSETUP1,      ENVMIXER2,
-    LOADBUFF2,  SAVEBUFF2,      ENVSETUP2,      UNKNOWN
+    UNKNOWN,        ADPCM_NEAD,         CLEARBUFF,          UNKNOWN,
+    ADDMIXER,       RESAMPLE_flat,      RESAMPLE_ZOH,       FILTER,
+    SETBUFF,        DUPLICATE,          DMEMMOVE,           LOADADPCM_flat,
+    MIXER,          INTERLEAVE_NEAD,    HILOGAIN,           SETLOOP_flat,
+    COPYBLOCKS,     INTERL,             ENVSETUP1_NEAD,     ENVMIXER_NEAD,
+    LOADBUFF_flat,  SAVEBUFF_flat,      ENVSETUP2,          UNKNOWN
 };
 
 static const acmd_callback_t ABI_OOT[0x18] =
 {
-    UNKNOWN,    ADPCM2,         CLEARBUFF2,     UNKNOWN,
-    ADDMIXER,   RESAMPLE2,      RESAMPLE2_ZOH,  FILTER2,
-    SETBUFF2,   DUPLICATE2,     DMEMMOVE2,      LOADADPCM2,
-    MIXER2,     INTERLEAVE2,    HILOGAIN,       SETLOOP2,
-    COPYBLOCKS2,INTERL2,        ENVSETUP1,      ENVMIXER2,
-    LOADBUFF2,  SAVEBUFF2,      ENVSETUP2,      UNKNOWN
+    UNKNOWN,        ADPCM_NEAD,         CLEARBUFF,          UNKNOWN,
+    ADDMIXER,       RESAMPLE_flat,      RESAMPLE_ZOH,       FILTER,
+    SETBUFF,        DUPLICATE,          DMEMMOVE,           LOADADPCM_flat,
+    MIXER,          INTERLEAVE_NEAD,    HILOGAIN,           SETLOOP_flat,
+    COPYBLOCKS,     INTERL,             ENVSETUP1_NEAD,     ENVMIXER_NEAD,
+    LOADBUFF_flat,  SAVEBUFF_flat,      ENVSETUP2,          UNKNOWN
 };
 
 static const acmd_callback_t ABI_MM[0x18] =
 {
-    UNKNOWN,    ADPCM2,         CLEARBUFF2,     SPNOOP,
-    ADDMIXER,   RESAMPLE2,      RESAMPLE2_ZOH,  FILTER2,
-    SETBUFF2,   DUPLICATE2,     DMEMMOVE2,      LOADADPCM2,
-    MIXER2,     INTERLEAVE2,    HILOGAIN,       SETLOOP2,
-    COPYBLOCKS2,INTERL2,        ENVSETUP1,      ENVMIXER2,
-    LOADBUFF2,  SAVEBUFF2,      ENVSETUP2,      UNKNOWN
+    UNKNOWN,        ADPCM_NEAD,         CLEARBUFF,          SPNOOP,
+    ADDMIXER,       RESAMPLE_flat,      RESAMPLE_ZOH,       FILTER,
+    SETBUFF,        DUPLICATE,          DMEMMOVE,           LOADADPCM_flat,
+    MIXER,          INTERLEAVE_NEAD,    HILOGAIN,           SETLOOP_flat,
+    COPYBLOCKS,     INTERL,             ENVSETUP1_NEAD,     ENVMIXER_NEAD,
+    LOADBUFF_flat,  SAVEBUFF_flat,      ENVSETUP2,          UNKNOWN
 };
 
 static const acmd_callback_t ABI_MMB[0x18] =
 {
-    SPNOOP,     ADPCM2,         CLEARBUFF2,     SPNOOP,
-    ADDMIXER,   RESAMPLE2,      RESAMPLE2_ZOH,  FILTER2,
-    SETBUFF2,   DUPLICATE2,     DMEMMOVE2,      LOADADPCM2,
-    MIXER2,     INTERLEAVE2,    HILOGAIN,       SETLOOP2,
-    COPYBLOCKS2,INTERL2,        ENVSETUP1,      ENVMIXER2,
-    LOADBUFF2,  SAVEBUFF2,      ENVSETUP2,      UNKNOWN
+    SPNOOP,         ADPCM_NEAD,         CLEARBUFF,          SPNOOP,
+    ADDMIXER,       RESAMPLE_flat,      RESAMPLE_ZOH,       FILTER,
+    SETBUFF,        DUPLICATE,          DMEMMOVE,           LOADADPCM_flat,
+    MIXER,          INTERLEAVE_NEAD,    HILOGAIN,           SETLOOP_flat,
+    COPYBLOCKS,     INTERL,             ENVSETUP1_NEAD,     ENVMIXER_NEAD,
+    LOADBUFF_flat,  SAVEBUFF_flat,      ENVSETUP2,          UNKNOWN
 };
 
 
 static const acmd_callback_t ABI_AC[0x18] =
 {
-    UNKNOWN,    ADPCM2,         CLEARBUFF2,     SPNOOP,
-    ADDMIXER,   RESAMPLE2,      RESAMPLE2_ZOH,  FILTER2,
-    SETBUFF2,   DUPLICATE2,     DMEMMOVE2,      LOADADPCM2,
-    MIXER2,     INTERLEAVE2,    HILOGAIN,       SETLOOP2,
-    COPYBLOCKS2,INTERL2,        ENVSETUP1,      ENVMIXER2,
-    LOADBUFF2,  SAVEBUFF2,      ENVSETUP2,      UNKNOWN
+    UNKNOWN,        ADPCM_NEAD,         CLEARBUFF,          SPNOOP,
+    ADDMIXER,       RESAMPLE_flat,      RESAMPLE_ZOH,       FILTER,
+    SETBUFF,        DUPLICATE,          DMEMMOVE,           LOADADPCM_flat,
+    MIXER,          INTERLEAVE_NEAD,    HILOGAIN,           SETLOOP_flat,
+    COPYBLOCKS,     INTERL,             ENVSETUP1_NEAD,     ENVMIXER_NEAD,
+    LOADBUFF_flat,  SAVEBUFF_flat,      ENVSETUP2,          UNKNOWN
 };
 
 /* global functions */
 void alist_process_mk()
 {
-    memset(l_audio_mk.segments, 0, sizeof(l_audio_mk.segments[0])*N_SEGMENTS);
+    memset(l_alist.segments, 0, sizeof(l_alist.segments[0])*N_SEGMENTS);
     alist_process(ABI_MK, 0x20);
 }
 

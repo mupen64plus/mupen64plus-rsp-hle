@@ -32,7 +32,7 @@
 #define N_SEGMENTS 16
 
 /* local variables */
-static struct audio_t
+static struct alist_t
 {
     // segments
     u32 segments[N_SEGMENTS]; // 0x320
@@ -59,7 +59,7 @@ static struct audio_t
     // adpcm
     u32 adpcm_loop;     // 0x0010(t8)
     u16 adpcm_codebook[0x80];
-} l_audio;
+} l_alist;
 
 
 /* local functions */
@@ -87,25 +87,25 @@ static void SPNOOP(u32 w1, u32 w2)
 
 static void SEGMENT(u32 w1, u32 w2)
 {
-    segoffset_store(w2, l_audio.segments, N_SEGMENTS);
+    segoffset_store(w2, l_alist.segments, N_SEGMENTS);
 }
 
 static void POLEF(u32 w1, u32 w2)
 {
-    if (l_audio.count == 0) { return; }
+    if (l_alist.count == 0) { return; }
 
     u16 flags = parse(w1, 16, 16);
     u16 gain  = parse(w1,  0, 16);
-    u32 address = segoffset_load(w2, l_audio.segments, N_SEGMENTS);
+    u32 address = segoffset_load(w2, l_alist.segments, N_SEGMENTS);
 
     adpcm_polef(
             flags & A_INIT,
             gain,
-            (s16*)l_audio.adpcm_codebook,
+            (s16*)l_alist.adpcm_codebook,
             address,
-            l_audio.in,
-            l_audio.out,
-            align(l_audio.count, 16));
+            l_alist.in,
+            l_alist.out,
+            align(l_alist.count, 16));
 }
 
 static void CLEARBUFF(u32 w1, u32 w2)
@@ -121,16 +121,16 @@ static void CLEARBUFF(u32 w1, u32 w2)
 static void ENVMIXER(u32 w1, u32 w2)
 {
     u8  flags   = parse(w1, 16,  8);
-    u32 address = segoffset_load(w2, l_audio.segments, N_SEGMENTS);
+    u32 address = segoffset_load(w2, l_alist.segments, N_SEGMENTS);
 
     int x,y;
     s16 state_buffer[40];
 
-    s16 *in = (s16*)(rsp.DMEM + l_audio.in);
-    s16 *dl = (s16*)(rsp.DMEM + l_audio.out);
-    s16 *dr = (s16*)(rsp.DMEM + l_audio.aux_dry_right);
-    s16 *wl = (s16*)(rsp.DMEM + l_audio.aux_wet_left);
-    s16 *wr = (s16*)(rsp.DMEM + l_audio.aux_wet_right);
+    s16 *in = (s16*)(rsp.DMEM + l_alist.in);
+    s16 *dl = (s16*)(rsp.DMEM + l_alist.out);
+    s16 *dr = (s16*)(rsp.DMEM + l_alist.aux_dry_right);
+    s16 *wl = (s16*)(rsp.DMEM + l_alist.aux_wet_left);
+    s16 *wr = (s16*)(rsp.DMEM + l_alist.aux_wet_right);
 
     unsigned flag_aux = ((flags & A_AUX) != 0);
 
@@ -144,16 +144,16 @@ static void ENVMIXER(u32 w1, u32 w2)
 
     if (flags & A_INIT)
     {
-        wet             = l_audio.wet;
-        dry             = l_audio.dry;
-        ramps[0].target = l_audio.env_target[0] << 16;
-        ramps[1].target = l_audio.env_target[1] << 16;
-        rates[0]        = l_audio.env_rate[0];
-        rates[1]        = l_audio.env_rate[1];
-        LAdderEnd       = l_audio.env_vol[0] * l_audio.env_rate[0];
-        RAdderEnd       = l_audio.env_vol[1] * l_audio.env_rate[1];
-        LAdderStart     = l_audio.env_vol[0] << 16;
-        RAdderStart     = l_audio.env_vol[1] << 16;
+        wet             = l_alist.wet;
+        dry             = l_alist.dry;
+        ramps[0].target = l_alist.env_target[0] << 16;
+        ramps[1].target = l_alist.env_target[1] << 16;
+        rates[0]        = l_alist.env_rate[0];
+        rates[1]        = l_alist.env_rate[1];
+        LAdderEnd       = l_alist.env_vol[0] * l_alist.env_rate[0];
+        RAdderEnd       = l_alist.env_vol[1] * l_alist.env_rate[1];
+        LAdderStart     = l_alist.env_vol[0] << 16;
+        RAdderStart     = l_alist.env_vol[1] << 16;
     }
     else
     {
@@ -171,7 +171,7 @@ static void ENVMIXER(u32 w1, u32 w2)
         RAdderStart     = *(s32*)(state_buffer + 18);
     }
 
-    for (y = 0; y < l_audio.count; y += 0x10)
+    for (y = 0; y < l_alist.count; y += 0x10)
     {
         envmix_exp_next_ramp(&ramps[0], &LAdderStart, &LAdderEnd, rates[0]);
         envmix_exp_next_ramp(&ramps[1], &RAdderStart, &RAdderEnd, rates[1]);
@@ -213,15 +213,15 @@ static void RESAMPLE(u32 w1, u32 w2)
 {
     u8  flags   = parse(w1, 16,  8);
     u16 pitch   = parse(w1,  0, 16);
-    u32 address = segoffset_load(w2, l_audio.segments, N_SEGMENTS);
+    u32 address = segoffset_load(w2, l_alist.segments, N_SEGMENTS);
 
     resample_buffer(
             flags & A_INIT,
             address,
             (u32)pitch << 1,
-            l_audio.in >> 1,
-            l_audio.out >> 1,
-            align(l_audio.count, 16) >> 1);
+            l_alist.in >> 1,
+            l_alist.out >> 1,
+            align(l_alist.count, 16) >> 1);
 }
 
 static void SETVOL(u32 w1, u32 w2)
@@ -230,8 +230,8 @@ static void SETVOL(u32 w1, u32 w2)
 
     if (flags & A_AUX)
     {
-        l_audio.dry = (s16)parse(w1, 0, 16);
-        l_audio.wet = (s16)parse(w2, 0, 16);
+        l_alist.dry = (s16)parse(w1, 0, 16);
+        l_alist.wet = (s16)parse(w2, 0, 16);
     }
     else
     {
@@ -239,54 +239,54 @@ static void SETVOL(u32 w1, u32 w2)
 
         if (flags & A_VOL)
         {
-            l_audio.env_vol[lr] = (s16)parse(w1, 0, 16);
+            l_alist.env_vol[lr] = (s16)parse(w1, 0, 16);
         }
         else
         {
-            l_audio.env_target[lr] = (s16)parse(w1, 0, 16);
-            l_audio.env_rate[lr]   = (s32)w2;
+            l_alist.env_target[lr] = (s16)parse(w1, 0, 16);
+            l_alist.env_rate[lr]   = (s32)w2;
         }
     }
 }
 
 static void SETLOOP(u32 w1, u32 w2)
 {
-    l_audio.adpcm_loop = segoffset_load(w2, l_audio.segments, N_SEGMENTS);
+    l_alist.adpcm_loop = segoffset_load(w2, l_alist.segments, N_SEGMENTS);
 }
 
 static void ADPCM(u32 w1, u32 w2)
 {
     u8  flags   = parse(w1, 16,  8);
-    u32 address = segoffset_load(w2, l_audio.segments, N_SEGMENTS);
+    u32 address = segoffset_load(w2, l_alist.segments, N_SEGMENTS);
    
     adpcm_decode(
             flags & A_INIT,
             flags & A_LOOP,
             0, // not supported in this ucode version
-            (s16*)l_audio.adpcm_codebook,
-            l_audio.adpcm_loop,
+            (s16*)l_alist.adpcm_codebook,
+            l_alist.adpcm_loop,
             address,
-            l_audio.in,
-            l_audio.out,
-            align(l_audio.count, 32) >> 5);
+            l_alist.in,
+            l_alist.out,
+            align(l_alist.count, 32) >> 5);
 }
 
 static void LOADBUFF(u32 w1, u32 w2)
 {
-    if (l_audio.count == 0) { return; }
+    if (l_alist.count == 0) { return; }
 
-    u32 address = segoffset_load(w2, l_audio.segments, N_SEGMENTS);
+    u32 address = segoffset_load(w2, l_alist.segments, N_SEGMENTS);
 
-    dma_read_fast(l_audio.in & 0xff8, address & ~7, l_audio.count - 1);
+    dma_read_fast(l_alist.in & 0xff8, address & ~7, l_alist.count - 1);
 }
 
 static void SAVEBUFF(u32 w1, u32 w2)
 {
-    if (l_audio.count == 0) { return; }
+    if (l_alist.count == 0) { return; }
     
-    u32 address = segoffset_load(w2, l_audio.segments, N_SEGMENTS);
+    u32 address = segoffset_load(w2, l_alist.segments, N_SEGMENTS);
 
-    dma_write_fast(address & ~7, l_audio.out & 0xff8, l_audio.count - 1);
+    dma_write_fast(address & ~7, l_alist.out & 0xff8, l_alist.count - 1);
 }
 
 static void SETBUFF(u32 w1, u32 w2)
@@ -295,15 +295,15 @@ static void SETBUFF(u32 w1, u32 w2)
 
     if (flags & A_AUX)
     {
-        l_audio.aux_dry_right = parse(w1,  0, 16);
-        l_audio.aux_wet_left  = parse(w2, 16, 16);
-        l_audio.aux_wet_right = parse(w2,  0, 16);
+        l_alist.aux_dry_right = parse(w1,  0, 16);
+        l_alist.aux_wet_left  = parse(w2, 16, 16);
+        l_alist.aux_wet_right = parse(w2,  0, 16);
     }
     else
     {
-        l_audio.in    = parse(w1,  0, 16);
-        l_audio.out   = parse(w2, 16, 16);
-        l_audio.count = parse(w2,  0, 16);
+        l_alist.in    = parse(w1,  0, 16);
+        l_alist.out   = parse(w2, 16, 16);
+        l_alist.count = parse(w2,  0, 16);
     }
 }
 
@@ -324,31 +324,31 @@ static void DMEMMOVE(u32 w1, u32 w2)
 static void LOADADPCM(u32 w1, u32 w2)
 {
     u16 count   = parse(w1, 0, 16);
-    u32 address = segoffset_load(w2, l_audio.segments, N_SEGMENTS);
+    u32 address = segoffset_load(w2, l_alist.segments, N_SEGMENTS);
 
     adpcm_load_codebook(
-            l_audio.adpcm_codebook,
+            l_alist.adpcm_codebook,
             address,
             count);
 }
 
 static void INTERLEAVE(u32 w1, u32 w2)
 {
-    if (l_audio.count == 0) { return; }
+    if (l_alist.count == 0) { return; }
 
     u16 left  = parse(w2, 16, 16);
     u16 right = parse(w2,  0, 16);
 
     interleave_buffers(
-            l_audio.out,
+            l_alist.out,
             left,
             right,
-            l_audio.count >> 1);
+            l_alist.count >> 1);
 }
 
 static void MIXER(u32 w1, u32 w2)
 {
-    if (l_audio.count == 0) { return; }
+    if (l_alist.count == 0) { return; }
 
     u16 gain  = parse(w1,  0, 16);
     u16 dmemi = parse(w2, 16, 16);
@@ -357,7 +357,7 @@ static void MIXER(u32 w1, u32 w2)
     mix_buffers(
             dmemo,
             dmemi,
-            l_audio.count >> 1,
+            l_alist.count >> 1,
             (s16)gain);
 }
 
@@ -389,19 +389,19 @@ static const acmd_callback_t ABI_AUDIO_BC[0x10] =
 /* global functions */
 void alist_process_audio()
 {
-    memset(l_audio.segments, 0, sizeof(l_audio.segments[0])*N_SEGMENTS);
+    memset(l_alist.segments, 0, sizeof(l_alist.segments[0])*N_SEGMENTS);
     alist_process(ABI_AUDIO, 0x10);
 }
 
 void alist_process_audio_ge()
 {
-    memset(l_audio.segments, 0, sizeof(l_audio.segments[0])*N_SEGMENTS);
+    memset(l_alist.segments, 0, sizeof(l_alist.segments[0])*N_SEGMENTS);
     alist_process(ABI_AUDIO_GE, 0x10);
 }
 
 void alist_process_audio_bc()
 {
-    memset(l_audio.segments, 0, sizeof(l_audio.segments[0])*N_SEGMENTS);
+    memset(l_alist.segments, 0, sizeof(l_alist.segments[0])*N_SEGMENTS);
     alist_process(ABI_AUDIO_BC, 0x10);
 }
 
