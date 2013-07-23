@@ -233,6 +233,9 @@ SOURCE = \
 	$(SRCDIR)/main.c \
 	$(SRCDIR)/adpcm.c \
 	$(SRCDIR)/alist.c \
+	$(SRCDIR)/alist_audio.c \
+	$(SRCDIR)/alist_naudio.c \
+	$(SRCDIR)/alist_nead.c \
 	$(SRCDIR)/cicx105.c \
 	$(SRCDIR)/jpeg.c \
 	$(SRCDIR)/mp3.c \

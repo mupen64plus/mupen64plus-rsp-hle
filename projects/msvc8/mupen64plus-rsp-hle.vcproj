@@ -187,6 +187,18 @@
 				>
 			</File>
 			<File
+				RelativePath="..\..\src\alist_audio.c"
+				>
+			</File>
+			<File
+				RelativePath="..\..\src\alist_naudio.c"
+				>
+			</File>
+			<File
+				RelativePath="..\..\src\alist_nead.c"
+				>
+			</File>
+			<File
 				RelativePath="..\..\src\cicx105.c"
 				>
 			</File>
@@ -218,6 +230,18 @@
 			</File>
 			<File
 				RelativePath="..\..\src\alist.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\src\alist_audio.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\src\alist_naudio.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\src\alist_nead.h"
 				>
 			</File>
 			<File
