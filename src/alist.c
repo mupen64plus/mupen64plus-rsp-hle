@@ -52,11 +52,6 @@ unsigned align(unsigned x, unsigned m)
     return (x + m) & (~m);
 }
 
-u32 parse(u32 value, unsigned offset, unsigned width)
-{
-    return (value >> offset) & ((1 << width) - 1);
-}
-
 s16 clamp_s16(s32 x)
 {
     if (x > 32767) { x = 32767; } else if (x < -32768) { x = -32768; }
@@ -98,6 +93,11 @@ void dma_write_fast(u32 dram, u16 mem, u16 length)
 }
 
 
+u32 alist_parse(u32 value, unsigned offset, unsigned width)
+{
+    return (value >> offset) & ((1 << width) - 1);
+}
+
 void alist_process(const acmd_callback_t abi[], size_t n)
 {
     u32 w1, w2;
@@ -112,7 +112,7 @@ void alist_process(const acmd_callback_t abi[], size_t n)
         w1 = *(alist++);
         w2 = *(alist++);
 
-        acmd = parse(w1, 24, 7);
+        acmd = alist_parse(w1, 24, 7);
 
         if (acmd < n)
         {
@@ -125,12 +125,10 @@ void alist_process(const acmd_callback_t abi[], size_t n)
     }
 }
 
-
-/* segment / offset related functions */
-u32 segoffset_load(u32 so, const u32* const segments, size_t n)
+u32 alist_segments_load(u32 so, const u32* const segments, size_t n)
 {
-    u8 segment = parse(so, 24,  6);
-    u32 offset = parse(so,  0, 24);
+    u8 segment = alist_parse(so, 24,  6);
+    u32 offset = alist_parse(so,  0, 24);
 
     if (segment < n)
     {
@@ -143,10 +141,10 @@ u32 segoffset_load(u32 so, const u32* const segments, size_t n)
     }
 }
 
-void segoffset_store(u32 so, u32* const segments, size_t n)
+void alist_segments_store(u32 so, u32* const segments, size_t n)
 {
-    u8 segment = parse(so, 24,  6);
-    u32 offset = parse(so,  0, 24);
+    u8 segment = alist_parse(so, 24,  6);
+    u32 offset = alist_parse(so,  0, 24);
 
     if (segment < n)
     {
@@ -158,7 +156,7 @@ void segoffset_store(u32 so, u32* const segments, size_t n)
     }
 }
 
-void dmem_move(u16 dmemo, u16 dmemi, u16 count)
+void alist_dmemmove(u16 dmemo, u16 dmemi, u16 count)
 {
     while (count != 0)
     {
@@ -167,7 +165,7 @@ void dmem_move(u16 dmemo, u16 dmemi, u16 count)
     }
 }
 
-void mix_buffers(u16 dmemo, u16 dmemi, u16 count, s16 gain)
+void alist_mix(u16 dmemo, u16 dmemi, u16 count, s16 gain)
 {
     s16 *dst = (s16*)(rsp.DMEM + dmemo);
     s16 *src = (s16*)(rsp.DMEM + dmemi);
@@ -179,7 +177,7 @@ void mix_buffers(u16 dmemo, u16 dmemi, u16 count, s16 gain)
     }
 }
 
-void interleave_buffers(u16 dmemo, u16 left, u16 right, u16 count)
+void alist_interleave(u16 dmemo, u16 left, u16 right, u16 count)
 {
     u16 l1, l2, r1, r2;
 

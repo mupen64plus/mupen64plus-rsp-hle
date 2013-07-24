@@ -53,18 +53,19 @@ struct ramp_t
 
 
 unsigned align(unsigned x, unsigned m);
-u32 parse(u32 value, unsigned offset, unsigned width);
 s16 clamp_s16(s32 x);
 s32 dmul_round(s16 x, s16 y);
 void sadd(s16 *x, s32 y);
 void dma_read_fast(u16 mem, u32 dram, u16 length);
 void dma_write_fast(u32 dram, u16 mem, u16 length);
+
+u32 alist_parse(u32 value, unsigned offset, unsigned width);
 void alist_process(const acmd_callback_t abi[], size_t n);
-u32 segoffset_load(u32 so, const u32* const segments, size_t n);
-void segoffset_store(u32 so, u32* const segments, size_t n);
-void dmem_move(u16 dmemo, u16 dmemi, u16 count);
-void mix_buffers(u16 dmemo, u16 dmemi, u16 count, s16 gain);
-void interleave_buffers(u16 dmemo, u16 left, u16 right, u16 count);
+u32 alist_segments_load(u32 so, const u32* const segments, size_t n);
+void alist_segments_store(u32 so, u32* const segments, size_t n);
+void alist_dmemmove(u16 dmemo, u16 dmemi, u16 count);
+void alist_mix(u16 dmemo, u16 dmemi, u16 count, s16 gain);
+void alist_interleave(u16 dmemo, u16 left, u16 right, u16 count);
 
 int ramp_next(struct ramp_t *ramp);
 

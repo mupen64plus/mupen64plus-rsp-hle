@@ -120,7 +120,7 @@ static void SPNOOP(u32 w1, u32 w2)
 
 static void UNKNOWN(u32 w1, u32 w2)
 {
-    u8 acmd = parse(w1, 24, 8);
+    u8 acmd = alist_parse(w1, 24, 8);
 
     DebugMessage(M64MSG_WARNING,
             "Unknown audio command %d: %08x %08x",
@@ -129,13 +129,13 @@ static void UNKNOWN(u32 w1, u32 w2)
 
 static void SEGMENT(u32 w1, u32 w2)
 {
-    segoffset_store(w2, l_alist.segments, N_SEGMENTS);
+    alist_segments_store(w2, l_alist.segments, N_SEGMENTS);
 }
 
 static void LOADADPCM_seg(u32 w1, u32 w2)
 {
-    u16 count   = parse(w1, 0, 16);
-    u32 address = segoffset_load(w2, l_alist.segments, N_SEGMENTS);
+    u16 count   = alist_parse(w1, 0, 16);
+    u32 address = alist_segments_load(w2, l_alist.segments, N_SEGMENTS);
 
     adpcm_load_codebook(
             l_alist.adpcm_codebook,
@@ -145,8 +145,8 @@ static void LOADADPCM_seg(u32 w1, u32 w2)
 
 static void LOADADPCM_flat(u32 w1, u32 w2)
 {
-    u16 count   = parse(w1, 0, 16);
-    u32 address = parse(w2, 0, 24);
+    u16 count   = alist_parse(w1, 0, 16);
+    u32 address = alist_parse(w2, 0, 24);
 
     adpcm_load_codebook(
             l_alist.adpcm_codebook,
@@ -156,28 +156,28 @@ static void LOADADPCM_flat(u32 w1, u32 w2)
 
 static void SETLOOP_seg(u32 w1, u32 w2)
 {
-    l_alist.adpcm_loop = segoffset_load(w2, l_alist.segments, N_SEGMENTS);
+    l_alist.adpcm_loop = alist_segments_load(w2, l_alist.segments, N_SEGMENTS);
 }
 
 static void SETLOOP_flat(u32 w1, u32 w2)
 {
-    l_alist.adpcm_loop = parse(w2, 0, 24);
+    l_alist.adpcm_loop = alist_parse(w2, 0, 24);
 }
 
 static void SETBUFF(u32 w1, u32 w2)
 {
-    l_alist.in    = parse(w1,  0, 16);
-    l_alist.out   = parse(w2, 16, 16);
-    l_alist.count = parse(w2,  0, 16);
+    l_alist.in    = alist_parse(w1,  0, 16);
+    l_alist.out   = alist_parse(w2, 16, 16);
+    l_alist.count = alist_parse(w2,  0, 16);
 }
 
 static void POLEF_seg(u32 w1, u32 w2)
 {
     if (l_alist.count == 0) { return; }
 
-    u16 flags = parse(w1, 16, 16);
-    u16 gain  = parse(w1,  0, 16);
-    u32 address = segoffset_load(w2, l_alist.segments, N_SEGMENTS);
+    u16 flags = alist_parse(w1, 16, 16);
+    u16 gain  = alist_parse(w1,  0, 16);
+    u32 address = alist_segments_load(w2, l_alist.segments, N_SEGMENTS);
 
     adpcm_polef(
             flags & A_INIT,
@@ -193,9 +193,9 @@ static void POLEF_flat(u32 w1, u32 w2)
 {
     if (l_alist.count == 0) { return; }
 
-    u16 flags   = parse(w1, 16, 16);
-    u16 gain    = parse(w1,  0, 16);
-    u32 address = parse(w2,  0, 24);
+    u16 flags   = alist_parse(w1, 16, 16);
+    u16 gain    = alist_parse(w1,  0, 16);
+    u32 address = alist_parse(w2,  0, 24);
 
     adpcm_polef(
             flags & A_INIT,
@@ -209,8 +209,8 @@ static void POLEF_flat(u32 w1, u32 w2)
 
 static void ADPCM_MK(u32 w1, u32 w2)
 {
-    u8  flags   = parse(w1, 16,  8);
-    u32 address = segoffset_load(w2, l_alist.segments, N_SEGMENTS);
+    u8  flags   = alist_parse(w1, 16,  8);
+    u32 address = alist_segments_load(w2, l_alist.segments, N_SEGMENTS);
 
     adpcm_decode(
             flags & A_INIT,
@@ -226,8 +226,8 @@ static void ADPCM_MK(u32 w1, u32 w2)
 
 static void ADPCM_NEAD(u32 w1, u32 w2)
 {
-    u8  flags   = parse(w1, 16,  8);
-    u32 address = parse(w2,  0, 24);
+    u8  flags   = alist_parse(w1, 16,  8);
+    u32 address = alist_parse(w2,  0, 24);
 
     adpcm_decode(
             flags & A_INIT,
@@ -243,45 +243,45 @@ static void ADPCM_NEAD(u32 w1, u32 w2)
 
 static void LOADBUFF_seg(u32 w1, u32 w2)
 {
-    u16 count   = parse(w1, 12, 12);
-    u16 dmem    = parse(w1,  0, 12);
-    u32 address = segoffset_load(w2, l_alist.segments, N_SEGMENTS);
+    u16 count   = alist_parse(w1, 12, 12);
+    u16 dmem    = alist_parse(w1,  0, 12);
+    u32 address = alist_segments_load(w2, l_alist.segments, N_SEGMENTS);
 
     dma_read_fast(dmem & ~7, address & ~7, (count & 0xff0) - 1);
 }
 
 static void LOADBUFF_flat(u32 w1, u32 w2)
 {
-    u16 count   = parse(w1, 12, 12);
-    u16 dmem    = parse(w1,  0, 12);
-    u32 address = parse(w2,  0, 24);
+    u16 count   = alist_parse(w1, 12, 12);
+    u16 dmem    = alist_parse(w1,  0, 12);
+    u32 address = alist_parse(w2,  0, 24);
 
     dma_read_fast(dmem & ~7, address & ~7, (count & 0xff0) - 1);
 }
 
 static void SAVEBUFF_seg(u32 w1, u32 w2)
 {
-    u16 count   = parse(w1, 12, 12);
-    u16 dmem    = parse(w1,  0, 12);
-    u32 address = segoffset_load(w2, l_alist.segments, N_SEGMENTS);
+    u16 count   = alist_parse(w1, 12, 12);
+    u16 dmem    = alist_parse(w1,  0, 12);
+    u32 address = alist_segments_load(w2, l_alist.segments, N_SEGMENTS);
 
     dma_write_fast(address & ~7, dmem & ~7, (count & 0xff0) - 1);
 }
 
 static void SAVEBUFF_flat(u32 w1, u32 w2)
 {
-    u16 count   = parse(w1, 12, 12);
-    u16 dmem    = parse(w1,  0, 12);
-    u32 address = parse(w2,  0, 24);
+    u16 count   = alist_parse(w1, 12, 12);
+    u16 dmem    = alist_parse(w1,  0, 12);
+    u32 address = alist_parse(w2,  0, 24);
 
     dma_write_fast(address & ~7, dmem & ~7, (count & 0xff0) - 1);
 }
 
 static void RESAMPLE_seg(u32 w1, u32 w2)
 {
-    u8  flags   = parse(w1, 16,  8);
-    u16 pitch   = parse(w1,  0, 16);
-    u32 address = segoffset_load(w2, l_alist.segments, N_SEGMENTS);
+    u8  flags   = alist_parse(w1, 16,  8);
+    u16 pitch   = alist_parse(w1,  0, 16);
+    u32 address = alist_segments_load(w2, l_alist.segments, N_SEGMENTS);
 
     resample_buffer(
             flags & A_INIT,
@@ -294,9 +294,9 @@ static void RESAMPLE_seg(u32 w1, u32 w2)
 
 static void RESAMPLE_flat(u32 w1, u32 w2)
 {
-    u8  flags   = parse(w1, 16,  8);
-    u16 pitch   = parse(w1,  0, 16);
-    u32 address = parse(w2,  0, 24);
+    u8  flags   = alist_parse(w1, 16,  8);
+    u16 pitch   = alist_parse(w1,  0, 16);
+    u32 address = alist_parse(w2,  0, 24);
 
     resample_buffer(
             flags & A_INIT,
@@ -309,40 +309,40 @@ static void RESAMPLE_flat(u32 w1, u32 w2)
 
 static void ENVSETUP1_MK(u32 w1, u32 w2)
 {
-    l_alist.env_value[2] = parse(w1, 16,  8) << 8;
+    l_alist.env_value[2] = alist_parse(w1, 16,  8) << 8;
     l_alist.env_step[2]  = 0; // not supported in this ucode version
-    l_alist.env_step[0]  = parse(w2, 16, 16);
-    l_alist.env_step[1]  = parse(w2,  0, 16);
+    l_alist.env_step[0]  = alist_parse(w2, 16, 16);
+    l_alist.env_step[1]  = alist_parse(w2,  0, 16);
 }
 
 static void ENVSETUP1_NEAD(u32 w1, u32 w2)
 {
-    l_alist.env_value[2] = parse(w1, 16,  8) << 8;
-    l_alist.env_step[2]  = parse(w1,  0, 16);
-    l_alist.env_step[0]  = parse(w2, 16, 16);
-    l_alist.env_step[1]  = parse(w2,  0, 16);
+    l_alist.env_value[2] = alist_parse(w1, 16,  8) << 8;
+    l_alist.env_step[2]  = alist_parse(w1,  0, 16);
+    l_alist.env_step[0]  = alist_parse(w2, 16, 16);
+    l_alist.env_step[1]  = alist_parse(w2,  0, 16);
 }
 
 static void ENVSETUP2(u32 w1, u32 w2)
 {
-    l_alist.env_value[0] = parse(w2, 16, 16);
-    l_alist.env_value[1] = parse(w2,  0, 16);
+    l_alist.env_value[0] = alist_parse(w2, 16, 16);
+    l_alist.env_value[1] = alist_parse(w2,  0, 16);
 }
 
 static void ENVMIXER_MK(u32 w1, u32 w2)
 {
     s16 xor_masks[4];
 
-    u16 dmemi = parse(w1, 16, 8) << 4;
-    s32 count = (s32)parse(w1, 8, 8);
+    u16 dmemi = alist_parse(w1, 16, 8) << 4;
+    s32 count = (s32)alist_parse(w1, 8, 8);
     xor_masks[2] = 0;
     xor_masks[3] = 0;
-    xor_masks[0] = 0 - (s16)parse(w1, 1, 1);
-    xor_masks[1] = 0 - (s16)parse(w1, 0, 1);
-    u16 dmem_dry_left  = parse(w2, 24, 8) << 4;
-    u16 dmem_dry_right = parse(w2, 16, 8) << 4;
-    u16 dmem_wet_left  = parse(w2,  8, 8) << 4;
-    u16 dmem_wet_right = parse(w2,  0, 8) << 4;
+    xor_masks[0] = 0 - (s16)alist_parse(w1, 1, 1);
+    xor_masks[1] = 0 - (s16)alist_parse(w1, 0, 1);
+    u16 dmem_dry_left  = alist_parse(w2, 24, 8) << 4;
+    u16 dmem_dry_right = alist_parse(w2, 16, 8) << 4;
+    u16 dmem_wet_left  = alist_parse(w2,  8, 8) << 4;
+    u16 dmem_wet_right = alist_parse(w2,  0, 8) << 4;
     
     envmixer(
         l_alist.env_value,
@@ -361,17 +361,17 @@ static void ENVMIXER_NEAD(u32 w1, u32 w2)
 {
     s16 xor_masks[4];
 
-    u16 dmemi = parse(w1, 16, 8) << 4;
-    s32 count = (s32)parse(w1, 8, 8);
-    unsigned swap_wet_LR = parse(w1, 4, 1);
-    xor_masks[2] = 0 - (s16)(parse(w1, 3, 1) << 2);
-    xor_masks[3] = 0 - (s16)(parse(w1, 2, 1) << 1);
-    xor_masks[0] = 0 - (s16)parse(w1, 1, 1);
-    xor_masks[1] = 0 - (s16)parse(w1, 0, 1);
-    u16 dmem_dry_left  = parse(w2, 24, 8) << 4;
-    u16 dmem_dry_right = parse(w2, 16, 8) << 4;
-    u16 dmem_wet_left  = parse(w2,  8, 8) << 4;
-    u16 dmem_wet_right = parse(w2,  0, 8) << 4;
+    u16 dmemi = alist_parse(w1, 16, 8) << 4;
+    s32 count = (s32)alist_parse(w1, 8, 8);
+    unsigned swap_wet_LR = alist_parse(w1, 4, 1);
+    xor_masks[2] = 0 - (s16)(alist_parse(w1, 3, 1) << 2);
+    xor_masks[3] = 0 - (s16)(alist_parse(w1, 2, 1) << 1);
+    xor_masks[0] = 0 - (s16)alist_parse(w1, 1, 1);
+    xor_masks[1] = 0 - (s16)alist_parse(w1, 0, 1);
+    u16 dmem_dry_left  = alist_parse(w2, 24, 8) << 4;
+    u16 dmem_dry_right = alist_parse(w2, 16, 8) << 4;
+    u16 dmem_wet_left  = alist_parse(w2,  8, 8) << 4;
+    u16 dmem_wet_right = alist_parse(w2,  0, 8) << 4;
     
     envmixer(
         l_alist.env_value,
@@ -390,10 +390,10 @@ static void INTERLEAVE_MK(u32 w1, u32 w2)
 {
     if (l_alist.count == 0) { return; }
 
-    u16 left  = parse(w2, 16, 16);
-    u16 right = parse(w2,  0, 16);
+    u16 left  = alist_parse(w2, 16, 16);
+    u16 right = alist_parse(w2,  0, 16);
     
-    interleave_buffers(
+    alist_interleave(
             l_alist.out,
             left,
             right,
@@ -402,12 +402,12 @@ static void INTERLEAVE_MK(u32 w1, u32 w2)
 
 static void INTERLEAVE_NEAD(u32 w1, u32 w2)
 {
-    u16 count = parse(w1, 16,  8) << 4;
-    u16 out   = parse(w1, 0, 16);
-    u16 left  = parse(w2, 16, 16);
-    u16 right = parse(w2,  0, 16);
+    u16 count = alist_parse(w1, 16,  8) << 4;
+    u16 out   = alist_parse(w1, 0, 16);
+    u16 left  = alist_parse(w2, 16, 16);
+    u16 right = alist_parse(w2,  0, 16);
     
-    interleave_buffers(
+    alist_interleave(
             out,
             left,
             right,
@@ -417,8 +417,8 @@ static void INTERLEAVE_NEAD(u32 w1, u32 w2)
 
 static void CLEARBUFF(u32 w1, u32 w2)
 {
-    u16 dmem  = parse(w1, 0, 16);
-    u16 count = parse(w2, 0, 16);
+    u16 dmem  = alist_parse(w1, 0, 16);
+    u16 count = alist_parse(w2, 0, 16);
     
     if (count > 0)
         memset(rsp.DMEM + dmem, 0, count);
@@ -427,12 +427,12 @@ static void CLEARBUFF(u32 w1, u32 w2)
 
 static void MIXER(u32 w1, u32 w2)
 {
-    u16 count = parse(w1, 12, 12);
-    u16 gain  = parse(w1,  0, 16);
-    u16 dmemi = parse(w2, 16, 16);
-    u16 dmemo = parse(w2,  0, 16);
+    u16 count = alist_parse(w1, 12, 12);
+    u16 gain  = alist_parse(w1,  0, 16);
+    u16 dmemi = alist_parse(w2, 16, 16);
+    u16 dmemo = alist_parse(w2,  0, 16);
 
-    mix_buffers(
+    alist_mix(
             dmemo,
             dmemi,
             (count & ~0xf) >> 1,
@@ -441,8 +441,8 @@ static void MIXER(u32 w1, u32 w2)
 
 static void RESAMPLE_ZOH(u32 w1, u32 w2)
 {
-    u32 pitch = parse(w1, 0, 16) << 1;
-    u32 pitch_accu = parse(w2, 0, 16);
+    u32 pitch = alist_parse(w1, 0, 16) << 1;
+    u32 pitch_accu = alist_parse(w2, 0, 16);
 
     resample_zoh(
         pitch_accu,
@@ -454,13 +454,13 @@ static void RESAMPLE_ZOH(u32 w1, u32 w2)
 
 static void DMEMMOVE(u32 w1, u32 w2)
 {
-    u16 dmemi = parse(w1,  0, 16);
-    u16 dmemo = parse(w2, 16, 16);
-    u16 count = parse(w2,  0, 16);
+    u16 dmemi = alist_parse(w1,  0, 16);
+    u16 dmemo = alist_parse(w2, 16, 16);
+    u16 count = alist_parse(w2,  0, 16);
 
     if (count == 0) { return; }
 
-    dmem_move(
+    alist_dmemmove(
         dmemo,
         dmemi,
         align(count, 4));
@@ -468,9 +468,9 @@ static void DMEMMOVE(u32 w1, u32 w2)
 
 static void DUPLICATE(u32 w1, u32 w2)
 {
-    u16 count = parse(w1, 16,  8);
-    u16 dmemi = parse(w1,  0, 16);
-    u16 dmemo = parse(w2, 16, 16);
+    u16 count = alist_parse(w1, 16,  8);
+    u16 dmemi = alist_parse(w1,  0, 16);
+    u16 dmemo = alist_parse(w2, 16, 16);
 
     unsigned short buff[64];
     
@@ -486,9 +486,9 @@ static void DUPLICATE(u32 w1, u32 w2)
 
 static void INTERL(u32 w1, u32 w2)
 {
-    u16 count = parse(w1,  0, 16);
-    u16 dmemi = parse(w2, 16, 16);
-    u16 dmemo = parse(w2,  0, 16);
+    u16 count = alist_parse(w1,  0, 16);
+    u16 dmemi = alist_parse(w2, 16, 16);
+    u16 dmemo = alist_parse(w2,  0, 16);
 
     while (count != 0)
     {
@@ -502,9 +502,9 @@ static void INTERL(u32 w1, u32 w2)
 
 static void ADDMIXER(u32 w1, u32 w2)
 {
-    u16 count = parse(w1, 16,  8) << 4;
-    u16 dmemi = parse(w2, 16, 16);
-    u16 dmemo = parse(w2,  0, 16);
+    u16 count = alist_parse(w1, 16,  8) << 4;
+    u16 dmemi = alist_parse(w2, 16, 16);
+    u16 dmemo = alist_parse(w2,  0, 16);
 
     const s16 *src = (s16 *)(rsp.DMEM + dmemi);
     s16 *dst       = (s16 *)(rsp.DMEM + dmemo);
@@ -518,9 +518,9 @@ static void ADDMIXER(u32 w1, u32 w2)
 
 static void HILOGAIN(u32 w1, u32 w2)
 {
-    u16 count = parse(w1,  0, 16);
-    u8  gain  = parse(w1, 16,  8);  /* Q4.4 */
-    u16 dmem  = parse(w2, 16, 16);
+    u16 count = alist_parse(w1,  0, 16);
+    u8  gain  = alist_parse(w1, 16,  8);  /* Q4.4 */
+    u16 dmem  = alist_parse(w2, 16, 16);
 
     s16 *ptr = (s16*)(rsp.DMEM + dmem);
 
@@ -535,9 +535,9 @@ static void HILOGAIN(u32 w1, u32 w2)
 
 static void FILTER(u32 w1, u32 w2)
 {
-    u8  t4      = parse(w1, 16,  8);
-    u16 lw1     = parse(w1,  0, 16);
-    u32 address = parse(w2,  0, 24);
+    u8  t4      = alist_parse(w1, 16,  8);
+    u16 lw1     = alist_parse(w1,  0, 16);
+    u32 address = alist_parse(w2,  0, 24);
 
 
     static int cnt = 0;
@@ -666,10 +666,10 @@ static void FILTER(u32 w1, u32 w2)
 
 static void COPYBLOCKS(u32 w1, u32 w2)
 {
-    u8  count      = parse(w1, 16,  8);
-    u16 dmemi      = parse(w1,  0, 16);
-    u16 dmemo      = parse(w2, 16, 16);
-    u16 block_size = parse(w2,  0, 16);
+    u8  count      = alist_parse(w1, 16,  8);
+    u16 dmemi      = alist_parse(w1,  0, 16);
+    u16 dmemo      = alist_parse(w2, 16, 16);
+    u16 block_size = alist_parse(w2,  0, 16);
 
     assert((dmemi & 0x3) == 0);
     assert((dmemo & 0x3) == 0);
