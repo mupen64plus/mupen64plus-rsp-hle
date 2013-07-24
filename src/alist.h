@@ -34,22 +34,12 @@ struct ramp_t
     s32 target; // lower 16 bits should be null
 };
 
-/*
- * Audio flags
- */
-
+/* some audio list flags */
 #define A_INIT          0x01
-#define A_CONTINUE      0x00
 #define A_LOOP          0x02
-#define A_OUT           0x02
 #define A_LEFT          0x02
-#define A_RIGHT         0x00
 #define A_VOL           0x04
-#define A_RATE          0x00
 #define A_AUX           0x08
-#define A_NOAUX         0x00
-#define A_MAIN          0x00
-#define A_MIX           0x10
 
 void dma_read_fast(u16 mem, u32 dram, u16 length);
 void dma_write_fast(u32 dram, u16 mem, u16 length);
