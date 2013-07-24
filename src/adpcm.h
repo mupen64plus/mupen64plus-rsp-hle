@@ -28,8 +28,5 @@ void adpcm_decode(
         u16 in, u16 out, int count);
 void adpcm_load_codebook(u16 *dst, u32 address, int count);
 
-void adpcm_polef(
-        int init, u16 gain, s16* codebook, u32 last_frame_address,
-        u16 in, u16 out, int count);
 #endif
 

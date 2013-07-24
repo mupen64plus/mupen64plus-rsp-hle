@@ -271,13 +271,13 @@ static void NAUDIO_14(u32 w1, u32 w2)
         u16 dmem = (select_main == 0) ? NAUDIO_MAIN : NAUDIO_MAIN2;
 
         // FIXME: use only l2, not l1
-        adpcm_polef(
+        alist_polef(
             flags & A_INIT,
             gain,
             (s16*)l_alist.adpcm_codebook,
             address,
-            dmem + 0x10,
             dmem,
+            dmem + 0x10,
             NAUDIO_SUBFRAME_SIZE);
     }
     else

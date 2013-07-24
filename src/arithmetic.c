@@ -22,6 +22,7 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 #include "hle.h"
+#include "stddef.h"
 
 unsigned align(unsigned x, unsigned m)
 {
@@ -43,5 +44,18 @@ s32 dmul_round(s16 x, s16 y)
 void sadd(s16 *x, s32 y)
 {
     *x = clamp_s16(*x + y);
+}
+
+s32 rdot(size_t n, const s16 *h, const s16 *x)
+{
+    size_t i;
+    s32 accu = 0;
+
+    x += n - 1;
+    
+    for(i = 0; i < n; ++i)
+        accu += *(h++) * *(x--);
+
+    return accu;
 }
 

@@ -34,7 +34,6 @@ static unsigned int get_scale_shift(unsigned char scale, unsigned char range);
 static s16 get_predicted_sample(u8 byte, u8 mask, unsigned lshift, unsigned rshift);
 static u16 get_predicted_frame_4bits(s16 *dst, u16 src, unsigned char scale);
 static u16 get_predicted_frame_2bits(s16 *dst, u16 src, unsigned char scale);
-static s32 rdot(size_t n, const s16 *h, const s16 *x);
 static void decode_8_samples(s16 *dst, const s16 *src, const s16 *cb_entry);
 static s16* decode_frames(get_predicted_frame_t get_predicted_frame, s16 *dst, u16 src, int count, s16 *codebook);
 
@@ -77,68 +76,6 @@ void adpcm_load_codebook(u16 *dst, u32 address, int count)
 
     for (i = 0; i < count; ++i)
         dst[i^S] = *(src++);
-}
-
-void adpcm_polef(
-        int init, u16 gain, s16* codebook, u32 address,
-        u16 in, u16 out, int count)
-{
-    s16 *dst = (s16*)(rsp.DMEM + out);
-
-    const s16 * const book1 = codebook;
-          s16 * const book2 = codebook + 8;
-
-    s16 l1, l2;
-    unsigned i;
-    s32 accu;
-    s16 book2_before[8];
-    s16 frame[8]; /* buffer for samples being processed
-                     (needed because processing is usually done inplace [in == out]) */
-
-    if (init)
-    {
-        /* FIXME: original ucode doesn't do it that way */
-        l1 = 0;
-        l2 = 0;
-    }
-    else
-    {
-        /* only the last 2 samples are needed */
-        l1 = rsp.RDRAM[(address + 4) ^ S16];
-        l2 = rsp.RDRAM[(address + 6) ^ S16];
-    }
-
-    for(i = 0; i < 8; ++i)
-    {
-        book2_before[i] = book2[i];
-        book2[i] = (s16)(((s32)book2[i] * gain) >> 14);
-    }
-
-    do
-    {
-        for(i = 0; i < 8; ++i)
-        {
-            frame[i] = rsp.DMEM[in^S16];
-            in += 2;
-        }
-
-        for(i = 0; i < 8; ++i)
-        {
-            accu = frame[i] * gain;
-            accu += book1[i]*l1 + book2_before[i]*l2;
-            accu += rdot(i, book2, frame);
-            dst[i ^ S] = clamp_s16(accu >> 14);
-        }
-
-        l1 = dst[6^S];
-        l2 = dst[7^S];
-
-        dst += 8;
-        count -= 0x10;
-    } while (count > 0);
-
-    /* save last 4 samples */
-    memcpy(rsp.RDRAM + address, dst - 4, 8);
 }
 
 /* local functions */
@@ -190,19 +127,6 @@ static u16 get_predicted_frame_2bits(s16 *dst, u16 src, unsigned char scale)
     }
 
     return src;
-}
-
-static s32 rdot(size_t n, const s16 *h, const s16 *x)
-{
-    size_t i;
-    s32 accu = 0;
-
-    x += n - 1;
-    
-    for(i = 0; i < n; ++i)
-        accu += *(h++) * *(x--);
-
-    return accu;
 }
 
 static void decode_8_samples(s16 *dst, const s16 *src, const s16 *cb_entry)

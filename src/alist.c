@@ -187,3 +187,65 @@ void alist_interleave(u16 dmemo, u16 left, u16 right, u16 count)
     }
 }
 
+void alist_polef(
+        int init, u16 gain, s16* table, u32 address,
+        u16 dmemo, u16 dmemi, int count)
+{
+    s16 *dst = (s16*)(rsp.DMEM + dmemo);
+
+    const s16 * const h1 = table;
+          s16 * const h2 = table + 8;
+
+    s16 l1, l2;
+    unsigned i;
+    s32 accu;
+    s16 h2_before[8];
+    s16 frame[8]; /* buffer for samples being processed
+                     (needed because processing is usually done inplace [dmemi == dmemo]) */
+
+    if (init)
+    {
+        /* FIXME: original ucode doesn't do it that way */
+        l1 = 0;
+        l2 = 0;
+    }
+    else
+    {
+        /* only the last 2 samples are needed */
+        l1 = rsp.RDRAM[(address + 4) ^ S16];
+        l2 = rsp.RDRAM[(address + 6) ^ S16];
+    }
+
+    for(i = 0; i < 8; ++i)
+    {
+        h2_before[i] = h2[i];
+        h2[i] = (s16)(((s32)h2[i] * gain) >> 14);
+    }
+
+    do
+    {
+        for(i = 0; i < 8; ++i)
+        {
+            frame[i] = rsp.DMEM[dmemi^S16];
+            dmemi += 2;
+        }
+
+        for(i = 0; i < 8; ++i)
+        {
+            accu = frame[i] * gain;
+            accu += h1[i]*l1 + h2_before[i]*l2;
+            accu += rdot(i, h2, frame);
+            dst[i ^ S] = clamp_s16(accu >> 14);
+        }
+
+        l1 = dst[6^S];
+        l2 = dst[7^S];
+
+        dst += 8;
+        count -= 0x10;
+    } while (count > 0);
+
+    /* save last 4 samples */
+    memcpy(rsp.RDRAM + address, dst - 4, 8);
+}
+

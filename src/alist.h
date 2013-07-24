@@ -61,6 +61,7 @@ void alist_segments_store(u32 so, u32* const segments, size_t n);
 void alist_dmemmove(u16 dmemo, u16 dmemi, u16 count);
 void alist_mix(u16 dmemo, u16 dmemi, u16 count, s16 gain);
 void alist_interleave(u16 dmemo, u16 left, u16 right, u16 count);
+void alist_polef(int init, u16 gain, s16* table, u32 address, u16 dmemo, u16 dmemi, int count);
 
 int ramp_next(struct ramp_t *ramp);
 

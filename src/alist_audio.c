@@ -99,13 +99,13 @@ static void POLEF(u32 w1, u32 w2)
     u16 gain  = alist_parse(w1,  0, 16);
     u32 address = alist_segments_load(w2, l_alist.segments, N_SEGMENTS);
 
-    adpcm_polef(
+    alist_polef(
             flags & A_INIT,
             gain,
             (s16*)l_alist.adpcm_codebook,
             address,
-            l_alist.in,
             l_alist.out,
+            l_alist.in,
             align(l_alist.count, 16));
 }
 
