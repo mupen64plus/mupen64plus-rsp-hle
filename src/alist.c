@@ -26,6 +26,7 @@
 #include "hle.h"
 
 #include "alist.h"
+#include "arithmetic.h"
 
 /* update ramp to its next value.
  * returns true if target has been reached, false otherwise */
@@ -43,29 +44,6 @@ int ramp_next(struct ramp_t *ramp)
         : (s32)accu;
 
     return target_reached;
-}
-
-/* local functions */
-unsigned align(unsigned x, unsigned m)
-{
-    --m;
-    return (x + m) & (~m);
-}
-
-s16 clamp_s16(s32 x)
-{
-    if (x > 32767) { x = 32767; } else if (x < -32768) { x = -32768; }
-    return x;
-}
-
-s32 dmul_round(s16 x, s16 y)
-{
-    return ((s32)x * (s32)y + 0x4000) >> 15;
-}
-
-void sadd(s16 *x, s32 y)
-{
-    *x = clamp_s16(*x + y);
 }
 
 /* caller is responsible to ensure that size and alignment constrains are met */

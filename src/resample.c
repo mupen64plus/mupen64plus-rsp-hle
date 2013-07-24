@@ -22,6 +22,7 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 #include "hle.h"
+#include "arithmetic.h"
 
 static const u16 RESAMPLE_LUT [4 * 64] =
 {
@@ -60,12 +61,6 @@ static const u16 RESAMPLE_LUT [4 * 64] =
 };
 
 /* local functions */
-static s16 clamp_s16(s32 x)
-{
-    if (x > 32767) { x = 32767; } else if (x < -32768) { x = -32768; }
-    return x;
-}
-
 static s32 dmul(s16 x, s16 y)
 {
     return ((s32)x * (s32)y) >> 15;

@@ -25,6 +25,7 @@
 #include <string.h>
 #include "hle.h"
 
+#include "arithmetic.h"
 #include "mp3.h"
 
 static u8 mp3data[0x1000];
@@ -194,20 +195,9 @@ static const u16 WINDOW_LUT[0x420] =
 };
 
 /* local functions */
-static s16 clamp_s16(s32 x)
-{
-    if (x > 32767) { x = 32767; } else if (x < -32768) { x = -32768; }
-    return x;
-}
-
 static s32 mul(s32 x, s32 y)
 {
     return (x*y) >> 16;
-}
-
-static s32 dmul_round(s16 x, s16 y)
-{
-    return ((s32)x * (s32)y + 0x4000) >> 15;
 }
 
 static void smul(s16 *x, s16 gain)

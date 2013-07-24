@@ -24,12 +24,7 @@
 #include <string.h>
 
 #include "hle.h"
-
-static s16 clamp_s16(s32 x)
-{
-    if (x > 32767) { x = 32767; } else if (x < -32768) { x = -32768; }
-    return x;
-}
+#include "arithmetic.h"
 
 /* types definition */
 typedef u16 (*get_predicted_frame_t)(s16 *dst, u16 src, unsigned char scale);

@@ -97,6 +97,7 @@
     <ClCompile Include="..\..\src\alist_audio.c" />
     <ClCompile Include="..\..\src\alist_naudio.c" />
     <ClCompile Include="..\..\src\alist_nead.c" />
+    <ClCompile Include="..\..\src\arithmetic.c" />
     <ClCompile Include="..\..\src\cicx105.c" />
     <ClCompile Include="..\..\src\jpeg.c" />
     <ClCompile Include="..\..\src\main.c" />
@@ -109,6 +110,7 @@
     <ClInclude Include="..\..\src\alist_audio.h" />
     <ClInclude Include="..\..\src\alist_naudio.h" />
     <ClInclude Include="..\..\src\alist_nead.h" />
+    <ClInclude Include="..\..\src\arithmetic.h" />
     <ClInclude Include="..\..\src\cicx105.h" />
     <ClInclude Include="..\..\src\hle.h" />
     <ClInclude Include="..\..\src\jpeg.h" />

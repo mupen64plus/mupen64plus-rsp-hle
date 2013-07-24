@@ -236,6 +236,7 @@ SOURCE = \
 	$(SRCDIR)/alist_audio.c \
 	$(SRCDIR)/alist_naudio.c \
 	$(SRCDIR)/alist_nead.c \
+	$(SRCDIR)/arithmetic.c \
 	$(SRCDIR)/cicx105.c \
 	$(SRCDIR)/jpeg.c \
 	$(SRCDIR)/mp3.c \

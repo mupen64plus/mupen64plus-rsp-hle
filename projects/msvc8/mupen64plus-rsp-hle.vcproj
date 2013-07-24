@@ -199,6 +199,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\..\src\arithmetic.c"
+				>
+			</File>
+			<File
 				RelativePath="..\..\src\cicx105.c"
 				>
 			</File>
@@ -242,6 +246,10 @@
 			</File>
 			<File
 				RelativePath="..\..\src\alist_nead.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\src\arithmetic.h"
 				>
 			</File>
 			<File

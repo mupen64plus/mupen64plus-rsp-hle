@@ -25,6 +25,7 @@
 #include <string.h>
 #include "hle.h"
 
+#include "arithmetic.h"
 #include "alist.h"
 #include "adpcm.h"
 #include "mp3.h"
