@@ -137,24 +137,18 @@ static void SEGMENT(u32 w1, u32 w2)
 
 static void LOADADPCM_seg(u32 w1, u32 w2)
 {
-    u16 count   = alist_parse(w1, 0, 16);
+    u16 length  = alist_parse(w1, 0, 16);
     u32 address = alist_segments_load(w2, l_alist.segments, N_SEGMENTS);
 
-    adpcm_load_codebook(
-            l_alist.table,
-            address,
-            count);
+    dram_read_many_u16(l_alist.table, address, length);
 }
 
 static void LOADADPCM_flat(u32 w1, u32 w2)
 {
-    u16 count   = alist_parse(w1, 0, 16);
+    u16 length  = alist_parse(w1, 0, 16);
     u32 address = alist_parse(w2, 0, 24);
 
-    adpcm_load_codebook(
-            l_alist.table,
-            address,
-            count);
+    dram_read_many_u16(l_alist.table, address, length);
 }
 
 static void SETLOOP_seg(u32 w1, u32 w2)

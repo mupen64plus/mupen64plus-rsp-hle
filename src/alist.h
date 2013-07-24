@@ -53,6 +53,7 @@ struct ramp_t
 
 void dma_read_fast(u16 mem, u32 dram, u16 length);
 void dma_write_fast(u32 dram, u16 mem, u16 length);
+void dram_read_many_u16(u16 *dst, u32 address, size_t length);
 
 u32 alist_parse(u32 value, unsigned offset, unsigned width);
 void alist_process(const acmd_callback_t abi[], size_t n);

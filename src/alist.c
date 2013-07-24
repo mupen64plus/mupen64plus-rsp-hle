@@ -70,6 +70,18 @@ void dma_write_fast(u32 dram, u16 mem, u16 length)
     memcpy(rsp.RDRAM + dram, rsp.DMEM + mem, align(length+1, 8));
 }
 
+void dram_read_many_u16(u16 *dst, u32 address, size_t length)
+{
+    length >>= 1;
+
+    while (length != 0)
+    {
+        *dst++ = *(s16*)(rsp.RDRAM + (address^S16));
+        address += 2;
+        --length;
+    }
+}
+
 
 u32 alist_parse(u32 value, unsigned offset, unsigned width)
 {

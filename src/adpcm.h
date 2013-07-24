@@ -26,7 +26,6 @@ void adpcm_decode(
         int init, int loop, int two_bits_per_sample,
         s16* codebook, u32 loop_address, u32 state_address,
         u16 in, u16 out, int count);
-void adpcm_load_codebook(u16 *dst, u32 address, int count);
 
 #endif
 

@@ -67,17 +67,6 @@ void adpcm_decode(
     memcpy(&rsp.RDRAM[last_frame_address], dst, 32);
 }
 
-void adpcm_load_codebook(u16 *dst, u32 address, int count)
-{
-    unsigned int i;
-
-    const s16 *src = (s16*)(rsp.RDRAM + address);
-    count >>= 1;
-
-    for (i = 0; i < count; ++i)
-        dst[i^S] = *(src++);
-}
-
 /* local functions */
 static unsigned int get_scale_shift(unsigned char scale, unsigned char range)
 {
