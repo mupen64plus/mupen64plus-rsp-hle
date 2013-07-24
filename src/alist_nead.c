@@ -43,9 +43,11 @@ static struct alist_t
     u16 out;            // 0x0002(t8)
     u16 count;          // 0x0004(t8)
 
-    // adpcm
-    u32 adpcm_loop;     // 0x0010(t8)
-    u16 adpcm_codebook[0x80];
+    // dram address of adpcm frame before loop point
+    u32 loop;     // 0x0010(t8)
+
+    // storage for adpcm codebooks and polef coefficients
+    u16 table[0x80];
 
     // envmixer envelopes (0: dry left, 1: dry right, 2: wet)
     u16 env_value[3];
@@ -139,7 +141,7 @@ static void LOADADPCM_seg(u32 w1, u32 w2)
     u32 address = alist_segments_load(w2, l_alist.segments, N_SEGMENTS);
 
     adpcm_load_codebook(
-            l_alist.adpcm_codebook,
+            l_alist.table,
             address,
             count);
 }
@@ -150,19 +152,19 @@ static void LOADADPCM_flat(u32 w1, u32 w2)
     u32 address = alist_parse(w2, 0, 24);
 
     adpcm_load_codebook(
-            l_alist.adpcm_codebook,
+            l_alist.table,
             address,
             count);
 }
 
 static void SETLOOP_seg(u32 w1, u32 w2)
 {
-    l_alist.adpcm_loop = alist_segments_load(w2, l_alist.segments, N_SEGMENTS);
+    l_alist.loop = alist_segments_load(w2, l_alist.segments, N_SEGMENTS);
 }
 
 static void SETLOOP_flat(u32 w1, u32 w2)
 {
-    l_alist.adpcm_loop = alist_parse(w2, 0, 24);
+    l_alist.loop = alist_parse(w2, 0, 24);
 }
 
 static void SETBUFF(u32 w1, u32 w2)
@@ -183,7 +185,7 @@ static void POLEF_seg(u32 w1, u32 w2)
     alist_polef(
             flags & A_INIT,
             gain,
-            (s16*)l_alist.adpcm_codebook,
+            (s16*)l_alist.table,
             address,
             l_alist.out,
             l_alist.in,
@@ -201,7 +203,7 @@ static void POLEF_flat(u32 w1, u32 w2)
     alist_polef(
             flags & A_INIT,
             gain,
-            (s16*)l_alist.adpcm_codebook,
+            (s16*)l_alist.table,
             address,
             l_alist.out,
             l_alist.in,
@@ -217,8 +219,8 @@ static void ADPCM_MK(u32 w1, u32 w2)
             flags & A_INIT,
             flags & A_LOOP,
             0, // not supported in this ucode version
-            (s16*)l_alist.adpcm_codebook,
-            l_alist.adpcm_loop,
+            (s16*)l_alist.table,
+            l_alist.loop,
             address,
             l_alist.in,
             l_alist.out,
@@ -234,8 +236,8 @@ static void ADPCM_NEAD(u32 w1, u32 w2)
             flags & A_INIT,
             flags & A_LOOP,
             flags & 0x4,
-            (s16*)l_alist.adpcm_codebook,
-            l_alist.adpcm_loop,
+            (s16*)l_alist.table,
+            l_alist.loop,
             address,
             l_alist.in,
             l_alist.out,

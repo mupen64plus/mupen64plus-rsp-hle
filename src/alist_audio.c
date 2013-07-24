@@ -57,9 +57,11 @@ static struct alist_t
     s16 env_target[2];
     s32 env_rate[2];
 
-    // adpcm
-    u32 adpcm_loop;     // 0x0010(t8)
-    u16 adpcm_codebook[0x80];
+    // dram address of adpcm frame before loop point
+    u32 loop;     // 0x0010(t8)
+
+    // storage for adpcm codebooks and polef coefficients
+    u16 table[0x80];
 } l_alist;
 
 
@@ -102,7 +104,7 @@ static void POLEF(u32 w1, u32 w2)
     alist_polef(
             flags & A_INIT,
             gain,
-            (s16*)l_alist.adpcm_codebook,
+            (s16*)l_alist.table,
             address,
             l_alist.out,
             l_alist.in,
@@ -252,7 +254,7 @@ static void SETVOL(u32 w1, u32 w2)
 
 static void SETLOOP(u32 w1, u32 w2)
 {
-    l_alist.adpcm_loop = alist_segments_load(w2, l_alist.segments, N_SEGMENTS);
+    l_alist.loop = alist_segments_load(w2, l_alist.segments, N_SEGMENTS);
 }
 
 static void ADPCM(u32 w1, u32 w2)
@@ -264,8 +266,8 @@ static void ADPCM(u32 w1, u32 w2)
             flags & A_INIT,
             flags & A_LOOP,
             0, // not supported in this ucode version
-            (s16*)l_alist.adpcm_codebook,
-            l_alist.adpcm_loop,
+            (s16*)l_alist.table,
+            l_alist.loop,
             address,
             l_alist.in,
             l_alist.out,
@@ -328,7 +330,7 @@ static void LOADADPCM(u32 w1, u32 w2)
     u32 address = alist_segments_load(w2, l_alist.segments, N_SEGMENTS);
 
     adpcm_load_codebook(
-            l_alist.adpcm_codebook,
+            l_alist.table,
             address,
             count);
 }

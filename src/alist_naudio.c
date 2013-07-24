@@ -51,9 +51,11 @@ static struct alist_t
     s16 env_target[2];
     s32 env_rate[2];
 
-    // adpcm
-    u32 adpcm_loop;
-    u16 adpcm_codebook[0x80];
+    // dram address of adpcm frame before loop point
+    u32 loop;
+
+    // storage for adpcm codebooks and polef coefficients
+    u16 table[0x80];
 } l_alist;
 
 /* Audio commands */
@@ -235,7 +237,7 @@ static void LOADADPCM(u32 w1, u32 w2)
     u32 address = alist_parse(w2, 0, 24);
 
     adpcm_load_codebook(
-            l_alist.adpcm_codebook,
+            l_alist.table,
             address,
             count);
 }
@@ -256,12 +258,12 @@ static void SETLOOP(u32 w1, u32 w2)
 {
     u32 address = alist_parse(w2, 0, 24);
 
-    l_alist.adpcm_loop = address;
+    l_alist.loop = address;
 }
 
 static void NAUDIO_14(u32 w1, u32 w2)
 {
-    if (l_alist.adpcm_codebook[0] == 0 && l_alist.adpcm_codebook[1] == 0)
+    if (l_alist.table[0] == 0 && l_alist.table[1] == 0)
     {
         u8  flags       = alist_parse(w1, 16,  8);
         u16 gain        = alist_parse(w1,  0, 16);
@@ -274,7 +276,7 @@ static void NAUDIO_14(u32 w1, u32 w2)
         alist_polef(
             flags & A_INIT,
             gain,
-            (s16*)l_alist.adpcm_codebook,
+            (s16*)l_alist.table,
             address,
             dmem,
             dmem + 0x10,
@@ -298,8 +300,8 @@ static void ADPCM(u32 w1, u32 w2)
             flags & A_INIT,
             flags & A_LOOP,
             0, // not supported in this ucode version
-            (s16*)l_alist.adpcm_codebook,
-            l_alist.adpcm_loop,
+            (s16*)l_alist.table,
+            l_alist.loop,
             address,
             NAUDIO_MAIN + dmemi,
             NAUDIO_MAIN + dmemo,
