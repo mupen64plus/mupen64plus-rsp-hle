@@ -253,9 +253,7 @@ static void DMEMMOVE(u32 w1, u32 w2)
 
 static void SETLOOP(u32 w1, u32 w2)
 {
-    u32 address = alist_parse(w2, 0, 24);
-
-    l_alist.loop = address;
+    l_alist.loop = alist_parse(w2, 0, 24);
 }
 
 static void NAUDIO_14(u32 w1, u32 w2)

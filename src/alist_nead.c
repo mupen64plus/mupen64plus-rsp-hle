@@ -443,7 +443,7 @@ static void MIXER(u32 w1, u32 w2)
 
 static void RESAMPLE_ZOH(u32 w1, u32 w2)
 {
-    u32 pitch = alist_parse(w1, 0, 16) << 1;
+    u32 pitch      = alist_parse(w1, 0, 16) << 1;
     u32 pitch_accu = alist_parse(w2, 0, 16);
 
     resample_zoh(
