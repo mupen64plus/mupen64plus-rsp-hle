@@ -25,7 +25,6 @@
 #include "hle.h"
 #include "stddef.h"
 
-unsigned align(unsigned x, unsigned m);
 s16 clamp_s16(s32 x);
 s32 dmul_round(s16 x, s16 y);
 void sadd(s16 *x, s32 y);

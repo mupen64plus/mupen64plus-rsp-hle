@@ -46,6 +46,12 @@ int ramp_next(struct ramp_t *ramp)
     return target_reached;
 }
 
+unsigned align(unsigned x, unsigned m)
+{
+    --m;
+    return (x + m) & (~m);
+}
+
 /* caller is responsible to ensure that size and alignment constrains are met */
 void dma_read_fast(u16 mem, u32 dram, u16 length)
 {

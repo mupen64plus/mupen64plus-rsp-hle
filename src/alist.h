@@ -41,6 +41,7 @@ struct ramp_t
 #define A_VOL           0x04
 #define A_AUX           0x08
 
+unsigned align(unsigned x, unsigned m);
 void dma_read_fast(u16 mem, u32 dram, u16 length);
 void dma_write_fast(u32 dram, u16 mem, u16 length);
 void dram_read_many_u16(u16 *dst, u32 address, size_t length);

@@ -24,12 +24,6 @@
 #include "hle.h"
 #include "stddef.h"
 
-unsigned align(unsigned x, unsigned m)
-{
-    --m;
-    return (x + m) & (~m);
-}
-
 s16 clamp_s16(s32 x)
 {
     if (x > 32767) { x = 32767; } else if (x < -32768) { x = -32768; }
