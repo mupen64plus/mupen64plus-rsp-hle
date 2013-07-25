@@ -83,6 +83,12 @@ static void envmix_exp_next_ramp(struct ramp_t *ramp, s32 *start, s32 *end, s32 
     }
 }
 
+static void clear_segments()
+{
+    memset(l_alist.segments, 0, sizeof(l_alist.segments[0])*N_SEGMENTS);
+}
+
+
 /* Audio commands */
 static void SPNOOP(u32 w1, u32 w2)
 {
@@ -389,19 +395,19 @@ static const acmd_callback_t ABI_AUDIO_BC[0x10] =
 /* global functions */
 void alist_process_audio()
 {
-    memset(l_alist.segments, 0, sizeof(l_alist.segments[0])*N_SEGMENTS);
+    clear_segments();
     alist_process(ABI_AUDIO, 0x10);
 }
 
 void alist_process_audio_ge()
 {
-    memset(l_alist.segments, 0, sizeof(l_alist.segments[0])*N_SEGMENTS);
+    clear_segments();
     alist_process(ABI_AUDIO_GE, 0x10);
 }
 
 void alist_process_audio_bc()
 {
-    memset(l_alist.segments, 0, sizeof(l_alist.segments[0])*N_SEGMENTS);
+    clear_segments();
     alist_process(ABI_AUDIO_BC, 0x10);
 }
 

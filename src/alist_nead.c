@@ -62,6 +62,11 @@ static void swap(s16 **a, s16 **b)
     *a = tmp;
 }
 
+static void clear_segments()
+{
+    memset(l_alist.segments, 0, sizeof(l_alist.segments[0])*N_SEGMENTS);
+}
+
 static void envmixer(
         u16* const env_value,
         u16* const env_step,
@@ -814,7 +819,7 @@ static const acmd_callback_t ABI_AC[0x18] =
 /* global functions */
 void alist_process_mk()
 {
-    memset(l_alist.segments, 0, sizeof(l_alist.segments[0])*N_SEGMENTS);
+    clear_segments();
     alist_process(ABI_MK, 0x20);
 }
 
