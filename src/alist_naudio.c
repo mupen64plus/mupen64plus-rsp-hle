@@ -273,7 +273,7 @@ static void NAUDIO_14(u32 w1, u32 w2)
             (s16*)l_alist.table,
             address,
             dmem,
-            dmem + 0x10,
+            dmem,
             NAUDIO_SUBFRAME_SIZE);
     }
     else
