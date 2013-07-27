@@ -267,7 +267,6 @@ static void NAUDIO_14(u32 w1, u32 w2)
 
         u16 dmem = (select_main == 0) ? NAUDIO_MAIN : NAUDIO_MAIN2;
 
-        // FIXME: use only l2, not l1
         alist_polef(
             flags & A_INIT,
             gain,

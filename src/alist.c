@@ -230,8 +230,8 @@ void alist_polef(
     else
     {
         /* only the last 2 samples are needed */
-        l1 = rsp.RDRAM[(address + 4) ^ S16];
-        l2 = rsp.RDRAM[(address + 6) ^ S16];
+        l1 = *(s16*)(rsp.RDRAM + ((address + 4) ^ S16));
+        l2 = *(s16*)(rsp.RDRAM + ((address + 6) ^ S16));
     }
 
     for(i = 0; i < 8; ++i)
@@ -244,7 +244,7 @@ void alist_polef(
     {
         for(i = 0; i < 8; ++i)
         {
-            frame[i] = rsp.DMEM[dmemi^S16];
+            frame[i] = *(s16*)(rsp.DMEM + (dmemi^S16));
             dmemi += 2;
         }
 
