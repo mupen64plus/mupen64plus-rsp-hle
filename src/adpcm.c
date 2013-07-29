@@ -37,12 +37,12 @@ static int16_t get_predicted_sample(uint8_t byte, uint8_t mask, unsigned lshift,
 static uint16_t get_predicted_frame_4bits(int16_t *dst, uint16_t src, unsigned char scale);
 static uint16_t get_predicted_frame_2bits(int16_t *dst, uint16_t src, unsigned char scale);
 static void decode_8_samples(int16_t *dst, const int16_t *src, const int16_t *cb_entry);
-static int16_t* decode_frames(get_predicted_frame_t get_predicted_frame, int16_t *dst, uint16_t src, int count, int16_t *codebook);
+static int16_t* decode_frames(get_predicted_frame_t get_predicted_frame, int16_t *dst, uint16_t src, int count, const int16_t *codebook);
 
 /* global functions */
 void adpcm_decode(
         bool init, bool loop, bool two_bits_per_sample,
-        int16_t* codebook, uint32_t loop_address, uint32_t last_frame_address,
+        const int16_t* codebook, uint32_t loop_address, uint32_t last_frame_address,
         uint16_t in, uint16_t out, int count)
 {
     int16_t *dst = (int16_t*)(rsp.DMEM + out);
@@ -139,10 +139,10 @@ static void decode_8_samples(int16_t *dst, const int16_t *src, const int16_t *cb
     }
 }
 
-static int16_t* decode_frames(get_predicted_frame_t get_predicted_frame, int16_t *dst, uint16_t src, int count, int16_t *codebook)
+static int16_t* decode_frames(get_predicted_frame_t get_predicted_frame, int16_t *dst, uint16_t src, int count, const int16_t *codebook)
 {
     uint8_t predictor;
-    int16_t *cb_entry;
+    const int16_t *cb_entry;
     unsigned char scale;
     int16_t frame[16];
 
