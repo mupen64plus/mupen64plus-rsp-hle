@@ -27,8 +27,8 @@
 
 void adpcm_decode(
         bool init, bool loop, bool two_bits_per_sample,
-        const int16_t* codebook, uint32_t loop_address, uint32_t state_address,
-        uint16_t in, uint16_t out, int count);
+        const int16_t* codebook, uint32_t loop_address, uint32_t last_frame_address,
+        uint16_t dmemo, uint16_t dmemi, uint16_t size);
 
 #endif
 

@@ -299,9 +299,9 @@ static void ADPCM(uint32_t w1, uint32_t w2)
             (int16_t*)l_alist.table,
             l_alist.loop,
             address,
-            NAUDIO_MAIN + dmemi,
             NAUDIO_MAIN + dmemo,
-            align(count, 32) >> 5);
+            NAUDIO_MAIN + dmemi,
+            count);
 }
 
 static void RESAMPLE(uint32_t w1, uint32_t w2)

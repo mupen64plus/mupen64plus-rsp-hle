@@ -29,44 +29,79 @@
 #include "arithmetic.h"
 
 /* types definition */
-typedef uint16_t (*get_predicted_frame_t)(int16_t *dst, uint16_t src, unsigned char scale);
+typedef unsigned int (*get_predicted_frame_t)(int16_t *dst, uint16_t dmemi, unsigned char scale);
 
 /* local functions prototypes */
 static unsigned int get_scale_shift(unsigned char scale, unsigned char range);
 static int16_t get_predicted_sample(uint8_t byte, uint8_t mask, unsigned lshift, unsigned rshift);
-static uint16_t get_predicted_frame_4bits(int16_t *dst, uint16_t src, unsigned char scale);
-static uint16_t get_predicted_frame_2bits(int16_t *dst, uint16_t src, unsigned char scale);
-static void decode_8_samples(int16_t *dst, const int16_t *src, const int16_t *cb_entry);
-static int16_t* decode_frames(get_predicted_frame_t get_predicted_frame, int16_t *dst, uint16_t src, int count, const int16_t *codebook);
+static unsigned int get_predicted_frame_4bits(int16_t *dst, uint16_t dmemi, unsigned char scale);
+static unsigned int get_predicted_frame_2bits(int16_t *dst, uint16_t dmemi, unsigned char scale);
+static void decode_8_samples(int16_t *dst, const int16_t *src,
+        const int16_t *cb_entry, const int16_t *last_samples);
+static void decode_frames(get_predicted_frame_t get_predicted_frame,
+        const int16_t *codebook, int16_t *last_frame,
+        uint16_t dmemo, uint16_t dmemi, uint16_t size);
+
+
+static void dram_load_many_u16(uint16_t *dst, uint32_t address, size_t count)
+{
+    size_t i;
+
+    for(i = 0; i < count; ++i)
+    {
+        *(dst++) = *(uint16_t*)(rsp.RDRAM + (address^S16));
+        address += 2;
+    }
+}
+
+static void dram_store_many_u16(uint32_t address, const uint16_t *src, size_t count)
+{
+    size_t i;
+
+    for(i = 0; i < count; ++i)
+    {
+        *(uint16_t*)(rsp.RDRAM + (address^S16)) = *(src++);
+        address += 2;
+    }
+}
+
+static void mem_store_many_u16(uint16_t address, const uint16_t *src, size_t count)
+{
+    size_t i;
+
+    for(i = 0; i < count; ++i)
+    {
+        *(uint16_t*)(rsp.DMEM + (address^S16)) = *(src++);
+        address += 2;
+    }
+}
+
 
 /* global functions */
 void adpcm_decode(
         bool init, bool loop, bool two_bits_per_sample,
         const int16_t* codebook, uint32_t loop_address, uint32_t last_frame_address,
-        uint16_t in, uint16_t out, int count)
+        uint16_t dmemo, uint16_t dmemi, uint16_t size)
 {
-    int16_t *dst = (int16_t*)(rsp.DMEM + out);
+    int16_t last_frame[16];
 
-    /* init/load last frame */
     if (init)
     {
-        memset(dst, 0, 32);
+        memset(last_frame, 0, 16*sizeof(last_frame[0]));
     }
     else
     {
-        void *src = (loop) ? &rsp.RDRAM[loop_address] : &rsp.RDRAM[last_frame_address];
-        memcpy(dst, src, 32);
+        dram_load_many_u16((uint16_t*)last_frame, (loop) ? loop_address : last_frame_address, 16);
     }
-    dst += 16;
-   
-    /* decode frames */
-    dst = (two_bits_per_sample)
-        ? decode_frames(get_predicted_frame_2bits, dst, in, count, codebook)
-        : decode_frames(get_predicted_frame_4bits, dst, in, count, codebook);
 
-    /* save last frame */
-    dst -= 16;
-    memcpy(&rsp.RDRAM[last_frame_address], dst, 32);
+    mem_store_many_u16(dmemo, (uint16_t*)last_frame, 16);
+   
+    decode_frames(
+            (two_bits_per_sample) ? get_predicted_frame_2bits : get_predicted_frame_4bits,
+            codebook, last_frame,
+            dmemo + 32, dmemi, size);
+
+    dram_store_many_u16(last_frame_address, (uint16_t*)last_frame, 16);
 }
 
 /* local functions */
@@ -82,7 +117,7 @@ static int16_t get_predicted_sample(uint8_t byte, uint8_t mask, unsigned lshift,
     return sample;
 }
 
-static uint16_t get_predicted_frame_4bits(int16_t *dst, uint16_t src, unsigned char scale)
+static unsigned int get_predicted_frame_4bits(int16_t *dst, uint16_t dmemi, unsigned char scale)
 {
     unsigned int i;
     uint8_t byte;
@@ -91,16 +126,16 @@ static uint16_t get_predicted_frame_4bits(int16_t *dst, uint16_t src, unsigned c
 
     for(i = 0; i < 8; ++i)
     {
-        byte = rsp.DMEM[(src++)^S8];
+        byte = rsp.DMEM[(dmemi++)^S8];
 
         *(dst++) = get_predicted_sample(byte, 0xf0,  8, rshift);
         *(dst++) = get_predicted_sample(byte, 0x0f, 12, rshift);
     }
 
-    return src;
+    return 8;
 }
 
-static uint16_t get_predicted_frame_2bits(int16_t *dst, uint16_t src, unsigned char scale)
+static unsigned int get_predicted_frame_2bits(int16_t *dst, uint16_t dmemi, unsigned char scale)
 {
     unsigned int i;
     uint8_t byte;
@@ -109,7 +144,7 @@ static uint16_t get_predicted_frame_2bits(int16_t *dst, uint16_t src, unsigned c
 
     for(i = 0; i < 4; ++i)
     {
-        byte = rsp.DMEM[(src++)^S8];
+        byte = rsp.DMEM[(dmemi++)^S8];
 
         *(dst++) = get_predicted_sample(byte, 0xc0,  8, rshift);
         *(dst++) = get_predicted_sample(byte, 0x30, 10, rshift);
@@ -117,16 +152,17 @@ static uint16_t get_predicted_frame_2bits(int16_t *dst, uint16_t src, unsigned c
         *(dst++) = get_predicted_sample(byte, 0x03, 14, rshift);
     }
 
-    return src;
+    return 4;
 }
 
-static void decode_8_samples(int16_t *dst, const int16_t *src, const int16_t *cb_entry)
+static void decode_8_samples(int16_t *dst, const int16_t *src,
+        const int16_t *cb_entry, const int16_t *last_samples)
 {
     const int16_t * const book1 = cb_entry;
     const int16_t * const book2 = cb_entry + 8;
 
-    const int16_t l1 = dst[-2 ^ S];
-    const int16_t l2 = dst[-1 ^ S];
+    const int16_t l1 = last_samples[0];
+    const int16_t l2 = last_samples[1];
 
     size_t i;
     int32_t accu;
@@ -135,32 +171,34 @@ static void decode_8_samples(int16_t *dst, const int16_t *src, const int16_t *cb
     {
         accu = src[i] << 11;
         accu += book1[i]*l1 + book2[i]*l2 + rdot(i, book2, src);
-        dst[i ^ S] = clamp_s16(accu >> 11);
+        dst[i] = clamp_s16(accu >> 11);
     }
 }
 
-static int16_t* decode_frames(get_predicted_frame_t get_predicted_frame, int16_t *dst, uint16_t src, int count, const int16_t *codebook)
+static void decode_frames(get_predicted_frame_t get_predicted_frame,
+        const int16_t *codebook, int16_t *last_frame,
+        uint16_t dmemo, uint16_t dmemi, uint16_t size)
 {
     uint8_t predictor;
     const int16_t *cb_entry;
     unsigned char scale;
     int16_t frame[16];
+    uint16_t i;
 
-    while (count > 0)
+    for(i = 0; i < size; i += 32)
     {
-        predictor = rsp.DMEM[(src++)^S8];
+        predictor = rsp.DMEM[(dmemi++)^S8];
 
         scale = (predictor & 0xf0) >> 4;
         cb_entry = codebook + ((predictor & 0xf) << 4);
 
-        src = get_predicted_frame(frame, src, scale);
+        dmemi += get_predicted_frame(frame, dmemi, scale);
 
-        decode_8_samples(dst, frame    , cb_entry); dst += 8; 
-        decode_8_samples(dst, frame + 8, cb_entry); dst += 8; 
-        
-        --count;
+        decode_8_samples(last_frame    , frame    , cb_entry, last_frame + 14);
+        decode_8_samples(last_frame + 8, frame + 8, cb_entry, last_frame + 6 );
+
+        mem_store_many_u16(dmemo, (uint16_t*)last_frame, 16);
+        dmemo += 32;
     }
-
-    return dst;
 }
 

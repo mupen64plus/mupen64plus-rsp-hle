@@ -277,9 +277,9 @@ static void ADPCM(uint32_t w1, uint32_t w2)
             (int16_t*)l_alist.table,
             l_alist.loop,
             address,
-            l_alist.in,
             l_alist.out,
-            align(l_alist.count, 32) >> 5);
+            l_alist.in,
+            l_alist.count);
 }
 
 static void LOADBUFF(uint32_t w1, uint32_t w2)
