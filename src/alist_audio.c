@@ -63,7 +63,7 @@ static struct alist_t
     uint32_t loop;     // 0x0010(t8)
 
     // storage for adpcm codebooks and polef coefficients
-    uint16_t table[0x80];
+    uint16_t table[16 * 8];
 } l_alist;
 
 

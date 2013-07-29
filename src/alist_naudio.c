@@ -57,7 +57,7 @@ static struct alist_t
     uint32_t loop;
 
     // storage for adpcm codebooks and polef coefficients
-    uint16_t table[0x80];
+    uint16_t table[16 * 8];
 } l_alist;
 
 /* Audio commands */

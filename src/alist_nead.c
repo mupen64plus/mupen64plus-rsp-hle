@@ -49,7 +49,7 @@ static struct alist_t
     uint32_t loop;     // 0x0010(t8)
 
     // storage for adpcm codebooks and polef coefficients
-    uint16_t table[0x80];
+    uint16_t table[16 * 8];
 
     // envmixer envelopes (0: dry left, 1: dry right, 2: wet)
     uint16_t env_value[3];
