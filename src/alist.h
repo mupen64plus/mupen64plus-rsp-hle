@@ -22,16 +22,16 @@
 #ifndef ALIST_H
 #define ALIST_H
 
-#include "hle.h"
+#include <stdint.h>
 
 /* types defintions */
-typedef void (*acmd_callback_t)(u32 w1, u32 w2);
+typedef void (*acmd_callback_t)(uint32_t w1, uint32_t w2);
 
 struct ramp_t
 {
-    s32 value;
-    s32 step;
-    s32 target; // lower 16 bits should be null
+    int32_t value;
+    int32_t step;
+    int32_t target; // lower 16 bits should be null
 };
 
 /* some audio list flags */
@@ -42,18 +42,18 @@ struct ramp_t
 #define A_AUX           0x08
 
 unsigned align(unsigned x, unsigned m);
-void dma_read_fast(u16 mem, u32 dram, u16 length);
-void dma_write_fast(u32 dram, u16 mem, u16 length);
-void dram_read_many_u16(u16 *dst, u32 address, size_t length);
+void dma_read_fast(uint16_t mem, uint32_t dram, uint16_t length);
+void dma_write_fast(uint32_t dram, uint16_t mem, uint16_t length);
+void dram_read_many_u16(uint16_t *dst, uint32_t address, size_t length);
 
-u32 alist_parse(u32 value, unsigned offset, unsigned width);
+uint32_t alist_parse(uint32_t value, unsigned offset, unsigned width);
 void alist_process(const acmd_callback_t abi[], size_t n);
-u32 alist_segments_load(u32 so, const u32* const segments, size_t n);
-void alist_segments_store(u32 so, u32* const segments, size_t n);
-void alist_dmemmove(u16 dmemo, u16 dmemi, u16 count);
-void alist_mix(u16 dmemo, u16 dmemi, u16 count, s16 gain);
-void alist_interleave(u16 dmemo, u16 left, u16 right, u16 count);
-void alist_polef(int init, u16 gain, s16* table, u32 address, u16 dmemo, u16 dmemi, int count);
+uint32_t alist_segments_load(uint32_t so, const uint32_t* const segments, size_t n);
+void alist_segments_store(uint32_t so, uint32_t* const segments, size_t n);
+void alist_dmemmove(uint16_t dmemo, uint16_t dmemi, uint16_t count);
+void alist_mix(uint16_t dmemo, uint16_t dmemi, uint16_t count, int16_t gain);
+void alist_interleave(uint16_t dmemo, uint16_t left, uint16_t right, uint16_t count);
+void alist_polef(int init, uint16_t gain, int16_t* table, uint32_t address, uint16_t dmemo, uint16_t dmemi, int count);
 
 int ramp_next(struct ramp_t *ramp);
 

@@ -22,10 +22,12 @@
 #ifndef ADPCM_H
 #define ADPCM_H
 
+#include <stdint.h>
+
 void adpcm_decode(
         int init, int loop, int two_bits_per_sample,
-        s16* codebook, u32 loop_address, u32 state_address,
-        u16 in, u16 out, int count);
+        int16_t* codebook, uint32_t loop_address, uint32_t state_address,
+        uint16_t in, uint16_t out, int count);
 
 #endif
 

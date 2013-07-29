@@ -22,6 +22,7 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 #include <assert.h>
+#include <stdint.h>
 #include <string.h>
 #include "hle.h"
 
@@ -32,8 +33,8 @@
  * returns true if target has been reached, false otherwise */
 int ramp_next(struct ramp_t *ramp)
 {
-    s64 accu     = (s64)ramp->value + (s64)ramp->step;
-    s64 accu_int = accu & ~0xffff; // lower bits are discarded for the comparison to target
+    int64_t accu     = (int64_t)ramp->value + (int64_t)ramp->step;
+    int64_t accu_int = accu & ~0xffff; // lower bits are discarded for the comparison to target
 
     int target_reached = (ramp->step >= 0)
         ? (accu_int > ramp->target)
@@ -41,7 +42,7 @@ int ramp_next(struct ramp_t *ramp)
 
     ramp->value = (target_reached)
         ? ramp->target | (accu & 0xffff) // but restored even if target is reached
-        : (s32)accu;
+        : (int32_t)accu;
 
     return target_reached;
 }
@@ -53,7 +54,7 @@ unsigned align(unsigned x, unsigned m)
 }
 
 /* caller is responsible to ensure that size and alignment constrains are met */
-void dma_read_fast(u16 mem, u32 dram, u16 length)
+void dma_read_fast(uint16_t mem, uint32_t dram, uint16_t length)
 {
     // mem & dram should be 8 byte aligned
     // length should encode a linear transfer
@@ -65,7 +66,7 @@ void dma_read_fast(u16 mem, u32 dram, u16 length)
 }
 
 /* caller is responsible to ensure that size and alignment constrains are met */
-void dma_write_fast(u32 dram, u16 mem, u16 length)
+void dma_write_fast(uint32_t dram, uint16_t mem, uint16_t length)
 {
     // mem & dram should be 8 byte aligned
     // length should encode a linear transfer
@@ -76,32 +77,32 @@ void dma_write_fast(u32 dram, u16 mem, u16 length)
     memcpy(rsp.RDRAM + dram, rsp.DMEM + mem, align(length+1, 8));
 }
 
-void dram_read_many_u16(u16 *dst, u32 address, size_t length)
+void dram_read_many_u16(uint16_t *dst, uint32_t address, size_t length)
 {
     length >>= 1;
 
     while (length != 0)
     {
-        *dst++ = *(s16*)(rsp.RDRAM + (address^S16));
+        *dst++ = *(uint16_t*)(rsp.RDRAM + (address^S16));
         address += 2;
         --length;
     }
 }
 
 
-u32 alist_parse(u32 value, unsigned offset, unsigned width)
+uint32_t alist_parse(uint32_t value, unsigned offset, unsigned width)
 {
     return (value >> offset) & ((1 << width) - 1);
 }
 
 void alist_process(const acmd_callback_t abi[], size_t n)
 {
-    u32 w1, w2;
-    u8 acmd;
+    uint32_t w1, w2;
+    unsigned char acmd;
     const OSTask_t * const task = get_task();
 
-    const unsigned int *alist = (unsigned int*)(rsp.RDRAM + task->data_ptr);
-    const unsigned int * const alist_end = alist + (task->data_size >> 2);
+    const uint32_t * alist = (uint32_t*)(rsp.RDRAM + task->data_ptr);
+    const uint32_t * const alist_end = alist + (task->data_size >> 2);
 
     while (alist != alist_end)
     {
@@ -121,10 +122,10 @@ void alist_process(const acmd_callback_t abi[], size_t n)
     }
 }
 
-u32 alist_segments_load(u32 so, const u32* const segments, size_t n)
+uint32_t alist_segments_load(uint32_t so, const uint32_t* const segments, size_t n)
 {
-    u8 segment = alist_parse(so, 24,  6);
-    u32 offset = alist_parse(so,  0, 24);
+    unsigned char segment = alist_parse(so, 24,  6);
+    uint32_t offset = alist_parse(so,  0, 24);
 
     if (segment < n)
     {
@@ -137,10 +138,10 @@ u32 alist_segments_load(u32 so, const u32* const segments, size_t n)
     }
 }
 
-void alist_segments_store(u32 so, u32* const segments, size_t n)
+void alist_segments_store(uint32_t so, uint32_t* const segments, size_t n)
 {
-    u8 segment = alist_parse(so, 24,  6);
-    u32 offset = alist_parse(so,  0, 24);
+    unsigned char segment = alist_parse(so, 24,  6);
+    uint32_t offset = alist_parse(so,  0, 24);
 
     if (segment < n)
     {
@@ -152,7 +153,7 @@ void alist_segments_store(u32 so, u32* const segments, size_t n)
     }
 }
 
-void alist_dmemmove(u16 dmemo, u16 dmemi, u16 count)
+void alist_dmemmove(uint16_t dmemo, uint16_t dmemi, uint16_t count)
 {
     while (count != 0)
     {
@@ -161,10 +162,10 @@ void alist_dmemmove(u16 dmemo, u16 dmemi, u16 count)
     }
 }
 
-void alist_mix(u16 dmemo, u16 dmemi, u16 count, s16 gain)
+void alist_mix(uint16_t dmemo, uint16_t dmemi, uint16_t count, int16_t gain)
 {
-    s16 *dst = (s16*)(rsp.DMEM + dmemo);
-    s16 *src = (s16*)(rsp.DMEM + dmemi);
+    int16_t *dst = (int16_t*)(rsp.DMEM + dmemo);
+    int16_t *src = (int16_t*)(rsp.DMEM + dmemi);
 
     while (count != 0)
     {
@@ -173,15 +174,15 @@ void alist_mix(u16 dmemo, u16 dmemi, u16 count, s16 gain)
     }
 }
 
-void alist_interleave(u16 dmemo, u16 left, u16 right, u16 count)
+void alist_interleave(uint16_t dmemo, uint16_t left, uint16_t right, uint16_t count)
 {
-    u16 l1, l2, r1, r2;
+    uint16_t l1, l2, r1, r2;
 
     count >>= 1;
 
-    u16 *dst  = (u16*)(rsp.DMEM + dmemo);
-    u16 *srcL = (u16*)(rsp.DMEM + left);
-    u16 *srcR = (u16*)(rsp.DMEM + right);
+    uint16_t *dst  = (uint16_t*)(rsp.DMEM + dmemo);
+    uint16_t *srcL = (uint16_t*)(rsp.DMEM + left);
+    uint16_t *srcR = (uint16_t*)(rsp.DMEM + right);
 
     while (count != 0)
     {
@@ -206,19 +207,19 @@ void alist_interleave(u16 dmemo, u16 left, u16 right, u16 count)
 }
 
 void alist_polef(
-        int init, u16 gain, s16* table, u32 address,
-        u16 dmemo, u16 dmemi, int count)
+        int init, uint16_t gain, int16_t* table, uint32_t address,
+        uint16_t dmemo, uint16_t dmemi, int count)
 {
-    s16 *dst = (s16*)(rsp.DMEM + dmemo);
+    int16_t *dst = (int16_t*)(rsp.DMEM + dmemo);
 
-    const s16 * const h1 = table;
-          s16 * const h2 = table + 8;
+    const int16_t * const h1 = table;
+          int16_t * const h2 = table + 8;
 
-    s16 l1, l2;
+    int16_t l1, l2;
     unsigned i;
-    s32 accu;
-    s16 h2_before[8];
-    s16 frame[8]; /* buffer for samples being processed
+    int32_t accu;
+    int16_t h2_before[8];
+    int16_t frame[8]; /* buffer for samples being processed
                      (needed because processing is usually done inplace [dmemi == dmemo]) */
 
     if (init)
@@ -230,21 +231,21 @@ void alist_polef(
     else
     {
         /* only the last 2 samples are needed */
-        l1 = *(s16*)(rsp.RDRAM + ((address + 4) ^ S16));
-        l2 = *(s16*)(rsp.RDRAM + ((address + 6) ^ S16));
+        l1 = *(int16_t*)(rsp.RDRAM + ((address + 4) ^ S16));
+        l2 = *(int16_t*)(rsp.RDRAM + ((address + 6) ^ S16));
     }
 
     for(i = 0; i < 8; ++i)
     {
         h2_before[i] = h2[i];
-        h2[i] = (s16)(((s32)h2[i] * gain) >> 14);
+        h2[i] = (int16_t)(((int32_t)h2[i] * gain) >> 14);
     }
 
     do
     {
         for(i = 0; i < 8; ++i)
         {
-            frame[i] = *(s16*)(rsp.DMEM + (dmemi^S16));
+            frame[i] = *(int16_t*)(rsp.DMEM + (dmemi^S16));
             dmemi += 2;
         }
 

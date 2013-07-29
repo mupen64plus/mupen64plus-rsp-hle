@@ -22,6 +22,7 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 #include <assert.h>
+#include <stdint.h>
 #include <string.h>
 #include "hle.h"
 
@@ -43,121 +44,121 @@
 static struct alist_t
 {
     // envmixer gains
-    s16 dry;
-    s16 wet;
+    int16_t dry;
+    int16_t wet;
 
     // envmixer envelopes (0: left, 1: right)
-    s16 env_vol[2];
-    s16 env_target[2];
-    s32 env_rate[2];
+    int16_t env_vol[2];
+    int16_t env_target[2];
+    int32_t env_rate[2];
 
     // dram address of adpcm frame before loop point
-    u32 loop;
+    uint32_t loop;
 
     // storage for adpcm codebooks and polef coefficients
-    u16 table[0x80];
+    uint16_t table[0x80];
 } l_alist;
 
 /* Audio commands */
-static void SPNOOP(u32 w1, u32 w2)
+static void SPNOOP(uint32_t w1, uint32_t w2)
 {
 }
 
-static void UNKNOWN(u32 w1, u32 w2)
+static void UNKNOWN(uint32_t w1, uint32_t w2)
 {
-    u8 acmd = alist_parse(w1, 24, 8);
+    uint8_t acmd = alist_parse(w1, 24, 8);
 
     DebugMessage(M64MSG_WARNING,
             "Unknown audio command %d: %08x %08x",
             acmd, w1, w2);
 }
 
-static void NAUDIO_0000(u32 w1, u32 w2)
+static void NAUDIO_0000(uint32_t w1, uint32_t w2)
 {
     /* ??? */
     UNKNOWN(w1, w2);
 }
 
-static void NAUDIO_02B0(u32 w1, u32 w2)
+static void NAUDIO_02B0(uint32_t w1, uint32_t w2)
 {
     /* ??? */
     /* UNKNOWN(w1, w2); commented to avoid constant spamming during gameplay */
 }
 
-static void SETVOL(u32 w1, u32 w2)
+static void SETVOL(uint32_t w1, uint32_t w2)
 {
-    u8 flags = alist_parse(w1, 16, 8);
+    uint8_t flags = alist_parse(w1, 16, 8);
 
     if (flags & 0x4)
     {
         if (flags & 0x2)
         {
-            l_alist.env_vol[0]  = (s16)alist_parse(w1,  0, 16); // 0x50
-            l_alist.dry         = (s16)alist_parse(w2, 16, 16); // 0x4c
-            l_alist.wet         = (s16)alist_parse(w2,  0, 16); // 0x4e
+            l_alist.env_vol[0]  = (int16_t)alist_parse(w1,  0, 16); // 0x50
+            l_alist.dry         = (int16_t)alist_parse(w2, 16, 16); // 0x4c
+            l_alist.wet         = (int16_t)alist_parse(w2,  0, 16); // 0x4e
         }
         else
         {
-            l_alist.env_target[1] = (s16)alist_parse(w1, 0, 16); // 0x46
-            l_alist.env_rate[1]   = (s32)w2;               // 0x48/0x4A
+            l_alist.env_target[1] = (int16_t)alist_parse(w1, 0, 16); // 0x46
+            l_alist.env_rate[1]   = (int32_t)w2;               // 0x48/0x4A
         }
     }
     else
     {
-        l_alist.env_target[0] = (s16)alist_parse(w1, 0, 16); // 0x40
-        l_alist.env_rate[0]   = (s32)w2;               // 0x42/0x44
+        l_alist.env_target[0] = (int16_t)alist_parse(w1, 0, 16); // 0x40
+        l_alist.env_rate[0]   = (int32_t)w2;               // 0x42/0x44
     }
 }
 
-static void ENVMIXER(u32 w1, u32 w2)
+static void ENVMIXER(uint32_t w1, uint32_t w2)
 {
-    u8  flags   = alist_parse(w1, 16,  8);
-    u32 address = alist_parse(w2,  0, 24);
+    uint8_t  flags   = alist_parse(w1, 16,  8);
+    uint32_t address = alist_parse(w2,  0, 24);
 
     int y;
-    s16 state_buffer[40];
+    int16_t state_buffer[40];
 
-    s16 *in = (s16*)(rsp.DMEM + NAUDIO_MAIN);
-    s16 *dl = (s16*)(rsp.DMEM + NAUDIO_DRY_LEFT);
-    s16 *dr = (s16*)(rsp.DMEM + NAUDIO_DRY_RIGHT);
-    s16 *wl = (s16*)(rsp.DMEM + NAUDIO_WET_LEFT);
-    s16 *wr = (s16*)(rsp.DMEM + NAUDIO_WET_RIGHT);
+    int16_t *in = (int16_t*)(rsp.DMEM + NAUDIO_MAIN);
+    int16_t *dl = (int16_t*)(rsp.DMEM + NAUDIO_DRY_LEFT);
+    int16_t *dr = (int16_t*)(rsp.DMEM + NAUDIO_DRY_RIGHT);
+    int16_t *wl = (int16_t*)(rsp.DMEM + NAUDIO_WET_LEFT);
+    int16_t *wr = (int16_t*)(rsp.DMEM + NAUDIO_WET_RIGHT);
 
-    s16 envL, envR, value;
+    int16_t envL, envR, value;
 
     /* 0 -> Left, 1->Right */
     struct ramp_t ramps[2];
-    s16 dry, wet;
+    int16_t dry, wet;
 
-    l_alist.env_vol[1] = (s16)alist_parse(w1, 0, 16);
+    l_alist.env_vol[1] = (int16_t)alist_parse(w1, 0, 16);
 
     if (flags & A_INIT)
     {
         ramps[0].step   = l_alist.env_rate[0] >> 3;
-        ramps[0].value  = (s32)l_alist.env_vol[0] << 16;
-        ramps[0].target = (s32)l_alist.env_target[0] << 16;
+        ramps[0].value  = (int32_t)l_alist.env_vol[0] << 16;
+        ramps[0].target = (int32_t)l_alist.env_target[0] << 16;
 
         ramps[1].step   = l_alist.env_rate[1] >> 3;
-        ramps[1].value  = (s32)l_alist.env_vol[1] << 16;
-        ramps[1].target = (s32)l_alist.env_target[1] << 16;
+        ramps[1].value  = (int32_t)l_alist.env_vol[1] << 16;
+        ramps[1].target = (int32_t)l_alist.env_target[1] << 16;
 
-        wet = (s16)l_alist.wet;
-        dry = (s16)l_alist.dry;
+        wet = (int16_t)l_alist.wet;
+        dry = (int16_t)l_alist.dry;
     }
     else
     {
-        memcpy((u8 *)state_buffer, rsp.RDRAM+address, 80);
+        memcpy((uint8_t *)state_buffer, rsp.RDRAM+address, 80);
 
-        wet             = *(s16 *)(state_buffer +  0); // 0-1
-        dry             = *(s16 *)(state_buffer +  2); // 2-3
-        ramps[0].target = (s32)*(s16 *)(state_buffer +  4) << 16; // 4-5
-        ramps[1].target = (s32)*(s16 *)(state_buffer +  6) << 16; // 6-7
-        ramps[0].step   = *(s32 *)(state_buffer +  8); // 8-9 (state_buffer is a 16bit pointer)
-        ramps[1].step   = *(s32 *)(state_buffer + 10); // 10-11
-//        0   = *(s32 *)(state_buffer + 12); // 12-13
-//        0   = *(s32 *)(state_buffer + 14); // 14-15
-        ramps[0].value  = *(s32 *)(state_buffer + 16); // 16-17
-        ramps[1].value  = *(s32 *)(state_buffer + 18); // 18-19
+        wet             = *(int16_t *)(state_buffer +  0); // 0-1
+        dry             = *(int16_t *)(state_buffer +  2); // 2-3
+        ramps[0].target = (int32_t)*(int16_t *)(state_buffer +  4) << 16; // 4-5
+        ramps[1].target = (int32_t)*(int16_t *)(state_buffer +  6) << 16; // 6-7
+        ramps[0].step   = *(int32_t *)(state_buffer +  8); // 8-9 (state_buffer is a 16bit pointer)
+        ramps[1].step   = *(int32_t *)(state_buffer + 10); // 10-11
+//        0   = *(int32_t *)(state_buffer + 12); // 12-13
+//        0   = *(int32_t *)(state_buffer + 14); // 14-15
+        ramps[0].value  = *(int32_t *)(state_buffer + 16); // 16-17
+        ramps[1].value  = *(int32_t *)(state_buffer + 18); // 18-19
     }
 
     for (y = 0; y < (NAUDIO_SUBFRAME_SIZE/2); ++y)
@@ -175,75 +176,75 @@ static void ENVMIXER(u32 w1, u32 w2)
         sadd(&wr[y^S], dmul_round(value, dmul_round(wet, envR)));
     }
 
-    *(s16 *)(state_buffer +  0) = wet; // 0-1
-    *(s16 *)(state_buffer +  2) = dry; // 2-3
-    *(s16 *)(state_buffer +  4) = ramps[0].target >> 16; // 4-5
-    *(s16 *)(state_buffer +  6) = ramps[1].target >> 16; // 6-7
-    *(s32 *)(state_buffer +  8) = ramps[0].step; // 8-9 (state_buffer is a 16bit pointer)
-    *(s32 *)(state_buffer + 10) = ramps[1].step; // 10-11
-    *(s32 *)(state_buffer + 12) = 0; // 12-13
-    *(s32 *)(state_buffer + 14) = 0; // 14-15
-    *(s32 *)(state_buffer + 16) = ramps[0].value; // 16-17
-    *(s32 *)(state_buffer + 18) = ramps[1].value; // 18-19
-    memcpy(rsp.RDRAM+address, (u8 *)state_buffer,80);
+    *(int16_t *)(state_buffer +  0) = wet; // 0-1
+    *(int16_t *)(state_buffer +  2) = dry; // 2-3
+    *(int16_t *)(state_buffer +  4) = ramps[0].target >> 16; // 4-5
+    *(int16_t *)(state_buffer +  6) = ramps[1].target >> 16; // 6-7
+    *(int32_t *)(state_buffer +  8) = ramps[0].step; // 8-9 (state_buffer is a 16bit pointer)
+    *(int32_t *)(state_buffer + 10) = ramps[1].step; // 10-11
+    *(int32_t *)(state_buffer + 12) = 0; // 12-13
+    *(int32_t *)(state_buffer + 14) = 0; // 14-15
+    *(int32_t *)(state_buffer + 16) = ramps[0].value; // 16-17
+    *(int32_t *)(state_buffer + 18) = ramps[1].value; // 18-19
+    memcpy(rsp.RDRAM+address, (uint8_t *)state_buffer,80);
 }
 
-static void CLEARBUFF(u32 w1, u32 w2)
+static void CLEARBUFF(uint32_t w1, uint32_t w2)
 {
-    u16 dmem  = alist_parse(w1, 0, 16);
-    u16 count = alist_parse(w2, 0, 16);
+    uint16_t dmem  = alist_parse(w1, 0, 16);
+    uint16_t count = alist_parse(w2, 0, 16);
 
     memset(rsp.DMEM + NAUDIO_MAIN + dmem, 0, count);
 }
 
-static void MIXER(u32 w1, u32 w2)
+static void MIXER(uint32_t w1, uint32_t w2)
 {
-    u16 gain  = alist_parse(w1,  0, 16);
-    u16 dmemi = alist_parse(w2, 16, 16);
-    u16 dmemo = alist_parse(w2,  0, 16);
+    uint16_t gain  = alist_parse(w1,  0, 16);
+    uint16_t dmemi = alist_parse(w2, 16, 16);
+    uint16_t dmemo = alist_parse(w2,  0, 16);
 
     alist_mix(
             NAUDIO_MAIN + dmemo,
             NAUDIO_MAIN + dmemi,
             NAUDIO_SUBFRAME_SIZE >> 1,
-            (s16)gain);
+            (int16_t)gain);
 }
 
-static void LOADBUFF(u32 w1, u32 w2)
+static void LOADBUFF(uint32_t w1, uint32_t w2)
 {
-    u16 length  = alist_parse(w1, 12, 12);
-    u16 dmem    = alist_parse(w1,  0, 12);
-    u32 address = alist_parse(w2,  0, 24);
+    uint16_t length  = alist_parse(w1, 12, 12);
+    uint16_t dmem    = alist_parse(w1,  0, 12);
+    uint32_t address = alist_parse(w2,  0, 24);
 
     if (length == 0) { return; }
 
     dma_read_fast((NAUDIO_MAIN + dmem) & 0xff8, address & ~7, length - 1);
 }
 
-static void SAVEBUFF(u32 w1, u32 w2)
+static void SAVEBUFF(uint32_t w1, uint32_t w2)
 {
-    u16 length  = alist_parse(w1, 12, 12);
-    u16 dmem    = alist_parse(w1,  0, 12);
-    u32 address = alist_parse(w2,  0, 24);
+    uint16_t length  = alist_parse(w1, 12, 12);
+    uint16_t dmem    = alist_parse(w1,  0, 12);
+    uint32_t address = alist_parse(w2,  0, 24);
 
     if (length == 0) { return; }
 
     dma_write_fast(address & ~7, (NAUDIO_MAIN + dmem) & 0xff8, length - 1);
 }
 
-static void LOADADPCM(u32 w1, u32 w2)
+static void LOADADPCM(uint32_t w1, uint32_t w2)
 {
-    u16 length  = alist_parse(w1, 0, 16);
-    u32 address = alist_parse(w2, 0, 24);
+    uint16_t length  = alist_parse(w1, 0, 16);
+    uint32_t address = alist_parse(w2, 0, 24);
 
     dram_read_many_u16(l_alist.table, address, length);
 }
 
-static void DMEMMOVE(u32 w1, u32 w2)
+static void DMEMMOVE(uint32_t w1, uint32_t w2)
 {
-    u16 dmemi = alist_parse(w1,  0, 16);
-    u16 dmemo = alist_parse(w2, 16, 16);
-    u16 count = alist_parse(w2,  0, 16);
+    uint16_t dmemi = alist_parse(w1,  0, 16);
+    uint16_t dmemo = alist_parse(w2, 16, 16);
+    uint16_t count = alist_parse(w2,  0, 16);
 
     alist_dmemmove(
             NAUDIO_MAIN + dmemo,
@@ -251,26 +252,26 @@ static void DMEMMOVE(u32 w1, u32 w2)
             align(count, 4));
 }
 
-static void SETLOOP(u32 w1, u32 w2)
+static void SETLOOP(uint32_t w1, uint32_t w2)
 {
     l_alist.loop = alist_parse(w2, 0, 24);
 }
 
-static void NAUDIO_14(u32 w1, u32 w2)
+static void NAUDIO_14(uint32_t w1, uint32_t w2)
 {
     if (l_alist.table[0] == 0 && l_alist.table[1] == 0)
     {
-        u8  flags       = alist_parse(w1, 16,  8);
-        u16 gain        = alist_parse(w1,  0, 16);
-        u8  select_main = alist_parse(w2, 24,  8);
-        u32 address     = alist_parse(w2,  0, 24);
+        uint8_t  flags       = alist_parse(w1, 16,  8);
+        uint16_t gain        = alist_parse(w1,  0, 16);
+        uint8_t  select_main = alist_parse(w2, 24,  8);
+        uint32_t address     = alist_parse(w2,  0, 24);
 
-        u16 dmem = (select_main == 0) ? NAUDIO_MAIN : NAUDIO_MAIN2;
+        uint16_t dmem = (select_main == 0) ? NAUDIO_MAIN : NAUDIO_MAIN2;
 
         alist_polef(
             flags & A_INIT,
             gain,
-            (s16*)l_alist.table,
+            (int16_t*)l_alist.table,
             address,
             dmem,
             dmem,
@@ -282,19 +283,19 @@ static void NAUDIO_14(u32 w1, u32 w2)
     }
 }
 
-static void ADPCM(u32 w1, u32 w2)
+static void ADPCM(uint32_t w1, uint32_t w2)
 {
-    u32 address = alist_parse(w1,  0, 24);
-    u8  flags   = alist_parse(w2, 28,  4);
-    u16 count   = alist_parse(w2, 16, 12);
-    u16 dmemi   = alist_parse(w2, 12,  4);
-    u16 dmemo   = alist_parse(w2,  0, 12);
+    uint32_t address = alist_parse(w1,  0, 24);
+    uint8_t  flags   = alist_parse(w2, 28,  4);
+    uint16_t count   = alist_parse(w2, 16, 12);
+    uint16_t dmemi   = alist_parse(w2, 12,  4);
+    uint16_t dmemo   = alist_parse(w2,  0, 12);
 
     adpcm_decode(
             flags & A_INIT,
             flags & A_LOOP,
             0, // not supported in this ucode version
-            (s16*)l_alist.table,
+            (int16_t*)l_alist.table,
             l_alist.loop,
             address,
             NAUDIO_MAIN + dmemi,
@@ -302,24 +303,24 @@ static void ADPCM(u32 w1, u32 w2)
             align(count, 32) >> 5);
 }
 
-static void RESAMPLE(u32 w1, u32 w2)
+static void RESAMPLE(uint32_t w1, uint32_t w2)
 {
-    u32 address = alist_parse(w1,  0, 24);
-    u8  flags   = alist_parse(w2, 30,  2);
-    u16 pitch   = alist_parse(w2, 14, 16);
-    u16 dmemi   = alist_parse(w2,  2, 12);
-    u16 dmemo   = alist_parse(w2,  0,  2);
+    uint32_t address = alist_parse(w1,  0, 24);
+    uint8_t  flags   = alist_parse(w2, 30,  2);
+    uint16_t pitch   = alist_parse(w2, 14, 16);
+    uint16_t dmemi   = alist_parse(w2,  2, 12);
+    uint16_t dmemo   = alist_parse(w2,  0,  2);
 
     resample_buffer(
             flags & A_INIT,
             address,
-            (u32)pitch << 1,
+            (uint32_t)pitch << 1,
             (dmemi + NAUDIO_MAIN) >> 1,
             ((dmemo) ? NAUDIO_MAIN2 : NAUDIO_MAIN) >> 1,
             NAUDIO_SUBFRAME_SIZE >> 1);
 }
 
-static void INTERLEAVE(u32 w1, u32 w2)
+static void INTERLEAVE(uint32_t w1, uint32_t w2)
 {
     alist_interleave(
             NAUDIO_MAIN,
@@ -328,15 +329,15 @@ static void INTERLEAVE(u32 w1, u32 w2)
             NAUDIO_SUBFRAME_SIZE >> 1);
 }
 
-static void MP3ADDY(u32 w1, u32 w2)
+static void MP3ADDY(uint32_t w1, uint32_t w2)
 {
     /* do nothing ? */
 }
 
-static void MP3(u32 w1, u32 w2)
+static void MP3(uint32_t w1, uint32_t w2)
 {
-    u8  index   = alist_parse(w1,  1,  4);
-    u32 address = alist_parse(w2,  0, 24);
+    uint8_t  index   = alist_parse(w1,  1,  4);
+    uint32_t address = alist_parse(w2,  0, 24);
 
     mp3_decode(address, index);
 }

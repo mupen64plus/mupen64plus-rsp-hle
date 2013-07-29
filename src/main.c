@@ -22,8 +22,9 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 #include <stdarg.h>
-#include <string.h>
+#include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
 #define M64P_PLUGIN_PROTOTYPES 1
 #include "m64p_types.h"
@@ -128,13 +129,13 @@ static int try_fast_audio_dispatching()
     /* identify audio ucode by using the content of ucode_data */
     const OSTask_t * const task = get_task();
     const unsigned char * const udata_ptr = rsp.RDRAM + task->ucode_data;
-    u32 v;
+    uint32_t v;
 
-    if (*(unsigned int*)(udata_ptr + 0) == 0x00000001)
+    if (*(uint32_t*)(udata_ptr + 0) == 0x00000001)
     {
-        if (*(unsigned int*)(udata_ptr + 0x30) == 0xf0000f00)
+        if (*(uint32_t*)(udata_ptr + 0x30) == 0xf0000f00)
         {
-            v = *(u32*)(udata_ptr + 0x28);
+            v = *(uint32_t*)(udata_ptr + 0x28);
             switch(v)
             {
             case 0x1e24138c: /* audio ABI (most common) */
@@ -150,7 +151,7 @@ static int try_fast_audio_dispatching()
         else
         {
             /* use first word of ACMD table to select adequate ABI */
-            v = *(u32*)(udata_ptr + 0x10);
+            v = *(uint32_t*)(udata_ptr + 0x10);
             switch(v)
             {
             case 0x11181350: /* Mario Kart / Wave Race (E) */
@@ -193,7 +194,7 @@ static int try_fast_audio_dispatching()
     }
     else
     {
-        v = *(u32*)(udata_ptr + 0x10);
+        v = *(uint32_t*)(udata_ptr + 0x10);
         switch(v)
         {
         case 0x00000001:

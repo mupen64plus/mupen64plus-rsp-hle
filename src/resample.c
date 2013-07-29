@@ -21,10 +21,12 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
+#include <stdint.h>
+
 #include "hle.h"
 #include "arithmetic.h"
 
-static const u16 RESAMPLE_LUT [4 * 64] =
+static const uint16_t RESAMPLE_LUT [4 * 64] =
 {
     0x0c39, 0x66ad, 0x0d46, 0xffdf, 0x0b39, 0x6696, 0x0e5f, 0xffd8,
     0x0a44, 0x6669, 0x0f83, 0xffd0, 0x095a, 0x6626, 0x10b4, 0xffc8,
@@ -61,15 +63,15 @@ static const u16 RESAMPLE_LUT [4 * 64] =
 };
 
 /* local functions */
-static s32 dmul(s16 x, s16 y)
+static int32_t dmul(int16_t x, int16_t y)
 {
-    return ((s32)x * (s32)y) >> 15;
+    return ((int32_t)x * (int32_t)y) >> 15;
 }
 
-static s16 dot4(s16 *x, s16 *y)
+static int16_t dot4(int16_t *x, int16_t *y)
 {
     unsigned int i;
-    s32 accu = 0;
+    int32_t accu = 0;
 
     for(i = 0; i < 4; ++i)
         accu  += dmul(x[i], y[i]);
@@ -77,12 +79,12 @@ static s16 dot4(s16 *x, s16 *y)
     return clamp_s16(accu);
 }
 
-static s16* sample(u16 i)
+static int16_t* sample(uint16_t i)
 {
-    return (s16*)rsp.DMEM + (i^S);
+    return (int16_t*)rsp.DMEM + (i^S);
 }
 
-static void reset(u16 history_idx, u32 *pitch_accu)
+static void reset(uint16_t history_idx, uint32_t *pitch_accu)
 {
     unsigned int i;
 
@@ -92,52 +94,52 @@ static void reset(u16 history_idx, u32 *pitch_accu)
     *pitch_accu = 0;
 }
 
-static void load(u16 history_idx, u32 *pitch_accu, u32 dram)
+static void load(uint16_t history_idx, uint32_t *pitch_accu, uint32_t dram)
 {
     unsigned int i;
 
     dram >>= 1;
 
     for (i = 0; i < 4; ++i)
-        *sample(history_idx++) = ((s16*)rsp.RDRAM)[(dram++)^S];
+        *sample(history_idx++) = ((int16_t*)rsp.RDRAM)[(dram++)^S];
 
-    *pitch_accu = ((u16*)rsp.RDRAM)[dram^S];
+    *pitch_accu = ((uint16_t*)rsp.RDRAM)[dram^S];
 }
 
-static void save(u16 history_idx, u32 *pitch_accu, u32 dram)
+static void save(uint16_t history_idx, uint32_t *pitch_accu, uint32_t dram)
 {
     unsigned int i;
 
     dram >>= 1;
 
     for (i = 0; i < 4; ++i)
-        ((s16*)rsp.RDRAM)[(dram++)^S] = *sample(history_idx++);
+        ((int16_t*)rsp.RDRAM)[(dram++)^S] = *sample(history_idx++);
 
-    ((u16*)rsp.RDRAM)[dram^S] = *pitch_accu;
+    ((uint16_t*)rsp.RDRAM)[dram^S] = *pitch_accu;
 }
 
-static s16 filter4(u16 samplei, u16 frac)
+static int16_t filter4(uint16_t samplei, uint16_t frac)
 {
     unsigned int i;
-    s16 x[4];
+    int16_t x[4];
 
     for(i = 0; i < 4; ++i)
         x[i] = *sample(samplei++);
 
-    return dot4(x, (s16*)RESAMPLE_LUT + ((frac >> 10) << 2));
+    return dot4(x, (int16_t*)RESAMPLE_LUT + ((frac >> 10) << 2));
 }
 
 
 /* global function */
 void resample_buffer(
         int init,
-        u32 address,
-        u32 pitch,      // Q16.16
-        u16 samplei,
-        u16 sampleo,
-        u16 count)
+        uint32_t address,
+        uint32_t pitch,      // Q16.16
+        uint16_t samplei,
+        uint16_t sampleo,
+        uint16_t count)
 {
-    u32 pitch_accu;     // Q16.16
+    uint32_t pitch_accu;     // Q16.16
 
 
     samplei -= 4;
@@ -163,11 +165,11 @@ void resample_buffer(
 
 /* zero order hold resample */
 void resample_zoh(
-        u32 pitch_accu, // Q16.16
-        u32 pitch,      // Q16.16
-        u16 samplei,
-        u16 sampleo,
-        u16 count)
+        uint32_t pitch_accu, // Q16.16
+        uint32_t pitch,      // Q16.16
+        uint16_t samplei,
+        uint16_t sampleo,
+        uint16_t count)
 {
     while (count != 0)
     {

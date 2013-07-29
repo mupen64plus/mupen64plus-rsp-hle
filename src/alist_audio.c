@@ -22,6 +22,7 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 #include <assert.h>
+#include <stdint.h>
 #include <string.h>
 #include "hle.h"
 
@@ -36,45 +37,45 @@
 static struct alist_t
 {
     // segments
-    u32 segments[N_SEGMENTS]; // 0x320
+    uint32_t segments[N_SEGMENTS]; // 0x320
 
     // main buffers
-    u16 in;             // 0x0000(t8)
-    u16 out;            // 0x0002(t8)
-    u16 count;          // 0x0004(t8)
+    uint16_t in;             // 0x0000(t8)
+    uint16_t out;            // 0x0002(t8)
+    uint16_t count;          // 0x0004(t8)
 
     // auxiliary buffers
-    u16 aux_dry_right;  // 0x000a(t8)
-    u16 aux_wet_left;   // 0x000c(t8)
-    u16 aux_wet_right;  // 0x000e(t8)
+    uint16_t aux_dry_right;  // 0x000a(t8)
+    uint16_t aux_wet_left;   // 0x000c(t8)
+    uint16_t aux_wet_right;  // 0x000e(t8)
 
     // envmixer gains
-    s16 dry;            // 0x001c(t8)
-    s16 wet;            // 0x001e(t8)
+    int16_t dry;            // 0x001c(t8)
+    int16_t wet;            // 0x001e(t8)
 
     // envmixer envelopes (0: left, 1: right)
-    s16 env_vol[2];
-    s16 env_target[2];
-    s32 env_rate[2];
+    int16_t env_vol[2];
+    int16_t env_target[2];
+    int32_t env_rate[2];
 
     // dram address of adpcm frame before loop point
-    u32 loop;     // 0x0010(t8)
+    uint32_t loop;     // 0x0010(t8)
 
     // storage for adpcm codebooks and polef coefficients
-    u16 table[0x80];
+    uint16_t table[0x80];
 } l_alist;
 
 
 /* local functions */
-static void envmix_exp_next_ramp(struct ramp_t *ramp, s32 *start, s32 *end, s32 rate)
+static void envmix_exp_next_ramp(struct ramp_t *ramp, int32_t *start, int32_t *end, int32_t rate)
 {
     if (*start != ramp->target)
     {
         ramp->value = *start;
         ramp->step  = (*end - *start) >> 3;
 
-        *start = (s32)(((s64)*start * (s64)rate) >> 16);
-        *end   = (s32)(((s64)*end   * (s64)rate) >> 16);
+        *start = (int32_t)(((int64_t)*start * (int64_t)rate) >> 16);
+        *end   = (int32_t)(((int64_t)*end   * (int64_t)rate) >> 16);
     }
     else
     {
@@ -90,66 +91,66 @@ static void clear_segments()
 
 
 /* Audio commands */
-static void SPNOOP(u32 w1, u32 w2)
+static void SPNOOP(uint32_t w1, uint32_t w2)
 {
 }
 
-static void SEGMENT(u32 w1, u32 w2)
+static void SEGMENT(uint32_t w1, uint32_t w2)
 {
     alist_segments_store(w2, l_alist.segments, N_SEGMENTS);
 }
 
-static void POLEF(u32 w1, u32 w2)
+static void POLEF(uint32_t w1, uint32_t w2)
 {
     if (l_alist.count == 0) { return; }
 
-    u16 flags = alist_parse(w1, 16, 16);
-    u16 gain  = alist_parse(w1,  0, 16);
-    u32 address = alist_segments_load(w2, l_alist.segments, N_SEGMENTS);
+    uint16_t flags   = alist_parse(w1, 16, 16);
+    uint16_t gain    = alist_parse(w1,  0, 16);
+    uint32_t address = alist_segments_load(w2, l_alist.segments, N_SEGMENTS);
 
     alist_polef(
             flags & A_INIT,
             gain,
-            (s16*)l_alist.table,
+            (int16_t*)l_alist.table,
             address,
             l_alist.out,
             l_alist.in,
             align(l_alist.count, 16));
 }
 
-static void CLEARBUFF(u32 w1, u32 w2)
+static void CLEARBUFF(uint32_t w1, uint32_t w2)
 {
-    u16 dmem  = alist_parse(w1, 0, 16);
-    u16 count = alist_parse(w2, 0, 16);
+    uint16_t dmem  = alist_parse(w1, 0, 16);
+    uint16_t count = alist_parse(w2, 0, 16);
    
     if (count == 0) { return; }
 
     memset(rsp.DMEM + (dmem & ~3), 0, align(count, 4));
 }
 
-static void ENVMIXER(u32 w1, u32 w2)
+static void ENVMIXER(uint32_t w1, uint32_t w2)
 {
-    u8  flags   = alist_parse(w1, 16,  8);
-    u32 address = alist_segments_load(w2, l_alist.segments, N_SEGMENTS);
+    uint8_t  flags   = alist_parse(w1, 16,  8);
+    uint32_t address = alist_segments_load(w2, l_alist.segments, N_SEGMENTS);
 
     int x,y;
-    s16 state_buffer[40];
+    int16_t state_buffer[40];
 
-    s16 *in = (s16*)(rsp.DMEM + l_alist.in);
-    s16 *dl = (s16*)(rsp.DMEM + l_alist.out);
-    s16 *dr = (s16*)(rsp.DMEM + l_alist.aux_dry_right);
-    s16 *wl = (s16*)(rsp.DMEM + l_alist.aux_wet_left);
-    s16 *wr = (s16*)(rsp.DMEM + l_alist.aux_wet_right);
+    int16_t *in = (int16_t*)(rsp.DMEM + l_alist.in);
+    int16_t *dl = (int16_t*)(rsp.DMEM + l_alist.out);
+    int16_t *dr = (int16_t*)(rsp.DMEM + l_alist.aux_dry_right);
+    int16_t *wl = (int16_t*)(rsp.DMEM + l_alist.aux_wet_left);
+    int16_t *wr = (int16_t*)(rsp.DMEM + l_alist.aux_wet_right);
 
     unsigned flag_aux = ((flags & A_AUX) != 0);
 
     struct ramp_t ramps[2];
-    s32 rates[2];
-    s16 value, envL, envR;
+    int32_t rates[2];
+    int16_t value, envL, envR;
 
-    s16 dry, wet;
-    u32 ptr = 0;
-    s32 LAdderStart, RAdderStart, LAdderEnd, RAdderEnd;
+    int16_t dry, wet;
+    uint32_t ptr = 0;
+    int32_t LAdderStart, RAdderStart, LAdderEnd, RAdderEnd;
 
     if (flags & A_INIT)
     {
@@ -166,18 +167,18 @@ static void ENVMIXER(u32 w1, u32 w2)
     }
     else
     {
-        memcpy((u8 *)state_buffer, (rsp.RDRAM+address), 80);
+        memcpy((uint8_t *)state_buffer, (rsp.RDRAM+address), 80);
 
-        wet             = *(s16*)(state_buffer + 0);
-        dry             = *(s16*)(state_buffer + 2);
-        ramps[0].target = *(s32*)(state_buffer + 4);
-        ramps[1].target = *(s32*)(state_buffer + 6);
-        rates[0]        = *(s32*)(state_buffer + 8);
-        rates[1]        = *(s32*)(state_buffer + 10);
-        LAdderEnd       = *(s32*)(state_buffer + 12);
-        RAdderEnd       = *(s32*)(state_buffer + 14);
-        LAdderStart     = *(s32*)(state_buffer + 16);
-        RAdderStart     = *(s32*)(state_buffer + 18);
+        wet             = *(int16_t*)(state_buffer + 0);
+        dry             = *(int16_t*)(state_buffer + 2);
+        ramps[0].target = *(int32_t*)(state_buffer + 4);
+        ramps[1].target = *(int32_t*)(state_buffer + 6);
+        rates[0]        = *(int32_t*)(state_buffer + 8);
+        rates[1]        = *(int32_t*)(state_buffer + 10);
+        LAdderEnd       = *(int32_t*)(state_buffer + 12);
+        RAdderEnd       = *(int32_t*)(state_buffer + 14);
+        LAdderStart     = *(int32_t*)(state_buffer + 16);
+        RAdderStart     = *(int32_t*)(state_buffer + 18);
     }
 
     for (y = 0; y < l_alist.count; y += 0x10)
@@ -205,42 +206,42 @@ static void ENVMIXER(u32 w1, u32 w2)
         }
     }
 
-    *(s16 *)(state_buffer +  0) = wet;
-    *(s16 *)(state_buffer +  2) = dry;
-    *(s32 *)(state_buffer +  4) = ramps[0].target;
-    *(s32 *)(state_buffer +  6) = ramps[1].target;
-    *(s32 *)(state_buffer +  8) = rates[0];
-    *(s32 *)(state_buffer + 10) = rates[1];
-    *(s32 *)(state_buffer + 12) = LAdderEnd;
-    *(s32 *)(state_buffer + 14) = RAdderEnd;
-    *(s32 *)(state_buffer + 16) = LAdderStart;
-    *(s32 *)(state_buffer + 18) = RAdderStart;
-    memcpy(rsp.RDRAM+address, (u8*)state_buffer, 80);
+    *(int16_t *)(state_buffer +  0) = wet;
+    *(int16_t *)(state_buffer +  2) = dry;
+    *(int32_t *)(state_buffer +  4) = ramps[0].target;
+    *(int32_t *)(state_buffer +  6) = ramps[1].target;
+    *(int32_t *)(state_buffer +  8) = rates[0];
+    *(int32_t *)(state_buffer + 10) = rates[1];
+    *(int32_t *)(state_buffer + 12) = LAdderEnd;
+    *(int32_t *)(state_buffer + 14) = RAdderEnd;
+    *(int32_t *)(state_buffer + 16) = LAdderStart;
+    *(int32_t *)(state_buffer + 18) = RAdderStart;
+    memcpy(rsp.RDRAM+address, (uint8_t*)state_buffer, 80);
 }
 
-static void RESAMPLE(u32 w1, u32 w2)
+static void RESAMPLE(uint32_t w1, uint32_t w2)
 {
-    u8  flags   = alist_parse(w1, 16,  8);
-    u16 pitch   = alist_parse(w1,  0, 16);
-    u32 address = alist_segments_load(w2, l_alist.segments, N_SEGMENTS);
+    uint8_t  flags   = alist_parse(w1, 16,  8);
+    uint16_t pitch   = alist_parse(w1,  0, 16);
+    uint32_t address = alist_segments_load(w2, l_alist.segments, N_SEGMENTS);
 
     resample_buffer(
             flags & A_INIT,
             address,
-            (u32)pitch << 1,
+            (uint32_t)pitch << 1,
             l_alist.in >> 1,
             l_alist.out >> 1,
             align(l_alist.count, 16) >> 1);
 }
 
-static void SETVOL(u32 w1, u32 w2)
+static void SETVOL(uint32_t w1, uint32_t w2)
 {
-    u8 flags = alist_parse(w1, 16, 8);
+    uint8_t flags = alist_parse(w1, 16, 8);
 
     if (flags & A_AUX)
     {
-        l_alist.dry = (s16)alist_parse(w1, 0, 16);
-        l_alist.wet = (s16)alist_parse(w2, 0, 16);
+        l_alist.dry = (int16_t)alist_parse(w1, 0, 16);
+        l_alist.wet = (int16_t)alist_parse(w2, 0, 16);
     }
     else
     {
@@ -248,31 +249,31 @@ static void SETVOL(u32 w1, u32 w2)
 
         if (flags & A_VOL)
         {
-            l_alist.env_vol[lr] = (s16)alist_parse(w1, 0, 16);
+            l_alist.env_vol[lr] = (int16_t)alist_parse(w1, 0, 16);
         }
         else
         {
-            l_alist.env_target[lr] = (s16)alist_parse(w1, 0, 16);
-            l_alist.env_rate[lr]   = (s32)w2;
+            l_alist.env_target[lr] = (int16_t)alist_parse(w1, 0, 16);
+            l_alist.env_rate[lr]   = (int32_t)w2;
         }
     }
 }
 
-static void SETLOOP(u32 w1, u32 w2)
+static void SETLOOP(uint32_t w1, uint32_t w2)
 {
     l_alist.loop = alist_segments_load(w2, l_alist.segments, N_SEGMENTS);
 }
 
-static void ADPCM(u32 w1, u32 w2)
+static void ADPCM(uint32_t w1, uint32_t w2)
 {
-    u8  flags   = alist_parse(w1, 16,  8);
-    u32 address = alist_segments_load(w2, l_alist.segments, N_SEGMENTS);
+    uint8_t  flags   = alist_parse(w1, 16,  8);
+    uint32_t address = alist_segments_load(w2, l_alist.segments, N_SEGMENTS);
    
     adpcm_decode(
             flags & A_INIT,
             flags & A_LOOP,
             0, // not supported in this ucode version
-            (s16*)l_alist.table,
+            (int16_t*)l_alist.table,
             l_alist.loop,
             address,
             l_alist.in,
@@ -280,27 +281,27 @@ static void ADPCM(u32 w1, u32 w2)
             align(l_alist.count, 32) >> 5);
 }
 
-static void LOADBUFF(u32 w1, u32 w2)
+static void LOADBUFF(uint32_t w1, uint32_t w2)
 {
     if (l_alist.count == 0) { return; }
 
-    u32 address = alist_segments_load(w2, l_alist.segments, N_SEGMENTS);
+    uint32_t address = alist_segments_load(w2, l_alist.segments, N_SEGMENTS);
 
     dma_read_fast(l_alist.in & 0xff8, address & ~7, l_alist.count - 1);
 }
 
-static void SAVEBUFF(u32 w1, u32 w2)
+static void SAVEBUFF(uint32_t w1, uint32_t w2)
 {
     if (l_alist.count == 0) { return; }
     
-    u32 address = alist_segments_load(w2, l_alist.segments, N_SEGMENTS);
+    uint32_t address = alist_segments_load(w2, l_alist.segments, N_SEGMENTS);
 
     dma_write_fast(address & ~7, l_alist.out & 0xff8, l_alist.count - 1);
 }
 
-static void SETBUFF(u32 w1, u32 w2)
+static void SETBUFF(uint32_t w1, uint32_t w2)
 {
-    u8 flags = alist_parse(w1, 16, 8);
+    uint8_t flags = alist_parse(w1, 16, 8);
 
     if (flags & A_AUX)
     {
@@ -316,11 +317,11 @@ static void SETBUFF(u32 w1, u32 w2)
     }
 }
 
-static void DMEMMOVE(u32 w1, u32 w2)
+static void DMEMMOVE(uint32_t w1, uint32_t w2)
 {
-    u16 dmemi = alist_parse(w1,  0, 16);
-    u16 dmemo = alist_parse(w2, 16, 16);
-    u16 count = alist_parse(w2,  0, 16);
+    uint16_t dmemi = alist_parse(w1,  0, 16);
+    uint16_t dmemo = alist_parse(w2, 16, 16);
+    uint16_t count = alist_parse(w2,  0, 16);
 
     if (count == 0) { return; }
 
@@ -330,20 +331,20 @@ static void DMEMMOVE(u32 w1, u32 w2)
         align(count, 4));
 }
 
-static void LOADADPCM(u32 w1, u32 w2)
+static void LOADADPCM(uint32_t w1, uint32_t w2)
 {
-    u16 length  = alist_parse(w1, 0, 16);
-    u32 address = alist_segments_load(w2, l_alist.segments, N_SEGMENTS);
+    uint16_t length  = alist_parse(w1, 0, 16);
+    uint32_t address = alist_segments_load(w2, l_alist.segments, N_SEGMENTS);
 
     dram_read_many_u16(l_alist.table, address, length);
 }
 
-static void INTERLEAVE(u32 w1, u32 w2)
+static void INTERLEAVE(uint32_t w1, uint32_t w2)
 {
     if (l_alist.count == 0) { return; }
 
-    u16 left  = alist_parse(w2, 16, 16);
-    u16 right = alist_parse(w2,  0, 16);
+    uint16_t left  = alist_parse(w2, 16, 16);
+    uint16_t right = alist_parse(w2,  0, 16);
 
     alist_interleave(
             l_alist.out,
@@ -352,19 +353,19 @@ static void INTERLEAVE(u32 w1, u32 w2)
             l_alist.count >> 1);
 }
 
-static void MIXER(u32 w1, u32 w2)
+static void MIXER(uint32_t w1, uint32_t w2)
 {
     if (l_alist.count == 0) { return; }
 
-    u16 gain  = alist_parse(w1,  0, 16);
-    u16 dmemi = alist_parse(w2, 16, 16);
-    u16 dmemo = alist_parse(w2,  0, 16);
+    uint16_t gain  = alist_parse(w1,  0, 16);
+    uint16_t dmemi = alist_parse(w2, 16, 16);
+    uint16_t dmemo = alist_parse(w2,  0, 16);
 
     alist_mix(
             dmemo,
             dmemi,
             l_alist.count >> 1,
-            (s16)gain);
+            (int16_t)gain);
 }
 
 /* Audio Binary Interface tables */

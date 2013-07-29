@@ -22,14 +22,14 @@
 #ifndef ARITHMETIC_H
 #define ARITHMETIC_H
 
-#include "hle.h"
-#include "stddef.h"
+#include <stddef.h>
+#include <stdint.h>
 
-s16 clamp_s16(s32 x);
-s32 dmul_round(s16 x, s16 y);
-void sadd(s16 *x, s32 y);
+int16_t clamp_s16(int32_t x);
+int32_t dmul_round(int16_t x, int16_t y);
+void sadd(int16_t *x, int32_t y);
 
-s32 rdot(size_t n, const s16 *h, const s16 *x);
+int32_t rdot(size_t n, const int16_t *h, const int16_t *x);
 
 #endif
 

@@ -21,29 +21,29 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-#include "hle.h"
-#include "stddef.h"
+#include <stddef.h>
+#include <stdint.h>
 
-s16 clamp_s16(s32 x)
+int16_t clamp_s16(int32_t x)
 {
     if (x > 32767) { x = 32767; } else if (x < -32768) { x = -32768; }
     return x;
 }
 
-s32 dmul_round(s16 x, s16 y)
+int32_t dmul_round(int16_t x, int16_t y)
 {
-    return ((s32)x * (s32)y + 0x4000) >> 15;
+    return ((int32_t)x * (int32_t)y + 0x4000) >> 15;
 }
 
-void sadd(s16 *x, s32 y)
+void sadd(int16_t *x, int32_t y)
 {
     *x = clamp_s16(*x + y);
 }
 
-s32 rdot(size_t n, const s16 *h, const s16 *x)
+int32_t rdot(size_t n, const int16_t *h, const int16_t *x)
 {
     size_t i;
-    s32 accu = 0;
+    int32_t accu = 0;
 
     x += n - 1;
     

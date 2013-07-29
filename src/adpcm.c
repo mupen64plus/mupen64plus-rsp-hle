@@ -21,29 +21,30 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
+#include <stdint.h>
 #include <string.h>
 
 #include "hle.h"
 #include "arithmetic.h"
 
 /* types definition */
-typedef u16 (*get_predicted_frame_t)(s16 *dst, u16 src, unsigned char scale);
+typedef uint16_t (*get_predicted_frame_t)(int16_t *dst, uint16_t src, unsigned char scale);
 
 /* local functions prototypes */
 static unsigned int get_scale_shift(unsigned char scale, unsigned char range);
-static s16 get_predicted_sample(u8 byte, u8 mask, unsigned lshift, unsigned rshift);
-static u16 get_predicted_frame_4bits(s16 *dst, u16 src, unsigned char scale);
-static u16 get_predicted_frame_2bits(s16 *dst, u16 src, unsigned char scale);
-static void decode_8_samples(s16 *dst, const s16 *src, const s16 *cb_entry);
-static s16* decode_frames(get_predicted_frame_t get_predicted_frame, s16 *dst, u16 src, int count, s16 *codebook);
+static int16_t get_predicted_sample(uint8_t byte, uint8_t mask, unsigned lshift, unsigned rshift);
+static uint16_t get_predicted_frame_4bits(int16_t *dst, uint16_t src, unsigned char scale);
+static uint16_t get_predicted_frame_2bits(int16_t *dst, uint16_t src, unsigned char scale);
+static void decode_8_samples(int16_t *dst, const int16_t *src, const int16_t *cb_entry);
+static int16_t* decode_frames(get_predicted_frame_t get_predicted_frame, int16_t *dst, uint16_t src, int count, int16_t *codebook);
 
 /* global functions */
 void adpcm_decode(
         int init, int loop, int two_bits_per_sample,
-        s16* codebook, u32 loop_address, u32 last_frame_address,
-        u16 in, u16 out, int count)
+        int16_t* codebook, uint32_t loop_address, uint32_t last_frame_address,
+        uint16_t in, uint16_t out, int count)
 {
-    s16 *dst = (s16*)(rsp.DMEM + out);
+    int16_t *dst = (int16_t*)(rsp.DMEM + out);
 
     /* init/load last frame */
     if (init)
@@ -73,17 +74,17 @@ static unsigned int get_scale_shift(unsigned char scale, unsigned char range)
     return (scale < range) ? range - scale : 0;
 }
 
-static s16 get_predicted_sample(u8 byte, u8 mask, unsigned lshift, unsigned rshift)
+static int16_t get_predicted_sample(uint8_t byte, uint8_t mask, unsigned lshift, unsigned rshift)
 {
-    s16 sample = ((u16)byte & (u16)mask) << lshift;
+    int16_t sample = ((uint16_t)byte & (uint16_t)mask) << lshift;
     sample >>= rshift; /* signed */
     return sample;
 }
 
-static u16 get_predicted_frame_4bits(s16 *dst, u16 src, unsigned char scale)
+static uint16_t get_predicted_frame_4bits(int16_t *dst, uint16_t src, unsigned char scale)
 {
     unsigned int i;
-    u8 byte;
+    uint8_t byte;
     
     unsigned int rshift = get_scale_shift(scale, 12);
 
@@ -98,10 +99,10 @@ static u16 get_predicted_frame_4bits(s16 *dst, u16 src, unsigned char scale)
     return src;
 }
 
-static u16 get_predicted_frame_2bits(s16 *dst, u16 src, unsigned char scale)
+static uint16_t get_predicted_frame_2bits(int16_t *dst, uint16_t src, unsigned char scale)
 {
     unsigned int i;
-    u8 byte;
+    uint8_t byte;
 
     unsigned int rshift = get_scale_shift(scale, 14);
 
@@ -118,16 +119,16 @@ static u16 get_predicted_frame_2bits(s16 *dst, u16 src, unsigned char scale)
     return src;
 }
 
-static void decode_8_samples(s16 *dst, const s16 *src, const s16 *cb_entry)
+static void decode_8_samples(int16_t *dst, const int16_t *src, const int16_t *cb_entry)
 {
-    const s16 * const book1 = cb_entry;
-    const s16 * const book2 = cb_entry + 8;
+    const int16_t * const book1 = cb_entry;
+    const int16_t * const book2 = cb_entry + 8;
 
-    const s16 l1 = dst[-2 ^ S];
-    const s16 l2 = dst[-1 ^ S];
+    const int16_t l1 = dst[-2 ^ S];
+    const int16_t l2 = dst[-1 ^ S];
 
     size_t i;
-    s32 accu;
+    int32_t accu;
 
     for(i = 0; i < 8; ++i)
     {
@@ -137,12 +138,12 @@ static void decode_8_samples(s16 *dst, const s16 *src, const s16 *cb_entry)
     }
 }
 
-static s16* decode_frames(get_predicted_frame_t get_predicted_frame, s16 *dst, u16 src, int count, s16 *codebook)
+static int16_t* decode_frames(get_predicted_frame_t get_predicted_frame, int16_t *dst, uint16_t src, int count, int16_t *codebook)
 {
-    u8 predictor;
-    s16 *cb_entry;
+    uint8_t predictor;
+    int16_t *cb_entry;
     unsigned char scale;
-    s16 frame[16];
+    int16_t frame[16];
 
     while (count > 0)
     {

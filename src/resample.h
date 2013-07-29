@@ -22,8 +22,10 @@
 #ifndef RESAMPLE_H
 #define RESAMPLE_H
 
-void resample_buffer(int init, u32 address, u32 pitch, u16 samplei, u16 sampleo, u16 count);
-void resample_zoh(u32 pitch_accu, u32 pitch, u16 samplei, u16 sampleo, u16 count);
+#include <stdint.h>
+
+void resample_buffer(int init, uint32_t address, uint32_t pitch, uint16_t samplei, uint16_t sampleo, uint16_t count);
+void resample_zoh(uint32_t pitch_accu, uint32_t pitch, uint16_t samplei, uint16_t sampleo, uint16_t count);
 
 #endif
 

@@ -22,7 +22,9 @@
 #ifndef MP3_H
 #define MP3_H
 
-void mp3_decode(u32 address, unsigned index);
+#include <stdint.h>
+
+void mp3_decode(uint32_t address, unsigned index);
 
 #endif
 
