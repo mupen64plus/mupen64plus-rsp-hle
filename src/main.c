@@ -22,6 +22,7 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -65,10 +66,10 @@ static void handle_unknown_non_task(unsigned int sum);
 RSP_INFO rsp;
 
 /* local variables */
-static const int FORWARD_AUDIO = 0, FORWARD_GFX = 1;
+static const bool FORWARD_AUDIO = false, FORWARD_GFX = true;
 static void (*l_DebugCallback)(void *, int, const char *) = NULL;
 static void *l_DebugCallContext = NULL;
-static int l_PluginInit = 0;
+static bool l_PluginInit = false;
 
 /* local functions */
 
@@ -83,7 +84,7 @@ static int l_PluginInit = 0;
  *
  * Using ucode_boot_size should be more robust in this regard.
  **/
-static int is_task()
+static bool is_task()
 {
     return (get_task()->ucode_boot_size <= 0x1000);
 }
@@ -124,7 +125,7 @@ static void show_cfb()
     }
 }
 
-static int try_fast_audio_dispatching()
+static bool try_fast_audio_dispatching()
 {
     /* identify audio ucode by using the content of ucode_data */
     const OSTask_t * const task = get_task();
@@ -139,11 +140,11 @@ static int try_fast_audio_dispatching()
             switch(v)
             {
             case 0x1e24138c: /* audio ABI (most common) */
-                alist_process_audio(); return 1;
+                alist_process_audio(); return true;
             case 0x1dc8138c: /* GoldenEye */
-                alist_process_audio_ge(); return 1;
+                alist_process_audio_ge(); return true;
             case 0x1e3c1390: /* BlastCorp, DiddyKongRacing */
-                alist_process_audio_bc(); return 1;
+                alist_process_audio_bc(); return true;
             default:
                 DebugMessage(M64MSG_WARNING, "ABI1 identification regression: v=%08x", v);
             }
@@ -155,37 +156,37 @@ static int try_fast_audio_dispatching()
             switch(v)
             {
             case 0x11181350: /* Mario Kart / Wave Race (E) */
-                alist_process_mk(); return 1;
+                alist_process_mk(); return true;
 
             case 0x111812e0: /* StarFox (J) */
-                alist_process_sfj(); return 1;
+                alist_process_sfj(); return true;
 
             case 0x110412ac: /* Wave Race (J RevB) */
-                alist_process_wrjb(); return 1;
+                alist_process_wrjb(); return true;
 
             case 0x110412cc: /* StarFox/LylatWars (except J) */
-                alist_process_sf(); return 1;
+                alist_process_sf(); return true;
 
             case 0x1cd01250: /* FZeroX */
-                alist_process_fz(); return 1;
+                alist_process_fz(); return true;
 
             case 0x1f08122c: /* Yoshi Story */
-                alist_process_ys(); return 1;
+                alist_process_ys(); return true;
 
             case 0x1f38122c: /* 1080° Snowboarding */
-                alist_process_1080(); return 1;
+                alist_process_1080(); return true;
 
             case 0x1f681230: /* Zelda Ocarina of Time / Zelda Majoras Mask (J, J RevA) */
-                alist_process_oot(); return 1;
+                alist_process_oot(); return true;
 
             case 0x1f801250: /* Zelda Majoras Mask (except J, J RevA, E Beta)/ Pokemon Stadium 2 */
-                alist_process_mm(); return 1;
+                alist_process_mm(); return true;
 
             case 0x109411f8: /* Zelda Majoras Mask (E Beta) */
-                alist_process_mmb(); return 1;
+                alist_process_mmb(); return true;
 
             case 0x1eac11b8: /* Animal Crossing */
-                alist_process_ac(); return 1;
+                alist_process_ac(); return true;
 
             default:
                 DebugMessage(M64MSG_WARNING, "ABI2 identification regression: v=%08x", v);
@@ -206,50 +207,50 @@ static int try_fast_audio_dispatching()
              * TODO: implement ucode
              **/
             DebugMessage(M64MSG_WARNING, "MusyX ucode not implemented.");
-            /* return 1; */
+            /* return true; */
             break;
 
         case 0x0000127c: /* naudio ABI (many games) */
-            alist_process_naudio(); return 1;
+            alist_process_naudio(); return true;
 
         case 0x00001280: /* Banjo Kazooie */
-            alist_process_naudio_bk(); return 1;
+            alist_process_naudio_bk(); return true;
 
         case 0x1c58126c: /* Donkey Kong */
-            alist_process_naudio_dk(); return 1;
+            alist_process_naudio_dk(); return true;
 
         case 0x1ae8143c: /* Banjo Tooie, Jet Force Gemini, Mickey SpeedWay USA, Perfect Dark */
-            alist_process_naudio_mp3(); return 1;
+            alist_process_naudio_mp3(); return true;
 
         case 0x1ab0140c: /* Conker Bad Fur Day */ 
-            alist_process_naudio_cbfd(); return 1;
+            alist_process_naudio_cbfd(); return true;
             
         default:
             DebugMessage(M64MSG_WARNING, "ABI3 identification regression: v=%08x", v);
         }
     }
     
-    return 0;
+    return false;
 }
 
-static int try_fast_task_dispatching()
+static bool try_fast_task_dispatching()
 {
     /* identify task ucode by its type */
     const OSTask_t * const task = get_task();
 
     switch (task->type)
     {
-        case 1: if (FORWARD_GFX) { forward_gfx_task(); return 1; } break;
+        case 1: if (FORWARD_GFX) { forward_gfx_task(); return true; } break;
 
         case 2:
-            if (FORWARD_AUDIO) { forward_audio_task(); return 1; }
-            else if (try_fast_audio_dispatching()) { return 1; }
+            if (FORWARD_AUDIO) { forward_audio_task(); return true; }
+            else if (try_fast_audio_dispatching()) { return true; }
             break;
 
-        case 7: show_cfb(); return 1;
+        case 7: show_cfb(); return true;
     }
 
-    return 0;
+    return false;
 }
 
 static void normal_task_dispatching()
@@ -377,7 +378,7 @@ EXPORT m64p_error CALL PluginStartup(m64p_dynlib_handle CoreLibHandle, void *Con
 
     /* this plugin doesn't use any Core library functions (ex for Configuration), so no need to keep the CoreLibHandle */
 
-    l_PluginInit = 1;
+    l_PluginInit = true;
     return M64ERR_SUCCESS;
 }
 
@@ -390,7 +391,7 @@ EXPORT m64p_error CALL PluginShutdown(void)
     l_DebugCallback = NULL;
     l_DebugCallContext = NULL;
 
-    l_PluginInit = 0;
+    l_PluginInit = false;
     return M64ERR_SUCCESS;
 }
 

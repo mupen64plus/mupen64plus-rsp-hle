@@ -22,6 +22,7 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 #include <assert.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
 #include "hle.h"
@@ -31,12 +32,12 @@
 
 /* update ramp to its next value.
  * returns true if target has been reached, false otherwise */
-int ramp_next(struct ramp_t *ramp)
+bool ramp_next(struct ramp_t *ramp)
 {
     int64_t accu     = (int64_t)ramp->value + (int64_t)ramp->step;
     int64_t accu_int = accu & ~0xffff; // lower bits are discarded for the comparison to target
 
-    int target_reached = (ramp->step >= 0)
+    bool target_reached = (ramp->step >= 0)
         ? (accu_int > ramp->target)
         : (accu_int < ramp->target);
 
@@ -207,7 +208,7 @@ void alist_interleave(uint16_t dmemo, uint16_t left, uint16_t right, uint16_t co
 }
 
 void alist_polef(
-        int init, uint16_t gain, int16_t* table, uint32_t address,
+        bool init, uint16_t gain, int16_t* table, uint32_t address,
         uint16_t dmemo, uint16_t dmemi, int count)
 {
     int16_t *dst = (int16_t*)(rsp.DMEM + dmemo);

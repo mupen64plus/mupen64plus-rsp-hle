@@ -22,6 +22,7 @@
 #ifndef ALIST_H
 #define ALIST_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 /* types defintions */
@@ -53,9 +54,9 @@ void alist_segments_store(uint32_t so, uint32_t* const segments, size_t n);
 void alist_dmemmove(uint16_t dmemo, uint16_t dmemi, uint16_t count);
 void alist_mix(uint16_t dmemo, uint16_t dmemi, uint16_t count, int16_t gain);
 void alist_interleave(uint16_t dmemo, uint16_t left, uint16_t right, uint16_t count);
-void alist_polef(int init, uint16_t gain, int16_t* table, uint32_t address, uint16_t dmemo, uint16_t dmemi, int count);
+void alist_polef(bool init, uint16_t gain, int16_t* table, uint32_t address, uint16_t dmemo, uint16_t dmemi, int count);
 
-int ramp_next(struct ramp_t *ramp);
+bool ramp_next(struct ramp_t *ramp);
 
 #endif
 

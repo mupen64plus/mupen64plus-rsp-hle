@@ -21,6 +21,7 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "hle.h"
@@ -132,7 +133,7 @@ static int16_t filter4(uint16_t samplei, uint16_t frac)
 
 /* global function */
 void resample_buffer(
-        int init,
+        bool init,
         uint32_t address,
         uint32_t pitch,      // Q16.16
         uint16_t samplei,

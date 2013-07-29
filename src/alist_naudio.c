@@ -22,6 +22,7 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 #include <assert.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
 #include "hle.h"
@@ -294,7 +295,7 @@ static void ADPCM(uint32_t w1, uint32_t w2)
     adpcm_decode(
             flags & A_INIT,
             flags & A_LOOP,
-            0, // not supported in this ucode version
+            false, // not supported in this ucode version
             (int16_t*)l_alist.table,
             l_alist.loop,
             address,

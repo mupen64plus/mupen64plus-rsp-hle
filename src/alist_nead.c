@@ -22,6 +22,7 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 #include <assert.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
 #include "hle.h"
@@ -72,7 +73,7 @@ static void envmixer(
         uint16_t* const env_value,
         uint16_t* const env_step,
         const int16_t* const xor_masks,
-        unsigned swap_wet_LR,
+        bool swap_wet_LR,
         uint16_t dmemi,
         uint16_t dmem_dry_left,
         uint16_t dmem_dry_right,
