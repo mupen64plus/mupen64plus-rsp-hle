@@ -54,9 +54,8 @@
 
 
 /* helper functions prototypes */
-static unsigned int sum_bytes(const unsigned char *bytes, unsigned int size);
-static void dump_binary(const char * const filename, const unsigned char * const bytes,
-                        unsigned int size);
+static unsigned int sum_bytes(const unsigned char *bytes, size_t size);
+static void dump_binary(const char * const filename, const unsigned char * const bytes, size_t size);
 static void dump_task(const char * const filename, const OSTask_t * const task);
 
 static void handle_unknown_task(unsigned int sum);
@@ -447,7 +446,7 @@ EXPORT void CALL RomClosed(void)
 
 
 /* local helper functions */
-static unsigned int sum_bytes(const unsigned char *bytes, unsigned int size)
+static unsigned int sum_bytes(const unsigned char *bytes, size_t size)
 {
     unsigned int sum = 0;
     const unsigned char * const bytes_end = bytes + size;
@@ -459,8 +458,7 @@ static unsigned int sum_bytes(const unsigned char *bytes, unsigned int size)
 }
 
 
-static void dump_binary(const char * const filename, const unsigned char * const bytes,
-                        unsigned int size)
+static void dump_binary(const char * const filename, const unsigned char * const bytes, size_t size)
 {
     FILE *f;
 
