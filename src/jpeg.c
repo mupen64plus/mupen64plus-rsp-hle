@@ -246,7 +246,7 @@ static void jpeg_decode_std(const char * const version, const std_macroblock_dec
     }
     
     subblock_count = params[PARAM_MODE] + 4;
-    macroblock_size = 2*subblock_count*SUBBLOCK_SIZE;
+    macroblock_size = subblock_count*SUBBLOCK_SIZE;
 
     dram_load_many_u16((uint16_t*)qtables[0], params[PARAM_QTABLE_Y_PTR], SUBBLOCK_SIZE);
     dram_load_many_u16((uint16_t*)qtables[1], params[PARAM_QTABLE_U_PTR], SUBBLOCK_SIZE);
@@ -261,7 +261,7 @@ static void jpeg_decode_std(const char * const version, const std_macroblock_dec
 
     for (mb = 0; mb < params[PARAM_MACROBLOCK_COUNT]; ++mb)
     {
-        dram_load_many_u16((uint16_t*)macroblock, params[PARAM_ADDRESS], macroblock_size >> 1);
+        dram_load_many_u16((uint16_t*)macroblock, params[PARAM_ADDRESS], macroblock_size);
         decode_mb(macroblock, subblock_count, (const int16_t (*)[SUBBLOCK_SIZE])qtables);
 
         if (params[PARAM_MODE]== 0)
@@ -273,7 +273,7 @@ static void jpeg_decode_std(const char * const version, const std_macroblock_dec
             EmitTilesMode2(emit_line, macroblock, params[PARAM_ADDRESS]);
         }
 
-        params[PARAM_ADDRESS] += macroblock_size;
+        params[PARAM_ADDRESS] += 2*macroblock_size;
     }
     free(macroblock);
 }
