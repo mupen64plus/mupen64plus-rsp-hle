@@ -29,6 +29,7 @@
 #include "m64p_types.h"
 #include "m64p_plugin.h"
 #include "hle.h"
+#include "arithmetic.h"
 #include "memory.h"
 
 #define SUBBLOCK_SIZE 64
@@ -42,7 +43,6 @@ static void jpeg_decode_std(const char * const version, const std_macroblock_dec
 /* helper functions */
 static uint8_t clamp_u8(int16_t x);
 static int16_t clamp_s12(int16_t x);
-static int16_t clamp_s16(int32_t x);
 static uint16_t clamp_RGBA_component(int16_t x);
 
 /* pixel conversion & foratting */
@@ -278,12 +278,6 @@ static uint8_t clamp_u8(int16_t x)
 static int16_t clamp_s12(int16_t x)
 {
     if (x < -0x800) { x = -0x800; } else if (x > 0x7f0) { x = 0x7f0; }
-    return x;
-}
-
-static int16_t clamp_s16(int32_t x)
-{
-    if (x > 32767) { x = 32767; } else if (x < -32768) { x = -32768; }
     return x;
 }
 
