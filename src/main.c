@@ -187,6 +187,16 @@ static bool try_fast_audio_dispatching()
             case 0x1eac11b8: /* Animal Crossing */
                 alist_process_ac(); return true;
 
+            case 0x00010010:
+                /**
+                 * MusyX ucode found in following games:
+                 * IndianaJones, BattleForNaboo
+                 * TODO: implement ucode
+                 **/
+                DebugMessage(M64MSG_WARNING, "MusyX ucode not implemented.");
+                /* return true; */
+                break;
+
             default:
                 DebugMessage(M64MSG_WARNING, "ABI2 identification regression: v=%08x", v);
             }
@@ -199,10 +209,10 @@ static bool try_fast_audio_dispatching()
         {
         case 0x00000001:
             /**
-             * Musyx ucode found in following games:
-             * RogueSquadron, ResidentEvil2, SnowCrossPolaris, TheWorldIsNotEnough,
-             * RugratsInParis, NBAShowTime, HydroThunder, Tarzan,
-             * GauntletLegend, Rush2049, IndianaJones, BattleForNaboo
+             * MusyX ucode found in following games:
+             * RogueSquadron,
+             * ResidentEvil2, SnowCrossPolaris,
+             * TheWorldIsNotEnough, RugratsInParis, NBAShowTime, HydroThunder, Tarzan, GauntletLegend, Rush2049
              * TODO: implement ucode
              **/
             DebugMessage(M64MSG_WARNING, "MusyX ucode not implemented.");
