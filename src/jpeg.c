@@ -219,7 +219,7 @@ static void jpeg_decode_std(const char * const version, const std_macroblock_dec
 
     unsigned int subblock_count;
     unsigned int macroblock_size;
-    int16_t *macroblock;
+    int16_t macroblock[6*SUBBLOCK_SIZE]; /* macroblock contains at most 6 subblocks */
     const OSTask_t * const task = get_task();
 
     if (task->flags & 0x1)
@@ -252,13 +252,6 @@ static void jpeg_decode_std(const char * const version, const std_macroblock_dec
     dram_load_many_u16((uint16_t*)qtables[1], params[PARAM_QTABLE_U_PTR], SUBBLOCK_SIZE);
     dram_load_many_u16((uint16_t*)qtables[2], params[PARAM_QTABLE_V_PTR], SUBBLOCK_SIZE);
 
-    macroblock = malloc(sizeof(*macroblock) * macroblock_size);
-    if (!macroblock)
-    {
-        DebugMessage(M64MSG_WARNING, "jpeg_decode_%s: could not allocate macroblock", version);
-        return;
-    }
-
     for (mb = 0; mb < params[PARAM_MACROBLOCK_COUNT]; ++mb)
     {
         dram_load_many_u16((uint16_t*)macroblock, params[PARAM_ADDRESS], macroblock_size);
@@ -275,7 +268,6 @@ static void jpeg_decode_std(const char * const version, const std_macroblock_dec
 
         params[PARAM_ADDRESS] += 2*macroblock_size;
     }
-    free(macroblock);
 }
 
 static uint8_t clamp_u8(int16_t x)
