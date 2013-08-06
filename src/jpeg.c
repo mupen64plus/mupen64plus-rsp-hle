@@ -29,18 +29,12 @@
 #include "m64p_types.h"
 #include "m64p_plugin.h"
 #include "hle.h"
+#include "memory.h"
 
 #define SUBBLOCK_SIZE 64
 
 typedef void (*tile_line_emitter_t)(const int16_t *y, const int16_t *u, uint32_t address);
 typedef void (*std_macroblock_decoder_t)(int16_t *macroblock, unsigned int subblock_count, const int16_t qtables[3][SUBBLOCK_SIZE]);
-
-/* rdram operations */
-// FIXME: these functions deserve their own module
-static void rdram_read_many_u16(uint16_t *dst, uint32_t address, unsigned int count);
-static void rdram_write_many_u16(const uint16_t *src, uint32_t address, unsigned int count);
-static uint32_t rdram_read_u32(uint32_t address);
-static void rdram_write_many_u32(const uint32_t *src, uint32_t address, unsigned int count);
 
 /* standard jpeg ucode decoder */
 static void jpeg_decode_std(const char * const version, const std_macroblock_decoder_t decode_mb, const tile_line_emitter_t emit_line);
@@ -196,7 +190,7 @@ void jpeg_decode_OB()
     {
         int16_t macroblock[6*SUBBLOCK_SIZE];
 
-        rdram_read_many_u16((uint16_t*)macroblock, address, 6*SUBBLOCK_SIZE);
+        dram_load_many_u16((uint16_t*)macroblock, address, 6*SUBBLOCK_SIZE);
         DecodeMacroblock1(macroblock, &y_dc, &u_dc, &v_dc, (qscale != 0) ? qtable : NULL);
         EmitTilesMode2(EmitYUVTileLine, macroblock, address);
 
@@ -208,14 +202,21 @@ void jpeg_decode_OB()
 /* local functions */
 static void jpeg_decode_std(const char * const version, const std_macroblock_decoder_t decode_mb, const tile_line_emitter_t emit_line)
 {
+    enum
+    {
+        PARAM_ADDRESS,
+        PARAM_MACROBLOCK_COUNT,
+        PARAM_MODE,
+        PARAM_QTABLE_Y_PTR,
+        PARAM_QTABLE_U_PTR,
+        PARAM_QTABLE_V_PTR,
+        PARAM_LAST
+    };
+
     int16_t qtables[3][SUBBLOCK_SIZE];
     unsigned int mb;
-    uint32_t address;
-    uint32_t macroblock_count;
-    uint32_t mode;
-    uint32_t qtableY_ptr;
-    uint32_t qtableU_ptr;
-    uint32_t qtableV_ptr;
+    uint32_t params[PARAM_LAST];
+
     unsigned int subblock_count;
     unsigned int macroblock_size;
     int16_t *macroblock;
@@ -227,34 +228,29 @@ static void jpeg_decode_std(const char * const version, const std_macroblock_dec
         return;
     }
 
-    address          = rdram_read_u32(task->data_ptr);
-    macroblock_count = rdram_read_u32(task->data_ptr + 4);
-    mode             = rdram_read_u32(task->data_ptr + 8);
-    qtableY_ptr      = rdram_read_u32(task->data_ptr + 12);
-    qtableU_ptr      = rdram_read_u32(task->data_ptr + 16);
-    qtableV_ptr      = rdram_read_u32(task->data_ptr + 20);
+    dram_load_many_u32(params, task->data_ptr, PARAM_LAST);
 
     DebugMessage(M64MSG_VERBOSE, "jpeg_decode_%s: *buffer=%x, #MB=%d, mode=%d, *Qy=%x, *Qu=%x, *Qv=%x",
             version,
-            address,
-            macroblock_count,
-            mode,
-            qtableY_ptr,
-            qtableU_ptr,
-            qtableV_ptr);
+            params[PARAM_ADDRESS],
+            params[PARAM_MACROBLOCK_COUNT],
+            params[PARAM_MODE],
+            params[PARAM_QTABLE_Y_PTR],
+            params[PARAM_QTABLE_U_PTR],
+            params[PARAM_QTABLE_V_PTR]);
 
-    if (mode != 0 && mode != 2)
+    if (params[PARAM_MODE] != 0 && params[PARAM_MODE] != 2)
     {
-        DebugMessage(M64MSG_WARNING, "jpeg_decode_%s: invalid mode %d", version, mode);
+        DebugMessage(M64MSG_WARNING, "jpeg_decode_%s: invalid mode %d", version, params[PARAM_MODE]);
         return;
     }
     
-    subblock_count = mode + 4;
+    subblock_count = params[PARAM_MODE] + 4;
     macroblock_size = 2*subblock_count*SUBBLOCK_SIZE;
 
-    rdram_read_many_u16((uint16_t*)qtables[0], qtableY_ptr, SUBBLOCK_SIZE);
-    rdram_read_many_u16((uint16_t*)qtables[1], qtableU_ptr, SUBBLOCK_SIZE);
-    rdram_read_many_u16((uint16_t*)qtables[2], qtableV_ptr, SUBBLOCK_SIZE);
+    dram_load_many_u16((uint16_t*)qtables[0], params[PARAM_QTABLE_Y_PTR], SUBBLOCK_SIZE);
+    dram_load_many_u16((uint16_t*)qtables[1], params[PARAM_QTABLE_U_PTR], SUBBLOCK_SIZE);
+    dram_load_many_u16((uint16_t*)qtables[2], params[PARAM_QTABLE_V_PTR], SUBBLOCK_SIZE);
 
     macroblock = malloc(sizeof(*macroblock) * macroblock_size);
     if (!macroblock)
@@ -263,21 +259,21 @@ static void jpeg_decode_std(const char * const version, const std_macroblock_dec
         return;
     }
 
-    for (mb = 0; mb < macroblock_count; ++mb)
+    for (mb = 0; mb < params[PARAM_MACROBLOCK_COUNT]; ++mb)
     {
-        rdram_read_many_u16((uint16_t*)macroblock, address, macroblock_size >> 1);
+        dram_load_many_u16((uint16_t*)macroblock, params[PARAM_ADDRESS], macroblock_size >> 1);
         decode_mb(macroblock, subblock_count, (const int16_t (*)[SUBBLOCK_SIZE])qtables);
 
-        if (mode == 0)
+        if (params[PARAM_MODE]== 0)
         {
-            EmitTilesMode0(emit_line, macroblock, address);
+            EmitTilesMode0(emit_line, macroblock, params[PARAM_ADDRESS]);
         }
         else
         {
-            EmitTilesMode2(emit_line, macroblock, address);
+            EmitTilesMode2(emit_line, macroblock, params[PARAM_ADDRESS]);
         }
 
-        address += macroblock_size;
+        params[PARAM_ADDRESS] += macroblock_size;
     }
     free(macroblock);
 }
@@ -342,7 +338,7 @@ static void EmitYUVTileLine(const int16_t *y, const int16_t *u, uint32_t address
     uyvy[6] = GetUYVY(y2[4], y2[5], u[6], v[6]);
     uyvy[7] = GetUYVY(y2[6], y2[7], u[7], v[7]);
 
-    rdram_write_many_u32(uyvy, address, 8);
+    dram_store_many_u32(address, uyvy, 8);
 }
 
 static void EmitRGBATileLine(const int16_t *y, const int16_t *u, uint32_t address)
@@ -369,7 +365,7 @@ static void EmitRGBATileLine(const int16_t *y, const int16_t *u, uint32_t addres
     rgba[14] = GetRGBA(y2[6], u[7], v[7]);
     rgba[15] = GetRGBA(y2[7], u[7], v[7]);
 
-    rdram_write_many_u16(rgba, address, 16);
+    dram_store_many_u16(address, rgba, 16);
 }
 
 static void EmitTilesMode0(const tile_line_emitter_t emit_line, const int16_t *macroblock, uint32_t address)
@@ -625,59 +621,6 @@ static void RescaleUVSubBlock(int16_t *dst, const int16_t *src)
     for (i = 0; i < SUBBLOCK_SIZE; ++i)
     {
         dst[i] = (((int)clamp_s12(src[i]) * 0xe00) >> 16) + 0x80;
-    }
-}
-
-
-
-/* FIXME: assume presence of expansion pack */
-#define MEMMASK 0x7fffff
-
-static void rdram_read_many_u16(uint16_t *dst, uint32_t address, unsigned int count)
-{
-    while (count != 0)
-    {
-        uint16_t s = rsp.RDRAM[((address++)^S8) & MEMMASK];
-        s <<= 8;
-        s |= rsp.RDRAM[((address++)^S8) & MEMMASK];
-
-        *(dst++) = s;
-
-        --count;
-    }
-}
-
-static void rdram_write_many_u16(const uint16_t *src, uint32_t address, unsigned int count)
-{
-    while (count != 0)
-    {
-        rsp.RDRAM[((address++)^S8) & MEMMASK] = (uint8_t)(*src >> 8);
-        rsp.RDRAM[((address++)^S8) & MEMMASK] = (uint8_t)(*(src++) & 0xff);
-
-        --count;
-    }
-}
-
-static uint32_t rdram_read_u32(uint32_t address)
-{
-    uint32_t r = rsp.RDRAM[((address++) ^ S8) & MEMMASK]; r <<= 8;
-    r |= rsp.RDRAM[((address++) ^ S8) & MEMMASK]; r <<= 8;
-    r |= rsp.RDRAM[((address++) ^ S8) & MEMMASK]; r <<= 8;
-    r |= rsp.RDRAM[((address++) ^ S8) & MEMMASK];
-
-    return r;
-}
-
-static void rdram_write_many_u32(const uint32_t *src, uint32_t address, unsigned int count)
-{
-    while (count != 0)
-    {
-        rsp.RDRAM[((address++)^S8) & MEMMASK] = (uint8_t)(*src >> 24);
-        rsp.RDRAM[((address++)^S8) & MEMMASK] = (uint8_t)(*src >> 16);
-        rsp.RDRAM[((address++)^S8) & MEMMASK] = (uint8_t)(*src >> 8);
-        rsp.RDRAM[((address++)^S8) & MEMMASK] = (uint8_t)(*(src++) & 0xff);
-
-        --count;
     }
 }
 

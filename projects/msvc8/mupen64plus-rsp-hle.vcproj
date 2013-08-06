@@ -215,6 +215,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\..\src\memory.c"
+				>
+			</File>
+			<File
 				RelativePath="..\..\src\mp3.c"
 				>
 			</File>
@@ -262,6 +266,10 @@
 			</File>
 			<File
 				RelativePath="..\..\src\jpeg.h"
+				>
+			</File>
+			<File
+				RelativePath="..\..\src\memory.h"
 				>
 			</File>
 			<File

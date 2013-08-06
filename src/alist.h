@@ -42,11 +42,6 @@ struct ramp_t
 #define A_VOL           0x04
 #define A_AUX           0x08
 
-unsigned align(unsigned x, unsigned m);
-void dma_read_fast(uint16_t mem, uint32_t dram, uint16_t length);
-void dma_write_fast(uint32_t dram, uint16_t mem, uint16_t length);
-void dram_read_many_u16(uint16_t *dst, uint32_t address, size_t length);
-
 uint32_t alist_parse(uint32_t value, unsigned offset, unsigned width);
 void alist_process(const acmd_callback_t abi[], size_t n);
 uint32_t alist_segments_load(uint32_t so, const uint32_t* const segments, size_t n);

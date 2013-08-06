@@ -27,6 +27,7 @@
 #include "hle.h"
 
 #include "arithmetic.h"
+#include "memory.h"
 #include "mp3.h"
 
 static uint8_t mp3data[0x1000];

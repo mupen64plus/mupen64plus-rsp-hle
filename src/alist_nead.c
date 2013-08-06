@@ -30,6 +30,7 @@
 #include "arithmetic.h"
 #include "alist.h"
 #include "adpcm.h"
+#include "memory.h"
 #include "resample.h"
 
 #define N_SEGMENTS 16
@@ -147,7 +148,7 @@ static void LOADADPCM_seg(uint32_t w1, uint32_t w2)
     uint16_t length  = alist_parse(w1, 0, 16);
     uint32_t address = alist_segments_load(w2, l_alist.segments, N_SEGMENTS);
 
-    dram_read_many_u16(l_alist.table, address, length);
+    dram_load_many_u16(l_alist.table, address, length >> 1);
 }
 
 static void LOADADPCM_flat(uint32_t w1, uint32_t w2)
@@ -155,7 +156,7 @@ static void LOADADPCM_flat(uint32_t w1, uint32_t w2)
     uint16_t length  = alist_parse(w1, 0, 16);
     uint32_t address = alist_parse(w2, 0, 24);
 
-    dram_read_many_u16(l_alist.table, address, length);
+    dram_load_many_u16(l_alist.table, address, length >> 1);
 }
 
 static void SETLOOP_seg(uint32_t w1, uint32_t w2)

@@ -30,6 +30,7 @@
 #include "arithmetic.h"
 #include "alist.h"
 #include "adpcm.h"
+#include "memory.h"
 #include "mp3.h"
 #include "resample.h"
 
@@ -238,7 +239,7 @@ static void LOADADPCM(uint32_t w1, uint32_t w2)
     uint16_t length  = alist_parse(w1, 0, 16);
     uint32_t address = alist_parse(w2, 0, 24);
 
-    dram_read_many_u16(l_alist.table, address, length);
+    dram_load_many_u16(l_alist.table, address, length >> 1);
 }
 
 static void DMEMMOVE(uint32_t w1, uint32_t w2)

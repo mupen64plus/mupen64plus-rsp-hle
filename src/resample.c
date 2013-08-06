@@ -26,6 +26,7 @@
 
 #include "hle.h"
 #include "arithmetic.h"
+#include "memory.h"
 
 static const uint16_t RESAMPLE_LUT [4 * 64] =
 {

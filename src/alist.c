@@ -29,6 +29,7 @@
 
 #include "alist.h"
 #include "arithmetic.h"
+#include "memory.h"
 
 /* update ramp to its next value.
  * returns true if target has been reached, false otherwise */
@@ -47,49 +48,6 @@ bool ramp_next(struct ramp_t *ramp)
 
     return target_reached;
 }
-
-unsigned align(unsigned x, unsigned m)
-{
-    --m;
-    return (x + m) & (~m);
-}
-
-/* caller is responsible to ensure that size and alignment constrains are met */
-void dma_read_fast(uint16_t mem, uint32_t dram, uint16_t length)
-{
-    // mem & dram should be 8 byte aligned
-    // length should encode a linear transfer
-    assert((mem & ~0x1ff8) == 0);
-    assert((dram & ~0xfffff8) == 0);
-    assert((length & ~0xfff) == 0);
-
-    memcpy(rsp.DMEM + mem, rsp.RDRAM + dram, align(length+1, 8));
-}
-
-/* caller is responsible to ensure that size and alignment constrains are met */
-void dma_write_fast(uint32_t dram, uint16_t mem, uint16_t length)
-{
-    // mem & dram should be 8 byte aligned
-    // length should encode a linear transfer
-    assert((mem & ~0x1ff8) == 0);
-    assert((dram & ~0xfffff8) == 0);
-    assert((length & ~0xfff) == 0);
-
-    memcpy(rsp.RDRAM + dram, rsp.DMEM + mem, align(length+1, 8));
-}
-
-void dram_read_many_u16(uint16_t *dst, uint32_t address, size_t length)
-{
-    length >>= 1;
-
-    while (length != 0)
-    {
-        *dst++ = *(uint16_t*)(rsp.RDRAM + (address^S16));
-        address += 2;
-        --length;
-    }
-}
-
 
 uint32_t alist_parse(uint32_t value, unsigned offset, unsigned width)
 {
@@ -244,17 +202,13 @@ void alist_polef(
 
     do
     {
-        for(i = 0; i < 8; ++i)
-        {
-            frame[i] = *(int16_t*)(rsp.DMEM + (dmemi^S16));
-            dmemi += 2;
-        }
+        mem_load_many_u16((uint16_t*)frame, dmemi, 8);
+        dmemi += 16;
 
         for(i = 0; i < 8; ++i)
         {
             accu = frame[i] * gain;
-            accu += h1[i]*l1 + h2_before[i]*l2;
-            accu += rdot(i, h2, frame);
+            accu += h1[i]*l1 + h2_before[i]*l2 + rdot(i, h2, frame);
             dst[i ^ S] = clamp_s16(accu >> 14);
         }
 

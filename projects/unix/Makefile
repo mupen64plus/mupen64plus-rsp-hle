@@ -239,6 +239,7 @@ SOURCE = \
 	$(SRCDIR)/arithmetic.c \
 	$(SRCDIR)/cicx105.c \
 	$(SRCDIR)/jpeg.c \
+	$(SRCDIR)/memory.c \
 	$(SRCDIR)/mp3.c \
 	$(SRCDIR)/resample.c
 

@@ -27,6 +27,7 @@
 
 #include "hle.h"
 #include "arithmetic.h"
+#include "memory.h"
 
 /* types definition */
 typedef unsigned int (*get_predicted_frame_t)(int16_t *dst, uint16_t dmemi, unsigned char scale);
@@ -41,40 +42,6 @@ static void decode_8_samples(int16_t *dst, const int16_t *src,
 static void decode_frames(get_predicted_frame_t get_predicted_frame,
         const int16_t *codebook, int16_t *last_frame,
         uint16_t dmemo, uint16_t dmemi, uint16_t size);
-
-
-static void dram_load_many_u16(uint16_t *dst, uint32_t address, size_t count)
-{
-    size_t i;
-
-    for(i = 0; i < count; ++i)
-    {
-        *(dst++) = *(uint16_t*)(rsp.RDRAM + (address^S16));
-        address += 2;
-    }
-}
-
-static void dram_store_many_u16(uint32_t address, const uint16_t *src, size_t count)
-{
-    size_t i;
-
-    for(i = 0; i < count; ++i)
-    {
-        *(uint16_t*)(rsp.RDRAM + (address^S16)) = *(src++);
-        address += 2;
-    }
-}
-
-static void mem_store_many_u16(uint16_t address, const uint16_t *src, size_t count)
-{
-    size_t i;
-
-    for(i = 0; i < count; ++i)
-    {
-        *(uint16_t*)(rsp.DMEM + (address^S16)) = *(src++);
-        address += 2;
-    }
-}
 
 
 /* global functions */

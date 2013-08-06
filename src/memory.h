@@ -1,7 +1,7 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- *   Mupen64plus-rsp-hle - hle.h                                           *
+ *   Mupen64plus-rsp-hle - memory.h                                        *
  *   Mupen64Plus homepage: http://code.google.com/p/mupen64plus/           *
- *   Copyright (C) 2002 Hacktarux                                          *
+ *   Copyright (C) 2013 Bobby Smiles                                       *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -19,52 +19,35 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-#ifndef HLE_H
-#define HLE_H
+#ifndef MEMORY_H
+#define MEMORY_H
 
 #include <stdint.h>
 
-#define M64P_PLUGIN_PROTOTYPES 1
-#include "m64p_plugin.h"
+#ifdef M64P_BIG_ENDIAN
+#define S 0
+#define S16 0
+#define S8 0
+#else
+#define S 1
+#define S16 2
+#define S8 3
+#endif
 
-#define RSP_HLE_VERSION        0x020000
-#define RSP_PLUGIN_API_VERSION 0x020000
+unsigned align(unsigned x, unsigned m);
 
-extern RSP_INFO rsp;
+void dma_read_fast(uint16_t mem, uint32_t dram, uint16_t length);
+void dma_write_fast(uint32_t dram, uint16_t mem, uint16_t length);
 
-typedef struct
-{
-    uint32_t type;
-    uint32_t flags;
+void dram_load_many_u16(uint16_t *dst, uint32_t address, size_t count);
+void dram_store_many_u16(uint32_t address, const uint16_t *src, size_t count);
 
-    uint32_t ucode_boot;
-    uint32_t ucode_boot_size;
+void mem_load_many_u16(uint16_t *dst, uint16_t address, size_t count);
+void mem_store_many_u16(uint16_t address, const uint16_t *src, size_t count);
 
-    uint32_t ucode;
-    uint32_t ucode_size;
+void dram_load_many_u32(uint32_t *dst, uint32_t address, size_t count);
+void dram_store_many_u32(uint32_t address, const uint32_t *src, size_t count);
 
-    uint32_t ucode_data;
-    uint32_t ucode_data_size;
-
-    uint32_t dram_stack;
-    uint32_t dram_stack_size;
-
-    uint32_t output_buff;
-    uint32_t output_buff_size;
-
-    uint32_t data_ptr;
-    uint32_t data_size;
-
-    uint32_t yield_data_ptr;
-    uint32_t yield_data_size;
-} OSTask_t;
-
-static inline const OSTask_t * const get_task()
-{
-    return (OSTask_t*)(rsp.DMEM + 0xfc0);
-}
-
-void DebugMessage(int level, const char *message, ...);
 
 #endif
 

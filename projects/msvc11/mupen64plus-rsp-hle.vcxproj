@@ -101,6 +101,7 @@
     <ClCompile Include="..\..\src\cicx105.c" />
     <ClCompile Include="..\..\src\jpeg.c" />
     <ClCompile Include="..\..\src\main.c" />
+    <ClCompile Include="..\..\src\memory.c" />
     <ClCompile Include="..\..\src\mp3.c" />
     <ClCompile Include="..\..\src\resample.c" />
   </ItemGroup>
@@ -114,6 +115,7 @@
     <ClInclude Include="..\..\src\cicx105.h" />
     <ClInclude Include="..\..\src\hle.h" />
     <ClInclude Include="..\..\src\jpeg.h" />
+    <ClInclude Include="..\..\src\memory.h" />
     <ClInclude Include="..\..\src\mp3.h" />
     <ClInclude Include="..\..\src\resample.h" />
   </ItemGroup>
