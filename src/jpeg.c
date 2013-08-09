@@ -74,7 +74,6 @@ static void ScaleSubBlock(int16_t *dst, const int16_t *src, int16_t scale);
 static void RShiftSubBlock(int16_t *dst, const int16_t *src, unsigned int shift);
 static void InverseDCT1D(const float * const x, float *dst, unsigned int stride);
 static void InverseDCTSubBlock(int16_t *dst, const int16_t *src);
-static void DummySubBlockTransform(int16_t *dst, const int16_t *src);
 static void RescaleYSubBlock(int16_t *dst, const int16_t *src);
 static void RescaleUVSubBlock(int16_t *dst, const int16_t *src);
 
@@ -154,7 +153,7 @@ void jpeg_decode_PS0()
  **************************************************************************/
 void jpeg_decode_PS()
 {
-    jpeg_decode_std("PS", DummySubBlockTransform, DummySubBlockTransform, EmitRGBATileLine);
+    jpeg_decode_std("PS", NULL, NULL, EmitRGBATileLine);
 }
 
 /***************************************************************************
@@ -447,9 +446,15 @@ static void decode_macroblock_std(
         InverseDCTSubBlock(macroblock, tmp_sb);
 
         if (isChromaSubBlock)
-            transform_chroma(macroblock, macroblock);
+        {
+            if (transform_chroma != NULL)
+                transform_chroma(macroblock, macroblock);
+        }
         else
-            transform_luma(macroblock, macroblock);
+        {
+            if (transform_luma != NULL)
+                transform_luma(macroblock, macroblock);
+        }
 
         macroblock += SUBBLOCK_SIZE;
     }
@@ -577,10 +582,6 @@ static void InverseDCTSubBlock(int16_t *dst, const int16_t *src)
             dst[i+j*8] = (int16_t)x[j] >> 3;
         }
     }
-}
-
-static void DummySubBlockTransform(int16_t *dst, const int16_t *src)
-{
 }
 
 static void RescaleYSubBlock(int16_t *dst, const int16_t *src)
