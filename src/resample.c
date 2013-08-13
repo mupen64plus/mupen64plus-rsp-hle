@@ -65,18 +65,13 @@ static const uint16_t RESAMPLE_LUT [4 * 64] =
 };
 
 /* local functions */
-static int32_t dmul(int16_t x, int16_t y)
-{
-    return ((int32_t)x * (int32_t)y) >> 15;
-}
-
 static int16_t dot4(int16_t *x, int16_t *y)
 {
     unsigned int i;
     int32_t accu = 0;
 
     for(i = 0; i < 4; ++i)
-        accu  += dmul(x[i], y[i]);
+        accu  += dmul_round(x[i], y[i]);
 
     return clamp_s16(accu);
 }
