@@ -315,6 +315,8 @@ static void RESAMPLE(uint32_t w1, uint32_t w2)
 
     resample_buffer(
             flags & A_INIT,
+            false, /* not supported in this ucode version */
+            false, /* not supported in this ucode version */
             address,
             (uint32_t)pitch << 1,
             (dmemi + NAUDIO_MAIN) >> 1,

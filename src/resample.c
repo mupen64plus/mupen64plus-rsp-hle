@@ -135,6 +135,8 @@ static int16_t filter4(uint16_t samplei, uint16_t frac)
 /* global function */
 void resample_buffer(
         bool init,
+        bool flag2,
+        bool flag4,
         uint32_t address,
         uint32_t pitch,      // Q16.16
         uint16_t samplei,
@@ -143,6 +145,11 @@ void resample_buffer(
 {
     uint32_t pitch_accu;     // Q16.16
 
+    if (flag2)
+        DebugMessage(M64MSG_WARNING, "resample - flag2 not handled");
+
+    if (flag4)
+        DebugMessage(M64MSG_WARNING, "resample - flag4 not handled");
 
     samplei -= 4;
 

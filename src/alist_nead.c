@@ -282,7 +282,7 @@ static void SAVEBUFF_flat(uint32_t w1, uint32_t w2)
     dma_write_fast(address & ~7, dmem & ~7, (count & 0xff0) - 1);
 }
 
-static void RESAMPLE_seg(uint32_t w1, uint32_t w2)
+static void RESAMPLE_MK(uint32_t w1, uint32_t w2)
 {
     uint8_t  flags   = alist_parse(w1, 16,  8);
     uint16_t pitch   = alist_parse(w1,  0, 16);
@@ -290,6 +290,8 @@ static void RESAMPLE_seg(uint32_t w1, uint32_t w2)
 
     resample_buffer(
             flags & A_INIT,
+            flags & 0x2,
+            false, /* not supported in this ucode version */
             address,
             (uint32_t)pitch << 1,
             l_alist.in >> 1,
@@ -297,7 +299,7 @@ static void RESAMPLE_seg(uint32_t w1, uint32_t w2)
             align(l_alist.count, 16) >> 1);
 }
 
-static void RESAMPLE_flat(uint32_t w1, uint32_t w2)
+static void RESAMPLE_NEAD(uint32_t w1, uint32_t w2)
 {
     uint8_t  flags   = alist_parse(w1, 16,  8);
     uint16_t pitch   = alist_parse(w1,  0, 16);
@@ -305,6 +307,8 @@ static void RESAMPLE_flat(uint32_t w1, uint32_t w2)
 
     resample_buffer(
             flags & A_INIT,
+            flags & 0x2,
+            flags & 0x4,
             address,
             (uint32_t)pitch << 1,
             l_alist.in >> 1,
@@ -701,7 +705,7 @@ static void COPYBLOCKS(uint32_t w1, uint32_t w2)
 static const acmd_callback_t ABI_MK[0x20] =
 {
     SPNOOP,         ADPCM_MK,           CLEARBUFF,          SPNOOP,
-    SPNOOP,         RESAMPLE_seg,       SPNOOP,             SEGMENT,
+    SPNOOP,         RESAMPLE_MK,        SPNOOP,             SEGMENT,
     SETBUFF,        SPNOOP,             DMEMMOVE,           LOADADPCM_seg,
     MIXER,          INTERLEAVE_MK,      POLEF_seg,          SETLOOP_seg,
     COPYBLOCKS,     INTERL,             ENVSETUP1_MK,       ENVMIXER_MK,
@@ -713,7 +717,7 @@ static const acmd_callback_t ABI_MK[0x20] =
 static const acmd_callback_t ABI_SF[0x20] =
 {
     SPNOOP,         ADPCM_NEAD,         CLEARBUFF,          SPNOOP,
-    ADDMIXER,       RESAMPLE_flat,      RESAMPLE_ZOH,       SPNOOP,
+    ADDMIXER,       RESAMPLE_NEAD,      RESAMPLE_ZOH,       SPNOOP,
     SETBUFF,        SPNOOP,             DMEMMOVE,           LOADADPCM_flat,
     MIXER,          INTERLEAVE_MK,      POLEF_flat,         SETLOOP_flat,
     COPYBLOCKS,     INTERL,             ENVSETUP1_NEAD,     ENVMIXER_NEAD,
@@ -725,7 +729,7 @@ static const acmd_callback_t ABI_SF[0x20] =
 static const acmd_callback_t ABI_SFJ[0x20] =
 {
     SPNOOP,         ADPCM_NEAD,         CLEARBUFF,          SPNOOP,
-    ADDMIXER,       RESAMPLE_flat,      RESAMPLE_ZOH,       SPNOOP,
+    ADDMIXER,       RESAMPLE_NEAD,      RESAMPLE_ZOH,       SPNOOP,
     SETBUFF,        SPNOOP,             DMEMMOVE,           LOADADPCM_flat,
     MIXER,          INTERLEAVE_MK,      POLEF_flat,         SETLOOP_flat,
     COPYBLOCKS,     INTERL,             ENVSETUP1_NEAD,     ENVMIXER_NEAD,
@@ -737,7 +741,7 @@ static const acmd_callback_t ABI_SFJ[0x20] =
 static const acmd_callback_t ABI_FZ[0x20] =
 {
     UNKNOWN,        ADPCM_NEAD,         CLEARBUFF,          SPNOOP,
-    ADDMIXER,       RESAMPLE_flat,      SPNOOP,             SPNOOP,
+    ADDMIXER,       RESAMPLE_NEAD,      SPNOOP,             SPNOOP,
     SETBUFF,        SPNOOP,             DMEMMOVE,           LOADADPCM_flat,
     MIXER,          INTERLEAVE_NEAD,    SPNOOP,             SETLOOP_flat,
     COPYBLOCKS,     INTERL,             ENVSETUP1_NEAD,     ENVMIXER_NEAD,
@@ -749,7 +753,7 @@ static const acmd_callback_t ABI_FZ[0x20] =
 static const acmd_callback_t ABI_WRJB[0x20] =
 {
     SPNOOP,         ADPCM_NEAD,         CLEARBUFF,          UNKNOWN,
-    ADDMIXER,       RESAMPLE_flat,      RESAMPLE_ZOH,       SPNOOP,
+    ADDMIXER,       RESAMPLE_NEAD,      RESAMPLE_ZOH,       SPNOOP,
     SETBUFF,        SPNOOP,             DMEMMOVE,           LOADADPCM_flat,
     MIXER,          INTERLEAVE_NEAD,    SPNOOP,             SETLOOP_flat,
     COPYBLOCKS,     INTERL,             ENVSETUP1_NEAD,     ENVMIXER_NEAD,
@@ -761,7 +765,7 @@ static const acmd_callback_t ABI_WRJB[0x20] =
 static const acmd_callback_t ABI_YS[0x18] =
 {
     UNKNOWN,        ADPCM_NEAD,         CLEARBUFF,          UNKNOWN,
-    ADDMIXER,       RESAMPLE_flat,      RESAMPLE_ZOH,       FILTER,
+    ADDMIXER,       RESAMPLE_NEAD,      RESAMPLE_ZOH,       FILTER,
     SETBUFF,        DUPLICATE,          DMEMMOVE,           LOADADPCM_flat,
     MIXER,          INTERLEAVE_NEAD,    HILOGAIN,           SETLOOP_flat,
     COPYBLOCKS,     INTERL,             ENVSETUP1_NEAD,     ENVMIXER_NEAD,
@@ -771,7 +775,7 @@ static const acmd_callback_t ABI_YS[0x18] =
 static const acmd_callback_t ABI_1080[0x18] =
 {
     UNKNOWN,        ADPCM_NEAD,         CLEARBUFF,          UNKNOWN,
-    ADDMIXER,       RESAMPLE_flat,      RESAMPLE_ZOH,       FILTER,
+    ADDMIXER,       RESAMPLE_NEAD,      RESAMPLE_ZOH,       FILTER,
     SETBUFF,        DUPLICATE,          DMEMMOVE,           LOADADPCM_flat,
     MIXER,          INTERLEAVE_NEAD,    HILOGAIN,           SETLOOP_flat,
     COPYBLOCKS,     INTERL,             ENVSETUP1_NEAD,     ENVMIXER_NEAD,
@@ -781,7 +785,7 @@ static const acmd_callback_t ABI_1080[0x18] =
 static const acmd_callback_t ABI_OOT[0x18] =
 {
     UNKNOWN,        ADPCM_NEAD,         CLEARBUFF,          UNKNOWN,
-    ADDMIXER,       RESAMPLE_flat,      RESAMPLE_ZOH,       FILTER,
+    ADDMIXER,       RESAMPLE_NEAD,      RESAMPLE_ZOH,       FILTER,
     SETBUFF,        DUPLICATE,          DMEMMOVE,           LOADADPCM_flat,
     MIXER,          INTERLEAVE_NEAD,    HILOGAIN,           SETLOOP_flat,
     COPYBLOCKS,     INTERL,             ENVSETUP1_NEAD,     ENVMIXER_NEAD,
@@ -791,7 +795,7 @@ static const acmd_callback_t ABI_OOT[0x18] =
 static const acmd_callback_t ABI_MM[0x18] =
 {
     UNKNOWN,        ADPCM_NEAD,         CLEARBUFF,          SPNOOP,
-    ADDMIXER,       RESAMPLE_flat,      RESAMPLE_ZOH,       FILTER,
+    ADDMIXER,       RESAMPLE_NEAD,      RESAMPLE_ZOH,       FILTER,
     SETBUFF,        DUPLICATE,          DMEMMOVE,           LOADADPCM_flat,
     MIXER,          INTERLEAVE_NEAD,    HILOGAIN,           SETLOOP_flat,
     COPYBLOCKS,     INTERL,             ENVSETUP1_NEAD,     ENVMIXER_NEAD,
@@ -801,7 +805,7 @@ static const acmd_callback_t ABI_MM[0x18] =
 static const acmd_callback_t ABI_MMB[0x18] =
 {
     SPNOOP,         ADPCM_NEAD,         CLEARBUFF,          SPNOOP,
-    ADDMIXER,       RESAMPLE_flat,      RESAMPLE_ZOH,       FILTER,
+    ADDMIXER,       RESAMPLE_NEAD,      RESAMPLE_ZOH,       FILTER,
     SETBUFF,        DUPLICATE,          DMEMMOVE,           LOADADPCM_flat,
     MIXER,          INTERLEAVE_NEAD,    HILOGAIN,           SETLOOP_flat,
     COPYBLOCKS,     INTERL,             ENVSETUP1_NEAD,     ENVMIXER_NEAD,
@@ -812,7 +816,7 @@ static const acmd_callback_t ABI_MMB[0x18] =
 static const acmd_callback_t ABI_AC[0x18] =
 {
     UNKNOWN,        ADPCM_NEAD,         CLEARBUFF,          SPNOOP,
-    ADDMIXER,       RESAMPLE_flat,      RESAMPLE_ZOH,       FILTER,
+    ADDMIXER,       RESAMPLE_NEAD,      RESAMPLE_ZOH,       FILTER,
     SETBUFF,        DUPLICATE,          DMEMMOVE,           LOADADPCM_flat,
     MIXER,          INTERLEAVE_NEAD,    HILOGAIN,           SETLOOP_flat,
     COPYBLOCKS,     INTERL,             ENVSETUP1_NEAD,     ENVMIXER_NEAD,

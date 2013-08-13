@@ -229,6 +229,8 @@ static void RESAMPLE(uint32_t w1, uint32_t w2)
 
     resample_buffer(
             flags & A_INIT,
+            flags & 0x2,
+            false, /* not supported in this ucode version */
             address,
             (uint32_t)pitch << 1,
             l_alist.in >> 1,
