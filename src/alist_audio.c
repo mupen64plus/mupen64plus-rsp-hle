@@ -27,6 +27,8 @@
 #include "alist_internal.h"
 #include "memory.h"
 
+enum { DMEM_BASE = 0x5c0 };
+
 /* alist audio state */
 static struct {
     /* main buffers */
@@ -63,7 +65,7 @@ static void SPNOOP(uint32_t w1, uint32_t w2)
 
 static void CLEARBUFF(uint32_t w1, uint32_t w2)
 {
-    uint16_t dmem  = w1;
+    uint16_t dmem  = w1 + DMEM_BASE;
     uint16_t count = w2;
 
     alist_clear(dmem & ~3, (count + 3) & ~3);
@@ -169,20 +171,20 @@ static void SETBUFF(uint32_t w1, uint32_t w2)
     uint8_t flags = (w1 >> 16);
 
     if (flags & A_AUX) {
-        l_alist.dry_right = w1;
-        l_alist.wet_left  = (w2 >> 16);
-        l_alist.wet_right = w2;
+        l_alist.dry_right = w1 + DMEM_BASE;
+        l_alist.wet_left  = (w2 >> 16) + DMEM_BASE;
+        l_alist.wet_right = w2 + DMEM_BASE;
     } else {
-        l_alist.in    = w1;
-        l_alist.out   = (w2 >> 16);
+        l_alist.in    = w1 + DMEM_BASE;
+        l_alist.out   = (w2 >> 16) + DMEM_BASE;
         l_alist.count = w2;
     }
 }
 
 static void DMEMMOVE(uint32_t w1, uint32_t w2)
 {
-    uint16_t dmemi = w1;
-    uint16_t dmemo = (w2 >> 16);
+    uint16_t dmemi = w1 + DMEM_BASE;
+    uint16_t dmemo = (w2 >> 16) + DMEM_BASE;
     uint16_t count = w2;
 
     if (count == 0)
@@ -201,8 +203,8 @@ static void LOADADPCM(uint32_t w1, uint32_t w2)
 
 static void INTERLEAVE(uint32_t w1, uint32_t w2)
 {
-    uint16_t left  = (w2 >> 16);
-    uint16_t right = w2;
+    uint16_t left  = (w2 >> 16) + DMEM_BASE;
+    uint16_t right = w2 + DMEM_BASE;
 
     if (l_alist.count == 0)
         return;
@@ -213,8 +215,8 @@ static void INTERLEAVE(uint32_t w1, uint32_t w2)
 static void MIXER(uint32_t w1, uint32_t w2)
 {
     int16_t  gain  = w1;
-    uint16_t dmemi = (w2 >> 16);
-    uint16_t dmemo = w2;
+    uint16_t dmemi = (w2 >> 16) + DMEM_BASE;
+    uint16_t dmemo = w2 + DMEM_BASE;
 
     if (l_alist.count == 0)
         return;
