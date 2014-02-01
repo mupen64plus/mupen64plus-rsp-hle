@@ -90,7 +90,9 @@ void alist_adpcm(
         uint32_t loop_address,
         uint32_t last_frame_address);
 
-void alist_resample(bool init,
+void alist_resample(
+        bool init,
+        bool flag2,
         uint16_t dmemo, uint16_t dmemi, uint16_t count,
         uint32_t pitch, uint32_t address);
 
