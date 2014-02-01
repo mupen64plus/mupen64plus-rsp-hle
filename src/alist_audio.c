@@ -245,7 +245,7 @@ static void MIXER(uint32_t w1, uint32_t w2)
     if (l_alist.count == 0)
         return;
 
-    alist_mix(dmemo, dmemi, l_alist.count, gain);
+    alist_mix(dmemo, dmemi, align(l_alist.count, 32), gain);
 }
 
 static void SEGMENT(uint32_t w1, uint32_t w2)
