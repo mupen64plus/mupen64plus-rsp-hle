@@ -266,7 +266,7 @@ static void POLEF(uint32_t w1, uint32_t w2)
             flags & A_INIT,
             l_alist.out,
             l_alist.in,
-            l_alist.count,
+            align(l_alist.count, 16),
             gain,
             l_alist.table,
             address);
