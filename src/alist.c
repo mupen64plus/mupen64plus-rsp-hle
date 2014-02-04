@@ -29,19 +29,56 @@
 #include "alist_internal.h"
 #include "audio.h"
 
+struct ramp_t
+{
+    int64_t value;
+    int64_t step;
+    int64_t target;
+};
+
 static uint8_t BufferSpace[0x10000];
 
 /* local functions */
-static int16_t* sample(unsigned pos)
-{
-    return (int16_t*)BufferSpace + (pos ^ S);
-}
-
 static void swap(int16_t **a, int16_t **b)
 {
     int16_t* tmp = *b;
     *b = *a;
     *a = tmp;
+}
+
+static int16_t* sample(unsigned pos)
+{
+    return (int16_t*)BufferSpace + (pos ^ S);
+}
+
+static void sample_mix(int16_t* dst, int16_t src, int16_t gain)
+{
+    *dst = clamp_s16(*dst + ((src * gain) >> 15));
+}
+
+static void alist_envmix_mix(size_t n, int16_t** dst, const int16_t* gains, int16_t src)
+{
+    size_t i;
+
+    for(i = 0; i < n; ++i)
+        sample_mix(dst[i], src, gains[i]);
+}
+
+static int16_t ramp_step(struct ramp_t* ramp)
+{
+    ramp->value += ramp->step;
+
+    bool target_reached = (ramp->step <= 0)
+        ? (ramp->value <= ramp->target)
+        : (ramp->value >= ramp->target);
+
+    if (target_reached)
+    {
+        ramp->value = ramp->target;
+        ramp->step  = 0;
+    }
+
+    return (ramp->value >> 16);
 }
 
 /* global functions */
@@ -57,7 +94,7 @@ void alist_process(const acmd_callback_t abi[], unsigned int abi_size)
         w1 = *(alist++);
         w2 = *(alist++);
 
-        acmd = w1 >> 24;
+        acmd = (w1 >> 24) & 0x7f;
 
         if (acmd < abi_size)
             (*abi[acmd])(w1, w2);
@@ -164,37 +201,6 @@ void alist_interleave(uint16_t dmemo, uint16_t left, uint16_t right, uint16_t co
 }
 
 
-struct ramp_t
-{
-    int32_t value;
-    int32_t step;
-    int32_t target;
-};
-
-static void ramp_step(struct ramp_t* ramp)
-{
-    ramp->value += ramp->step;
-
-    bool target_reached = (ramp->step <= 0)
-        ? (ramp->value <= ramp->target)
-        : (ramp->value >= ramp->target);
-
-    if (target_reached)
-    {
-        ramp->value = ramp->target;
-        ramp->step  = 0;
-    }
-}
-
-static void alist_envmix_mix(size_t n, int16_t** dst, const int32_t* gains, int16_t src)
-{
-    size_t i;
-
-    for(i = 0; i < n; ++i) {
-        *dst[i] = clamp_s16(*dst[i] + (((src * gains[i]) + 0x4000) >> 15));
-    }
-}
-
 void alist_envmix_exp(
         bool init,
         bool aux,
@@ -265,21 +271,20 @@ void alist_envmix_exp(
         }
 
         for (x = 0; x < 8; ++x) {
-            int32_t gains[4];
+            int16_t  gains[4];
             int16_t* buffers[4];
-
-            ramp_step(&ramps[0]);
-            ramp_step(&ramps[1]);
+            int16_t l_vol = ramp_step(&ramps[0]);
+            int16_t r_vol = ramp_step(&ramps[1]);
 
             buffers[0] = dl + (ptr^S);
             buffers[1] = dr + (ptr^S);
             buffers[2] = wl + (ptr^S);
             buffers[3] = wr + (ptr^S);
 
-            gains[0] = ((dry * (ramps[0].value >> 16) + 0x4000) >> 15);
-            gains[1] = ((dry * (ramps[1].value >> 16) + 0x4000) >> 15);
-            gains[2] = ((wet * (ramps[0].value >> 16) + 0x4000) >> 15);
-            gains[3] = ((wet * (ramps[1].value >> 16) + 0x4000) >> 15);
+            gains[0] = clamp_s16((l_vol * dry + 0x4000) >> 15);
+            gains[1] = clamp_s16((r_vol * dry + 0x4000) >> 15);
+            gains[2] = clamp_s16((l_vol * wet + 0x4000) >> 15);
+            gains[3] = clamp_s16((r_vol * wet + 0x4000) >> 15);
 
             alist_envmix_mix(n, buffers, gains, in[ptr^S]);
             ++ptr;
@@ -342,21 +347,20 @@ void alist_envmix_lin(
 
     count >>= 1;
     for(k = 0; k < count; ++k) {
-        int32_t  gains[4];
+        int16_t  gains[4];
         int16_t* buffers[4];
-
-        ramp_step(&ramps[0]);
-        ramp_step(&ramps[1]);
+        int16_t l_vol = ramp_step(&ramps[0]);
+        int16_t r_vol = ramp_step(&ramps[1]);
 
         buffers[0] = dl + (k^S);
         buffers[1] = dr + (k^S);
         buffers[2] = wl + (k^S);
         buffers[3] = wr + (k^S);
 
-        gains[0] = ((dry * (ramps[0].value >> 16) + 0x4000) >> 15);
-        gains[1] = ((dry * (ramps[1].value >> 16) + 0x4000) >> 15);
-        gains[2] = ((wet * (ramps[0].value >> 16) + 0x4000) >> 15);
-        gains[3] = ((wet * (ramps[1].value >> 16) + 0x4000) >> 15);
+        gains[0] = clamp_s16((l_vol * dry + 0x4000) >> 15);
+        gains[1] = clamp_s16((r_vol * dry + 0x4000) >> 15);
+        gains[2] = clamp_s16((l_vol * wet + 0x4000) >> 15);
+        gains[3] = clamp_s16((r_vol * wet + 0x4000) >> 15);
 
         alist_envmix_mix(4, buffers, gains, in[k^S]);
     }
@@ -432,7 +436,7 @@ void alist_mix(uint16_t dmemo, uint16_t dmemi, uint16_t count, int16_t gain)
     count >>= 1;
 
     while(count != 0) {
-        *dst = clamp_s16(*dst + ((*src * gain) >> 15));
+        sample_mix(dst, *src, gain);
 
         ++dst;
         ++src;
