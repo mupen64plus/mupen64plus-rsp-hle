@@ -22,6 +22,7 @@
 #ifndef MUSYX_H
 #define MUSYX_H
 
-void musyx_task(void);
+void musyx_v1_task(void);
+void musyx_v2_task(void);
 
 #endif
