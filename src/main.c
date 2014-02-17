@@ -99,32 +99,32 @@ static int is_task(void)
 
 static void rsp_break(unsigned int setbits)
 {
-    *rsp.SP_STATUS_REG |= setbits | RSP_STATUS_BROKE | RSP_STATUS_HALT;
+    *g_RspInfo.SP_STATUS_REG |= setbits | RSP_STATUS_BROKE | RSP_STATUS_HALT;
 
-    if ((*rsp.SP_STATUS_REG & RSP_STATUS_INTR_ON_BREAK)) {
-        *rsp.MI_INTR_REG |= MI_INTR_SP;
-        rsp.CheckInterrupts();
+    if ((*g_RspInfo.SP_STATUS_REG & RSP_STATUS_INTR_ON_BREAK)) {
+        *g_RspInfo.MI_INTR_REG |= MI_INTR_SP;
+        g_RspInfo.CheckInterrupts();
     }
 }
 
 static void forward_gfx_task(void)
 {
-    if (rsp.ProcessDlistList != NULL) {
-        rsp.ProcessDlistList();
-        *rsp.DPC_STATUS_REG &= ~DP_STATUS_FREEZE;
+    if (g_RspInfo.ProcessDlistList != NULL) {
+        g_RspInfo.ProcessDlistList();
+        *g_RspInfo.DPC_STATUS_REG &= ~DP_STATUS_FREEZE;
     }
 }
 
 static void forward_audio_task(void)
 {
-    if (rsp.ProcessAlistList != NULL)
-        rsp.ProcessAlistList();
+    if (g_RspInfo.ProcessAlistList != NULL)
+        g_RspInfo.ProcessAlistList();
 }
 
 static void show_cfb(void)
 {
-    if (rsp.ShowCFB != NULL)
-        rsp.ShowCFB();
+    if (g_RspInfo.ShowCFB != NULL)
+        g_RspInfo.ShowCFB();
 }
 
 static int try_fast_audio_dispatching(void)
@@ -276,7 +276,7 @@ static void normal_task_dispatching(void)
 
 static void non_task_dispatching(void)
 {
-    const unsigned int sum = sum_bytes(rsp.IMEM, 0x1000 >> 1);
+    const unsigned int sum = sum_bytes(g_RspInfo.IMEM, 0x1000 >> 1);
 
     switch (sum) {
     /* CIC x105 ucode (used during boot of CIC x105 games) */
@@ -296,7 +296,7 @@ static void handle_unknown_task(unsigned int sum)
     uint32_t ucode_data = *dmem_u32(TASK_UCODE_DATA);
     uint32_t data_ptr = *dmem_u32(TASK_DATA_PTR);
 
-    DebugMessage(M64MSG_WARNING, "unknown OSTask: sum %x PC:%x", sum, *rsp.SP_PC_REG);
+    DebugMessage(M64MSG_WARNING, "unknown OSTask: sum %x PC:%x", sum, *g_RspInfo.SP_PC_REG);
 
     sprintf(&filename[0], "task_%x.log", sum);
     dump_task(filename);
@@ -328,14 +328,14 @@ static void handle_unknown_non_task(unsigned int sum)
 {
     char filename[256];
 
-    DebugMessage(M64MSG_WARNING, "unknown RSP code: sum: %x PC:%x", sum, *rsp.SP_PC_REG);
+    DebugMessage(M64MSG_WARNING, "unknown RSP code: sum: %x PC:%x", sum, *g_RspInfo.SP_PC_REG);
 
     /* dump IMEM & DMEM for further analysis */
     sprintf(&filename[0], "imem_%x.bin", sum);
-    dump_binary(filename, rsp.IMEM, 0x1000);
+    dump_binary(filename, g_RspInfo.IMEM, 0x1000);
 
     sprintf(&filename[0], "dmem_%x.bin", sum);
-    dump_binary(filename, rsp.DMEM, 0x1000);
+    dump_binary(filename, g_RspInfo.DMEM, 0x1000);
 }
 
 /* local helper functions */

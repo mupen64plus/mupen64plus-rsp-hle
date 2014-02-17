@@ -73,36 +73,36 @@ static inline unsigned int align(unsigned int x, unsigned amount)
 
 static inline uint8_t* const dmem_u8(uint16_t address)
 {
-    return (uint8_t*)(&rsp.DMEM[(address & 0xfff) ^ S8]);
+    return (uint8_t*)(&g_RspInfo.DMEM[(address & 0xfff) ^ S8]);
 }
 
 static inline uint16_t* const dmem_u16(uint16_t address)
 {
     assert((address & 1) == 0);
-    return (uint16_t*)(&rsp.DMEM[(address & 0xfff) ^ S16]);
+    return (uint16_t*)(&g_RspInfo.DMEM[(address & 0xfff) ^ S16]);
 }
 
 static inline uint32_t* const dmem_u32(uint16_t address)
 {
     assert((address & 3) == 0);
-    return (uint32_t*)(&rsp.DMEM[(address & 0xfff)]);
+    return (uint32_t*)(&g_RspInfo.DMEM[(address & 0xfff)]);
 }
 
 static inline uint8_t* const dram_u8(uint32_t address)
 {
-    return (uint8_t*)&rsp.RDRAM[(address & 0xffffff) ^ S8];
+    return (uint8_t*)&g_RspInfo.RDRAM[(address & 0xffffff) ^ S8];
 }
 
 static inline uint16_t* const dram_u16(uint32_t address)
 {
     assert((address & 1) == 0);
-    return (uint16_t*)&rsp.RDRAM[(address & 0xffffff) ^ S16];
+    return (uint16_t*)&g_RspInfo.RDRAM[(address & 0xffffff) ^ S16];
 }
 
 static inline uint32_t* const dram_u32(uint32_t address)
 {
     assert((address & 3) == 0);
-    return (uint32_t*)&rsp.RDRAM[address & 0xffffff];
+    return (uint32_t*)&g_RspInfo.RDRAM[address & 0xffffff];
 }
 
 void dmem_load_u8 (uint8_t*  dst, uint16_t address, size_t count);
