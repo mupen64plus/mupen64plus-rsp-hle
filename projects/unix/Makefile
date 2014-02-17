@@ -227,17 +227,17 @@ OBJDIR = _obj$(POSTFIX)
 # list of source files to compile
 SOURCE = \
 	$(SRCDIR)/alist.c \
+	$(SRCDIR)/alist_audio.c \
+	$(SRCDIR)/alist_naudio.c \
+	$(SRCDIR)/alist_nead.c \
 	$(SRCDIR)/audio.c \
 	$(SRCDIR)/cicx105.c \
 	$(SRCDIR)/jpeg.c \
 	$(SRCDIR)/main.c \
 	$(SRCDIR)/memory.c \
+	$(SRCDIR)/mp3.c \
 	$(SRCDIR)/musyx.c \
-	$(SRCDIR)/plugin.c \
-	$(SRCDIR)/ucode3.c \
-	$(SRCDIR)/ucode2.c \
-	$(SRCDIR)/ucode1.c \
-	$(SRCDIR)/ucode3mp3.c
+	$(SRCDIR)/plugin.c
 
 # generate a list of object files build, make a temporary directory for them
 OBJECTS := $(patsubst $(SRCDIR)/%.c, $(OBJDIR)/%.o, $(filter %.c, $(SOURCE)))

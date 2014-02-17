@@ -183,6 +183,18 @@
 				>
 			</File>
 			<File
+				RelativePath="..\..\src\alist_audio.c"
+				>
+			</File>
+			<File
+				RelativePath="..\..\src\alist_naudio.c"
+				>
+			</File>
+			<File
+				RelativePath="..\..\src\alist_nead.c"
+				>
+			</File>
+			<File
 				RelativePath="..\..\src\audio.c"
 				>
 			</File>
@@ -203,27 +215,15 @@
 				>
 			</File>
 			<File
+				RelativePath="..\..\src\mp3.c"
+				>
+			</File>
+			<File
 				RelativePath="..\..\src\musyx.c"
 				>
 			</File>
 			<File
 				RelativePath="..\..\src\plugin.c"
-				>
-			</File>
-			<File
-				RelativePath="..\..\src\ucode1.c"
-				>
-			</File>
-			<File
-				RelativePath="..\..\src\ucode2.c"
-				>
-			</File>
-			<File
-				RelativePath="..\..\src\ucode3.c"
-				>
-			</File>
-			<File
-				RelativePath="..\..\src\ucode3mp3.c"
 				>
 			</File>
 		</Filter>
