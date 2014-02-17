@@ -245,11 +245,11 @@
 				>
 			</File>
 			<File
-				RelativePath="..\..\src\cicx105.h"
+				RelativePath="..\..\src\arithmetics.h"
 				>
 			</File>
 			<File
-				RelativePath="..\..\src\hle.h"
+				RelativePath="..\..\src\cicx105.h"
 				>
 			</File>
 			<File

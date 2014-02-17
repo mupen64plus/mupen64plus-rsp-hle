@@ -25,8 +25,8 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "hle.h"
 #include "alist_internal.h"
+#include "arithmetics.h"
 #include "audio.h"
 #include "memory.h"
 #include "plugin.h"

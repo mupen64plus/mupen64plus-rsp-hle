@@ -25,7 +25,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#include "hle.h"
+#include "arithmetics.h"
 #include "memory.h"
 #include "plugin.h"
 
