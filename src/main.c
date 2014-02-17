@@ -21,6 +21,8 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 
 #include "memory.h"
@@ -47,13 +49,13 @@
 
 
 /* helper functions prototypes */
-static int is_task(void);
+static bool is_task(void);
 static void rsp_break(unsigned int setbits);
 static void forward_gfx_task(void);
 static void forward_audio_task(void);
 static void show_cfb(void);
-static int try_fast_audio_dispatching(void);
-static int try_fast_task_dispatching(void);
+static bool try_fast_audio_dispatching(void);
+static bool try_fast_task_dispatching(void);
 static void normal_task_dispatching(void);
 static void non_task_dispatching(void);
 
@@ -66,7 +68,7 @@ static void handle_unknown_task(unsigned int sum);
 static void handle_unknown_non_task(unsigned int sum);
 
 /* local variables */
-static const int FORWARD_AUDIO = 0, FORWARD_GFX = 1;
+static const bool FORWARD_AUDIO = false, FORWARD_GFX = true;
 
 /* Global functions */
 void hle_execute(void)
@@ -93,7 +95,7 @@ void hle_execute(void)
  *
  * Using ucode_boot_size should be more robust in this regard.
  **/
-static int is_task(void)
+static bool is_task(void)
 {
     return (*dmem_u32(TASK_UCODE_BOOT_SIZE) <= 0x1000);
 }
@@ -128,7 +130,7 @@ static void show_cfb(void)
         g_RspInfo.ShowCFB();
 }
 
-static int try_fast_audio_dispatching(void)
+static bool try_fast_audio_dispatching(void)
 {
     /* identify audio ucode by using the content of ucode_data */
     uint32_t ucode_data = *dmem_u32(TASK_UCODE_DATA);
@@ -140,11 +142,11 @@ static int try_fast_audio_dispatching(void)
             switch(v)
             {
             case 0x1e24138c: /* audio ABI (most common) */
-                alist_process_audio(); return 1;
+                alist_process_audio(); return true;
             case 0x1dc8138c: /* GoldenEye */
-                alist_process_audio_ge(); return 1;
+                alist_process_audio_ge(); return true;
             case 0x1e3c1390: /* BlastCorp, DiddyKongRacing */
-                alist_process_audio_bc(); return 1;
+                alist_process_audio_bc(); return true;
             default:
                 DebugMessage(M64MSG_WARNING, "ABI1 identification regression: v=%08x", v);
             }
@@ -153,29 +155,29 @@ static int try_fast_audio_dispatching(void)
             switch(v)
             {
             case 0x11181350: /* MarioKart, WaveRace (E) */
-                alist_process_mk(); return 1;
+                alist_process_mk(); return true;
             case 0x111812e0: /* StarFox (J) */
-                alist_process_sfj(); return 1;
+                alist_process_sfj(); return true;
             case 0x110412ac: /* WaveRace (J RevB) */
-                alist_process_wrjb(); return 1;
+                alist_process_wrjb(); return true;
             case 0x110412cc: /* StarFox/LylatWars (except J) */
-                alist_process_sf(); return 1;
+                alist_process_sf(); return true;
             case 0x1cd01250: /* FZeroX */
-                alist_process_fz(); return 1;
+                alist_process_fz(); return true;
             case 0x1f08122c: /* YoshisStory */
-                alist_process_ys(); return 1;
+                alist_process_ys(); return true;
             case 0x1f38122c: /* 1080° Snowboarding */
-                alist_process_1080(); return 1;
+                alist_process_1080(); return true;
             case 0x1f681230: /* Zelda OoT / Zelda MM (J, J RevA) */
-                alist_process_oot(); return 1;
+                alist_process_oot(); return true;
             case 0x1f801250: /* Zelda MM (except J, J RevA, E Beta), PokemonStadium 2 */
-                alist_process_mm(); return 1;
+                alist_process_mm(); return true;
             case 0x109411f8: /* Zelda MM (E Beta) */
-                alist_process_mmb(); return 1;
+                alist_process_mmb(); return true;
             case 0x1eac11b8: /* AnimalCrossing */
-                alist_process_ac(); return 1;
+                alist_process_ac(); return true;
             case 0x00010010: /* MusyX v2 (IndianaJones, BattleForNaboo) */
-                musyx_v2_task(); return 1;
+                musyx_v2_task(); return true;
 
             default:
                 DebugMessage(M64MSG_WARNING, "ABI2 identification regression: v=%08x", v);
@@ -189,51 +191,51 @@ static int try_fast_audio_dispatching(void)
             RogueSquadron, ResidentEvil2, PolarisSnoCross,
             TheWorldIsNotEnough, RugratsInParis, NBAShowTime,
             HydroThunder, Tarzan, GauntletLegend, Rush2049 */
-            musyx_v1_task(); return 1;
+            musyx_v1_task(); return true;
         case 0x0000127c: /* naudio (many games) */
-            alist_process_naudio(); return 1;
+            alist_process_naudio(); return true;
         case 0x00001280: /* BanjoKazooie */
-            alist_process_naudio_bk(); return 1;
+            alist_process_naudio_bk(); return true;
         case 0x1c58126c: /* DonkeyKong */
-            alist_process_naudio_dk(); return 1;
+            alist_process_naudio_dk(); return true;
         case 0x1ae8143c: /* BanjoTooie, JetForceGemini, MickeySpeedWayUSA, PerfectDark */
-            alist_process_naudio_mp3(); return 1;
+            alist_process_naudio_mp3(); return true;
         case 0x1ab0140c: /* ConkerBadFurDay */
-            alist_process_naudio_cbfd(); return 1;
+            alist_process_naudio_cbfd(); return true;
 
         default:
             DebugMessage(M64MSG_WARNING, "ABI3 identification regression: v=%08x", v);
         }
     }
 
-    return 0;
+    return false;
 }
 
-static int try_fast_task_dispatching(void)
+static bool try_fast_task_dispatching(void)
 {
     /* identify task ucode by its type */
     switch (*dmem_u32(TASK_TYPE)) {
     case 1:
         if (FORWARD_GFX) {
             forward_gfx_task();
-            return 1;
+            return true;
         }
         break;
 
     case 2:
         if (FORWARD_AUDIO) {
             forward_audio_task();
-            return 1;
+            return true;
         } else if (try_fast_audio_dispatching())
-            return 1;
+            return true;
         break;
 
     case 7:
         show_cfb();
-        return 1;
+        return true;
     }
 
-    return 0;
+    return false;
 }
 
 static void normal_task_dispatching(void)
