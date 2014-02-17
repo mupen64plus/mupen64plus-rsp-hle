@@ -28,6 +28,8 @@
 #include "hle.h"
 #include "alist_internal.h"
 #include "audio.h"
+#include "memory.h"
+#include "plugin.h"
 
 struct ramp_t
 {

@@ -231,6 +231,7 @@ SOURCE = \
 	$(SRCDIR)/cicx105.c \
 	$(SRCDIR)/jpeg.c \
 	$(SRCDIR)/main.c \
+	$(SRCDIR)/memory.c \
 	$(SRCDIR)/musyx.c \
 	$(SRCDIR)/plugin.c \
 	$(SRCDIR)/ucode3.c \
