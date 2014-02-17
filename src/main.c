@@ -21,14 +21,9 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-#include <stdarg.h>
 #include <string.h>
 #include <stdio.h>
 
-#define M64P_PLUGIN_PROTOTYPES 1
-#include "m64p_types.h"
-#include "m64p_common.h"
-#include "m64p_plugin.h"
 #include "hle.h"
 #include "alist.h"
 #include "cicx105.h"
@@ -51,6 +46,16 @@
 
 
 /* helper functions prototypes */
+static int is_task(void);
+static void rsp_break(unsigned int setbits);
+static void forward_gfx_task(void);
+static void forward_audio_task(void);
+static void show_cfb(void);
+static int try_fast_audio_dispatching(void);
+static int try_fast_task_dispatching(void);
+static void normal_task_dispatching(void);
+static void non_task_dispatching(void);
+
 static unsigned int sum_bytes(const unsigned char *bytes, unsigned int size);
 static void dump_binary(const char *const filename, const unsigned char *const bytes,
                         unsigned int size);
@@ -59,17 +64,23 @@ static void dump_task(const char *const filename);
 static void handle_unknown_task(unsigned int sum);
 static void handle_unknown_non_task(unsigned int sum);
 
-/* global variables */
-RSP_INFO rsp;
-
 /* local variables */
 static const int FORWARD_AUDIO = 0, FORWARD_GFX = 1;
-static void (*l_DebugCallback)(void *, int, const char *) = NULL;
-static void *l_DebugCallContext = NULL;
-static int l_PluginInit = 0;
+
+/* Global functions */
+void hle_execute(void)
+{
+    if (is_task()) {
+        if (!try_fast_task_dispatching())
+            normal_task_dispatching();
+        rsp_break(RSP_STATUS_TASKDONE);
+    } else {
+        non_task_dispatching();
+        rsp_break(0);
+    }
+}
 
 /* local functions */
-
 
 /**
  * Try to figure if the RSP was launched using osSpTask* functions
@@ -326,101 +337,6 @@ static void handle_unknown_non_task(unsigned int sum)
     sprintf(&filename[0], "dmem_%x.bin", sum);
     dump_binary(filename, rsp.DMEM, 0x1000);
 }
-
-
-/* Global functions */
-void DebugMessage(int level, const char *message, ...)
-{
-    char msgbuf[1024];
-    va_list args;
-
-    if (l_DebugCallback == NULL)
-        return;
-
-    va_start(args, message);
-    vsprintf(msgbuf, message, args);
-
-    (*l_DebugCallback)(l_DebugCallContext, level, msgbuf);
-
-    va_end(args);
-}
-
-/* DLL-exported functions */
-EXPORT m64p_error CALL PluginStartup(m64p_dynlib_handle CoreLibHandle, void *Context,
-                                     void (*DebugCallback)(void *, int, const char *))
-{
-    if (l_PluginInit)
-        return M64ERR_ALREADY_INIT;
-
-    /* first thing is to set the callback function for debug info */
-    l_DebugCallback = DebugCallback;
-    l_DebugCallContext = Context;
-
-    /* this plugin doesn't use any Core library functions (ex for Configuration), so no need to keep the CoreLibHandle */
-
-    l_PluginInit = 1;
-    return M64ERR_SUCCESS;
-}
-
-EXPORT m64p_error CALL PluginShutdown(void)
-{
-    if (!l_PluginInit)
-        return M64ERR_NOT_INIT;
-
-    /* reset some local variable */
-    l_DebugCallback = NULL;
-    l_DebugCallContext = NULL;
-
-    l_PluginInit = 0;
-    return M64ERR_SUCCESS;
-}
-
-EXPORT m64p_error CALL PluginGetVersion(m64p_plugin_type *PluginType, int *PluginVersion, int *APIVersion, const char **PluginNamePtr, int *Capabilities)
-{
-    /* set version info */
-    if (PluginType != NULL)
-        *PluginType = M64PLUGIN_RSP;
-
-    if (PluginVersion != NULL)
-        *PluginVersion = RSP_HLE_VERSION;
-
-    if (APIVersion != NULL)
-        *APIVersion = RSP_PLUGIN_API_VERSION;
-
-    if (PluginNamePtr != NULL)
-        *PluginNamePtr = "Hacktarux/Azimer High-Level Emulation RSP Plugin";
-
-    if (Capabilities != NULL)
-        *Capabilities = 0;
-
-    return M64ERR_SUCCESS;
-}
-
-EXPORT unsigned int CALL DoRspCycles(unsigned int Cycles)
-{
-    if (is_task()) {
-        if (!try_fast_task_dispatching())
-            normal_task_dispatching();
-        rsp_break(RSP_STATUS_TASKDONE);
-    } else {
-        non_task_dispatching();
-        rsp_break(0);
-    }
-
-    return Cycles;
-}
-
-EXPORT void CALL InitiateRSP(RSP_INFO Rsp_Info, unsigned int *CycleCount)
-{
-    rsp = Rsp_Info;
-}
-
-EXPORT void CALL RomClosed(void)
-{
-    memset(rsp.DMEM, 0, 0x1000);
-    memset(rsp.IMEM, 0, 0x1000);
-}
-
 
 /* local helper functions */
 static unsigned int sum_bytes(const unsigned char *bytes, unsigned int size)

@@ -226,12 +226,13 @@ OBJDIR = _obj$(POSTFIX)
 
 # list of source files to compile
 SOURCE = \
-	$(SRCDIR)/main.c \
 	$(SRCDIR)/alist.c \
 	$(SRCDIR)/audio.c \
 	$(SRCDIR)/cicx105.c \
 	$(SRCDIR)/jpeg.c \
+	$(SRCDIR)/main.c \
 	$(SRCDIR)/musyx.c \
+	$(SRCDIR)/plugin.c \
 	$(SRCDIR)/ucode3.c \
 	$(SRCDIR)/ucode2.c \
 	$(SRCDIR)/ucode1.c \

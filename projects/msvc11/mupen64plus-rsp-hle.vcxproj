@@ -98,6 +98,7 @@
     <ClCompile Include="..\..\src\jpeg.c" />
     <ClCompile Include="..\..\src\main.c" />
     <ClCompile Include="..\..\src\musyx.c" />
+    <ClCompile Include="..\..\src\plugin.c" />
     <ClCompile Include="..\..\src\ucode1.c" />
     <ClCompile Include="..\..\src\ucode2.c" />
     <ClCompile Include="..\..\src\ucode3.c" />
@@ -111,6 +112,7 @@
     <ClInclude Include="..\..\src\hle.h" />
     <ClInclude Include="..\..\src\jpeg.h" />
     <ClInclude Include="..\..\src\musyx.h" />
+    <ClInclude Include="..\..\src\plugin.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
