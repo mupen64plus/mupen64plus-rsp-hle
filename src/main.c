@@ -34,10 +34,10 @@
 #define min(a,b) (((a) < (b)) ? (a) : (b))
 
 /* some rsp status flags */
-#define RSP_STATUS_HALT             0x1
-#define RSP_STATUS_BROKE            0x2
-#define RSP_STATUS_INTR_ON_BREAK    0x40
-#define RSP_STATUS_TASKDONE         0x200
+#define SP_STATUS_HALT             0x1
+#define SP_STATUS_BROKE            0x2
+#define SP_STATUS_INTR_ON_BREAK    0x40
+#define SP_STATUS_TASKDONE         0x200
 
 /* some rdp status flags */
 #define DP_STATUS_FREEZE            0x2
@@ -74,7 +74,7 @@ void hle_execute(void)
     if (is_task()) {
         if (!try_fast_task_dispatching())
             normal_task_dispatching();
-        rsp_break(RSP_STATUS_TASKDONE);
+        rsp_break(SP_STATUS_TASKDONE);
     } else {
         non_task_dispatching();
         rsp_break(0);
@@ -100,9 +100,9 @@ static int is_task(void)
 
 static void rsp_break(unsigned int setbits)
 {
-    *g_RspInfo.SP_STATUS_REG |= setbits | RSP_STATUS_BROKE | RSP_STATUS_HALT;
+    *g_RspInfo.SP_STATUS_REG |= setbits | SP_STATUS_BROKE | SP_STATUS_HALT;
 
-    if ((*g_RspInfo.SP_STATUS_REG & RSP_STATUS_INTR_ON_BREAK)) {
+    if ((*g_RspInfo.SP_STATUS_REG & SP_STATUS_INTR_ON_BREAK)) {
         *g_RspInfo.MI_INTR_REG |= MI_INTR_SP;
         g_RspInfo.CheckInterrupts();
     }
