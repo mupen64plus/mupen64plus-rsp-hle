@@ -257,6 +257,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\..\src\main.h"
+				>
+			</File>
+			<File
 				RelativePath="..\..\src\memory.h"
 				>
 			</File>

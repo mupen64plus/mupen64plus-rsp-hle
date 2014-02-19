@@ -112,6 +112,7 @@
     <ClInclude Include="..\..\src\audio.h" />
     <ClInclude Include="..\..\src\cicx105.h" />
     <ClInclude Include="..\..\src\jpeg.h" />
+    <ClInclude Include="..\..\src\main.h" />
     <ClInclude Include="..\..\src\memory.h" />
     <ClInclude Include="..\..\src\musyx.h" />
     <ClInclude Include="..\..\src\plugin.h" />
