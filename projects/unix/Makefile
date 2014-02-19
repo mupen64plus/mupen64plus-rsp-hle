@@ -221,6 +221,12 @@ ifeq ($(PLUGINDIR),)
   PLUGINDIR := $(LIBDIR)/mupen64plus
 endif
 
+# enable/disable task dumping support
+ifeq ($(DUMP), 1)
+	CFLAGS += -DENABLE_TASK_DUMP
+endif
+
+
 SRCDIR = ../../src
 OBJDIR = _obj$(POSTFIX)
 
@@ -262,6 +268,7 @@ targets:
 	@echo "    WARNFLAGS=flag == compiler warning levels (default: -Wall)"
 	@echo "    PIC=(1|0)     == Force enable/disable of position independent code"
 	@echo "    POSTFIX=name  == String added to the name of the the build (default: '')"
+	@echo "    DUMP=(1|0)    == Enable/Disable unknown task dumping (default: 0)"
 	@echo "  Install Options:"
 	@echo "    PREFIX=path   == install/uninstall prefix (default: /usr/local)"
 	@echo "    LIBDIR=path   == library prefix (default: PREFIX/lib)"

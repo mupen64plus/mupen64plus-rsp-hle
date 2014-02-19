@@ -23,7 +23,10 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+
+#ifdef ENABLE_TASK_DUMP
 #include <stdio.h>
+#endif
 
 #include "memory.h"
 #include "plugin.h"
@@ -49,6 +52,7 @@
 
 
 /* helper functions prototypes */
+static unsigned int sum_bytes(const unsigned char *bytes, unsigned int size);
 static bool is_task(void);
 static void rsp_break(unsigned int setbits);
 static void forward_gfx_task(void);
@@ -59,13 +63,13 @@ static bool try_fast_task_dispatching(void);
 static void normal_task_dispatching(void);
 static void non_task_dispatching(void);
 
-static unsigned int sum_bytes(const unsigned char *bytes, unsigned int size);
+#ifdef ENABLE_TASK_DUMP
 static void dump_binary(const char *const filename, const unsigned char *const bytes,
                         unsigned int size);
 static void dump_task(const char *const filename);
-
-static void handle_unknown_task(unsigned int sum);
-static void handle_unknown_non_task(unsigned int sum);
+static void dump_unknown_task(unsigned int sum);
+static void dump_unknown_non_task(unsigned int sum);
+#endif
 
 /* local variables */
 static const bool FORWARD_AUDIO = false, FORWARD_GFX = true;
@@ -84,6 +88,16 @@ void hle_execute(void)
 }
 
 /* local functions */
+static unsigned int sum_bytes(const unsigned char *bytes, unsigned int size)
+{
+    unsigned int sum = 0;
+    const unsigned char *const bytes_end = bytes + size;
+
+    while (bytes != bytes_end)
+        sum += *bytes++;
+
+    return sum;
+}
 
 /**
  * Try to figure if the RSP was launched using osSpTask* functions
@@ -274,7 +288,10 @@ static void normal_task_dispatching(void)
         return;
     }
 
-    handle_unknown_task(sum);
+    DebugMessage(M64MSG_WARNING, "unknown OSTask: sum: %x PC:%x", sum, *g_RspInfo.SP_PC_REG);
+#ifdef ENABLE_TASK_DUMP
+    dump_unknown_task(sum);
+#endif
 }
 
 static void non_task_dispatching(void)
@@ -289,17 +306,20 @@ static void non_task_dispatching(void)
         return;
     }
 
-    handle_unknown_non_task(sum);
+    DebugMessage(M64MSG_WARNING, "unknown RSP code: sum: %x PC:%x", sum, *g_RspInfo.SP_PC_REG);
+#ifdef ENABLE_TASK_DUMP
+    dump_unknown_non_task(sum);
+#endif
 }
 
-static void handle_unknown_task(unsigned int sum)
+
+#ifdef ENABLE_TASK_DUMP
+static void dump_unknown_task(unsigned int sum)
 {
     char filename[256];
     uint32_t ucode = *dmem_u32(TASK_UCODE);
     uint32_t ucode_data = *dmem_u32(TASK_UCODE_DATA);
     uint32_t data_ptr = *dmem_u32(TASK_DATA_PTR);
-
-    DebugMessage(M64MSG_WARNING, "unknown OSTask: sum %x PC:%x", sum, *g_RspInfo.SP_PC_REG);
 
     sprintf(&filename[0], "task_%x.log", sum);
     dump_task(filename);
@@ -327,11 +347,9 @@ static void handle_unknown_task(unsigned int sum)
     }
 }
 
-static void handle_unknown_non_task(unsigned int sum)
+static void dump_unknown_non_task(unsigned int sum)
 {
     char filename[256];
-
-    DebugMessage(M64MSG_WARNING, "unknown RSP code: sum: %x PC:%x", sum, *g_RspInfo.SP_PC_REG);
 
     /* dump IMEM & DMEM for further analysis */
     sprintf(&filename[0], "imem_%x.bin", sum);
@@ -340,19 +358,6 @@ static void handle_unknown_non_task(unsigned int sum)
     sprintf(&filename[0], "dmem_%x.bin", sum);
     dump_binary(filename, g_RspInfo.DMEM, 0x1000);
 }
-
-/* local helper functions */
-static unsigned int sum_bytes(const unsigned char *bytes, unsigned int size)
-{
-    unsigned int sum = 0;
-    const unsigned char *const bytes_end = bytes + size;
-
-    while (bytes != bytes_end)
-        sum += *bytes++;
-
-    return sum;
-}
-
 
 static void dump_binary(const char *const filename, const unsigned char *const bytes,
                         unsigned int size)
@@ -404,4 +409,4 @@ static void dump_task(const char *const filename)
     } else
         fclose(f);
 }
-
+#endif
