@@ -23,7 +23,8 @@
 #include <string.h>
 #include <stdint.h>
 
-#include "hle.h"
+#include "memory.h"
+#include "plugin.h"
 
 static const uint16_t DeWindowLUT [0x420] = {
     0x0000, 0xFFF3, 0x005D, 0xFF38, 0x037A, 0xF736, 0x0B37, 0xC00E,
@@ -224,13 +225,13 @@ void MP3(uint32_t w1, uint32_t w2)
     writePtr = w2 & 0xFFFFFF;
     readPtr  = writePtr;
     /* Just do that for efficiency... may remove and use directly later anyway */
-    memcpy(mp3data + 0xCE8, rsp.RDRAM + readPtr, 8);
+    memcpy(mp3data + 0xCE8, g_RspInfo.RDRAM + readPtr, 8);
     /* This must be a header byte or whatnot */
     readPtr += 8;
 
     for (cnt = 0; cnt < 0x480; cnt += 0x180) {
         /* DMA: 0xCF0 <- RDRAM[s5] : 0x180 */
-        memcpy(mp3data + 0xCF0, rsp.RDRAM + readPtr, 0x180);
+        memcpy(mp3data + 0xCF0, g_RspInfo.RDRAM + readPtr, 0x180);
         inPtr  = 0xCF0; /* s7 */
         outPtr = 0xE70; /* s3 */
 /* --------------- Inner Loop Start -------------------- */
@@ -247,7 +248,7 @@ void MP3(uint32_t w1, uint32_t w2)
             inPtr += 0x40;
         }
 /* --------------- Inner Loop End -------------------- */
-        memcpy(rsp.RDRAM + writePtr, mp3data + 0xe70, 0x180);
+        memcpy(g_RspInfo.RDRAM + writePtr, mp3data + 0xe70, 0x180);
         writePtr += 0x180;
         readPtr  += 0x180;
     }

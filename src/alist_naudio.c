@@ -21,11 +21,12 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-#include <string.h>
+#include <stdbool.h>
 #include <stdint.h>
 
-#include "hle.h"
 #include "alist_internal.h"
+#include "memory.h"
+#include "plugin.h"
 
 void MP3(uint32_t w1, uint32_t w2);
 

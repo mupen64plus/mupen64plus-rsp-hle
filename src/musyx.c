@@ -24,10 +24,9 @@
 #include <string.h>
 #include <stddef.h>
 
-#include "m64p_plugin.h"
-#include "m64p_types.h"
-#include "hle.h"
-#include "musyx.h"
+#include "arithmetics.h"
+#include "memory.h"
+#include "plugin.h"
 #include "audio.h"
 
 /* various constants */

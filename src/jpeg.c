@@ -21,15 +21,13 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-#include <stdint.h>
 #include <assert.h>
+#include <stdint.h>
 #include <stdlib.h>
 
-#define M64P_PLUGIN_PROTOTYPES 1
-#include "m64p_types.h"
-#include "m64p_plugin.h"
-#include "hle.h"
-#include "jpeg.h"
+#include "arithmetics.h"
+#include "memory.h"
+#include "plugin.h"
 
 #define SUBBLOCK_SIZE 64
 

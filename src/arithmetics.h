@@ -1,8 +1,6 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- *   Mupen64plus-rsp-hle - cicx105.c                                       *
+ *   Mupen64plus-rsp-hle - arithmetics.h                                   *
  *   Mupen64Plus homepage: http://code.google.com/p/mupen64plus/           *
- *   Copyright (C) 2012 Bobby Smiles                                       *
- *   Copyright (C) 2009 Richard Goedeken                                   *
  *   Copyright (C) 2002 Hacktarux                                          *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
@@ -21,36 +19,18 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-#include <string.h>
+#ifndef ARITHMETICS_H
+#define ARITHMETICS_H
 
-#include "m64p_plugin.h"
-#include "plugin.h"
-#include "cicx105.h"
+#include <stdint.h>
 
-/**
- * During IPL3 stage of CIC x105 games, the RSP performs some checks and transactions
- * necessary for booting the game.
- *
- * We only implement the needed DMA transactions for booting.
- *
- * Found in Banjo-Tooie, Zelda, Perfect Dark, ...)
- **/
-void cicx105_ucode(void)
+static inline int16_t clamp_s16(int_fast32_t x)
 {
-    /* memcpy is okay to use because access constrains are met (alignment, size) */
-    unsigned int i;
-    unsigned char *dst = g_RspInfo.RDRAM + 0x2fb1f0;
-    unsigned char *src = g_RspInfo.IMEM + 0x120;
+    x = (x < INT16_MIN) ? INT16_MIN: x;
+    x = (x > INT16_MAX) ? INT16_MAX: x;
 
-    /* dma_read(0x1120, 0x1e8, 0x1e8) */
-    memcpy(g_RspInfo.IMEM + 0x120, g_RspInfo.RDRAM + 0x1e8, 0x1f0);
-
-    /* dma_write(0x1120, 0x2fb1f0, 0xfe817000) */
-    for (i = 0; i < 24; ++i) {
-        memcpy(dst, src, 8);
-        dst += 0xff0;
-        src += 0x8;
-
-    }
+    return x;
 }
+
+#endif
 

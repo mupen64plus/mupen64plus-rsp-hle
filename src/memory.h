@@ -1,5 +1,5 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- *   Mupen64plus-rsp-hle - hle.h                                           *
+ *   Mupen64plus-rsp-hle - memory.h                                        *
  *   Mupen64Plus homepage: http://code.google.com/p/mupen64plus/           *
  *   Copyright (C) 2002 Hacktarux                                          *
  *                                                                         *
@@ -19,17 +19,14 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-#ifndef HLE_H
-#define HLE_H
+#ifndef MEMORY_H
+#define MEMORY_H
 
-#define M64P_PLUGIN_PROTOTYPES 1
-#include "m64p_plugin.h"
 #include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
 
-#define RSP_HLE_VERSION        0x020000
-#define RSP_PLUGIN_API_VERSION 0x020000
+#include "plugin.h"
 
 #ifdef M64P_BIG_ENDIAN
 #define S 0
@@ -40,8 +37,6 @@
 #define S16 2
 #define S8 3
 #endif
-
-extern RSP_INFO rsp;
 
 enum {
     TASK_TYPE               = 0xfc0,
@@ -62,55 +57,44 @@ enum {
     TASK_YIELD_DATA_SIZE    = 0xffc
 };
 
-static inline int16_t clamp_s16(int_fast32_t x)
-{
-    x = (x < INT16_MIN) ? INT16_MIN: x;
-    x = (x > INT16_MAX) ? INT16_MAX: x;
-
-    return x;
-}
-
 static inline unsigned int align(unsigned int x, unsigned amount)
 {
     --amount;
     return (x + amount) & ~amount;
 }
 
-void DebugMessage(int level, const char *message, ...);
-
-
 static inline uint8_t* const dmem_u8(uint16_t address)
 {
-    return (uint8_t*)(&rsp.DMEM[(address & 0xfff) ^ S8]);
+    return (uint8_t*)(&g_RspInfo.DMEM[(address & 0xfff) ^ S8]);
 }
 
 static inline uint16_t* const dmem_u16(uint16_t address)
 {
     assert((address & 1) == 0);
-    return (uint16_t*)(&rsp.DMEM[(address & 0xfff) ^ S16]);
+    return (uint16_t*)(&g_RspInfo.DMEM[(address & 0xfff) ^ S16]);
 }
 
 static inline uint32_t* const dmem_u32(uint16_t address)
 {
     assert((address & 3) == 0);
-    return (uint32_t*)(&rsp.DMEM[(address & 0xfff)]);
+    return (uint32_t*)(&g_RspInfo.DMEM[(address & 0xfff)]);
 }
 
 static inline uint8_t* const dram_u8(uint32_t address)
 {
-    return (uint8_t*)&rsp.RDRAM[(address & 0xffffff) ^ S8];
+    return (uint8_t*)&g_RspInfo.RDRAM[(address & 0xffffff) ^ S8];
 }
 
 static inline uint16_t* const dram_u16(uint32_t address)
 {
     assert((address & 1) == 0);
-    return (uint16_t*)&rsp.RDRAM[(address & 0xffffff) ^ S16];
+    return (uint16_t*)&g_RspInfo.RDRAM[(address & 0xffffff) ^ S16];
 }
 
 static inline uint32_t* const dram_u32(uint32_t address)
 {
     assert((address & 3) == 0);
-    return (uint32_t*)&rsp.RDRAM[address & 0xffffff];
+    return (uint32_t*)&g_RspInfo.RDRAM[address & 0xffffff];
 }
 
 void dmem_load_u8 (uint8_t*  dst, uint16_t address, size_t count);
