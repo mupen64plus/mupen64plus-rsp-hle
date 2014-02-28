@@ -105,18 +105,55 @@ void alist_process(const acmd_callback_t abi[], unsigned int abi_size)
     }
 }
 
+uint32_t alist_get_address(uint32_t so, const uint32_t *segments, size_t n)
+{
+    uint8_t  segment = (so >> 24);
+    uint32_t offset  = (so & 0xffffff);
+
+    if (segment >= n) {
+        DebugMessage(M64MSG_WARNING, "Invalid segment %u", segment);
+        return offset;
+    }
+
+    return segments[segment] + offset;
+}
+
+void alist_set_address(uint32_t so, uint32_t *segments, size_t n)
+{
+    uint8_t  segment = (so >> 24);
+    uint32_t offset  = (so & 0xffffff);
+
+    if (segment >= n) {
+        DebugMessage(M64MSG_WARNING, "Invalid segment %u", segment);
+        return;
+    }
+
+    segments[segment] = offset;
+}
+
 void alist_clear(uint16_t dmem, uint16_t count)
 {
-    memset(BufferSpace + dmem, 0, count);
+    while(count != 0) {
+        BufferSpace[(dmem++)^S8] = 0;
+        --count;
+    }
 }
 
 void alist_load(uint16_t dmem, uint32_t address, uint16_t count)
 {
+    /* enforce DMA alignment constraints */
+    dmem    &= ~3;
+    address &= ~7;
+    count = align(count, 8);
     memcpy(BufferSpace + dmem, g_RspInfo.RDRAM + address, count);
 }
 
 void alist_save(uint16_t dmem, uint32_t address, uint16_t count)
 {
+    /* enforce DMA alignment constraints */
+    dmem    &= ~3;
+    address &= ~7;
+    count = align(count, 8);
     memcpy(g_RspInfo.RDRAM + address, BufferSpace + dmem, count);
 }
 
@@ -508,6 +545,7 @@ static void alist_resample_save(uint32_t address, uint16_t pos, uint32_t pitch_a
 
 void alist_resample(
         bool init,
+        bool flag2,
         uint16_t dmemo,
         uint16_t dmemi,
         uint16_t count,
@@ -520,6 +558,9 @@ void alist_resample(
     uint16_t opos = dmemo >> 1;
     count >>= 1;
     ipos -= 4;
+
+    if (flag2)
+        DebugMessage(M64MSG_WARNING, "alist_resample: flag2 is not implemented");
 
     if (init)
         alist_resample_reset(ipos, &pitch_accu);

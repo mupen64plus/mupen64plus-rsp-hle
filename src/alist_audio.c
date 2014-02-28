@@ -1,5 +1,5 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- *   Mupen64plus-rsp-hle - ucode1.c                                        *
+ *   Mupen64plus-rsp-hle - alist_audio.c                                   *
  *   Mupen64Plus homepage: http://code.google.com/p/mupen64plus/           *
  *   Copyright (C) 2014 Bobby Smiles                                       *
  *   Copyright (C) 2009 Richard Goedeken                                   *
@@ -23,12 +23,19 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "alist_internal.h"
 #include "memory.h"
 
+enum { DMEM_BASE = 0x5c0 };
+enum { N_SEGMENTS = 16 };
+
 /* alist audio state */
 static struct {
+    /* segments */
+    uint32_t segments[N_SEGMENTS];
+
     /* main buffers */
     uint16_t in;
     uint16_t out;
@@ -55,6 +62,21 @@ static struct {
     int16_t table[16 * 8];
 } l_alist;
 
+/* helper functions */
+static uint32_t get_address(uint32_t so)
+{
+    return alist_get_address(so, l_alist.segments, N_SEGMENTS);
+}
+
+static void set_address(uint32_t so)
+{
+    alist_set_address(so, l_alist.segments, N_SEGMENTS);
+}
+
+static void clear_segments()
+{
+    memset(l_alist.segments, 0, N_SEGMENTS*sizeof(l_alist.segments[0]));
+}
 
 /* audio commands definition */
 static void SPNOOP(uint32_t w1, uint32_t w2)
@@ -63,16 +85,19 @@ static void SPNOOP(uint32_t w1, uint32_t w2)
 
 static void CLEARBUFF(uint32_t w1, uint32_t w2)
 {
-    uint16_t dmem  = w1;
+    uint16_t dmem  = w1 + DMEM_BASE;
     uint16_t count = w2;
 
-    alist_clear(dmem & ~3, (count + 3) & ~3);
+    if (count == 0)
+        return;
+
+    alist_clear(dmem, align(count, 16));
 }
 
 static void ENVMIXER(uint32_t w1, uint32_t w2)
 {
     uint8_t  flags   = (w1 >> 16);
-    uint32_t address = (w2 & 0xffffff);
+    uint32_t address = get_address(w2);
 
     alist_envmix_exp(
             flags & A_INIT,
@@ -91,13 +116,14 @@ static void RESAMPLE(uint32_t w1, uint32_t w2)
 {
     uint8_t  flags   = (w1 >> 16);
     uint16_t pitch   = w1;
-    uint32_t address = (w2 & 0xffffff);
+    uint32_t address = get_address(w2);
 
     alist_resample(
             flags & 0x1,
+            flags & 0x2,
             l_alist.out,
             l_alist.in,
-            (l_alist.count + 0xf) & ~0xf,
+            align(l_alist.count, 16),
             pitch << 1,
             address);
 }
@@ -124,13 +150,13 @@ static void SETVOL(uint32_t w1, uint32_t w2)
 
 static void SETLOOP(uint32_t w1, uint32_t w2)
 {
-    l_alist.loop = (w2 & 0xffffff);
+    l_alist.loop = get_address(w2);
 }
 
 static void ADPCM(uint32_t w1, uint32_t w2)
 {
     uint8_t  flags   = (w1 >> 16);
-    uint32_t address = (w2 & 0xffffff);
+    uint32_t address = get_address(w2);
 
     alist_adpcm(
             flags & 0x1,
@@ -138,7 +164,7 @@ static void ADPCM(uint32_t w1, uint32_t w2)
             false,          /* unsupported in this ucode */
             l_alist.out,
             l_alist.in,
-            (l_alist.count + 0x1f) & ~0x1f,
+            align(l_alist.count, 32),
             l_alist.table,
             l_alist.loop,
             address);
@@ -146,22 +172,22 @@ static void ADPCM(uint32_t w1, uint32_t w2)
 
 static void LOADBUFF(uint32_t w1, uint32_t w2)
 {
-    uint32_t address = (w2 & 0xffffff);
+    uint32_t address = get_address(w2);
 
     if (l_alist.count == 0)
         return;
 
-    alist_load(l_alist.in & ~3, address & ~3, (l_alist.count + 3) & ~3);
+    alist_load(l_alist.in, address, l_alist.count);
 }
 
 static void SAVEBUFF(uint32_t w1, uint32_t w2)
 {
-    uint32_t address = (w2 & 0xffffff);
+    uint32_t address = get_address(w2);
 
     if (l_alist.count == 0)
         return;
 
-    alist_save(l_alist.out & ~3, address & ~3, (l_alist.count + 3) & ~3);
+    alist_save(l_alist.out, address, l_alist.count);
 }
 
 static void SETBUFF(uint32_t w1, uint32_t w2)
@@ -169,69 +195,69 @@ static void SETBUFF(uint32_t w1, uint32_t w2)
     uint8_t flags = (w1 >> 16);
 
     if (flags & A_AUX) {
-        l_alist.dry_right = w1;
-        l_alist.wet_left  = (w2 >> 16);
-        l_alist.wet_right = w2;
+        l_alist.dry_right = w1 + DMEM_BASE;
+        l_alist.wet_left  = (w2 >> 16) + DMEM_BASE;
+        l_alist.wet_right = w2 + DMEM_BASE;
     } else {
-        l_alist.in    = w1;
-        l_alist.out   = (w2 >> 16);
+        l_alist.in    = w1 + DMEM_BASE;
+        l_alist.out   = (w2 >> 16) + DMEM_BASE;
         l_alist.count = w2;
     }
 }
 
 static void DMEMMOVE(uint32_t w1, uint32_t w2)
 {
-    uint16_t dmemi = w1;
-    uint16_t dmemo = (w2 >> 16);
+    uint16_t dmemi = w1 + DMEM_BASE;
+    uint16_t dmemo = (w2 >> 16) + DMEM_BASE;
     uint16_t count = w2;
 
     if (count == 0)
         return;
 
-    alist_move(dmemo, dmemi, (count + 3) & ~3);
+    alist_move(dmemo, dmemi, align(count, 16));
 }
 
 static void LOADADPCM(uint32_t w1, uint32_t w2)
 {
-    uint16_t count   = (w1 & 0xffff);
-    uint32_t address = (w2 & 0xffffff);
+    uint16_t count   = w1;
+    uint32_t address = get_address(w2);
 
-    dram_load_u16((uint16_t*)l_alist.table, address, count >> 1);
+    dram_load_u16((uint16_t*)l_alist.table, address, align(count, 8) >> 1);
 }
 
 static void INTERLEAVE(uint32_t w1, uint32_t w2)
 {
-    uint16_t left  = (w2 >> 16);
-    uint16_t right = w2;
+    uint16_t left  = (w2 >> 16) + DMEM_BASE;
+    uint16_t right = w2 + DMEM_BASE;
 
     if (l_alist.count == 0)
         return;
 
-    alist_interleave(l_alist.out, left, right, l_alist.count);
+    alist_interleave(l_alist.out, left, right, align(l_alist.count, 16));
 }
 
 static void MIXER(uint32_t w1, uint32_t w2)
 {
     int16_t  gain  = w1;
-    uint16_t dmemi = (w2 >> 16);
-    uint16_t dmemo = w2;
+    uint16_t dmemi = (w2 >> 16) + DMEM_BASE;
+    uint16_t dmemo = w2 + DMEM_BASE;
 
     if (l_alist.count == 0)
         return;
 
-    alist_mix(dmemo, dmemi, l_alist.count, gain);
+    alist_mix(dmemo, dmemi, align(l_alist.count, 32), gain);
 }
 
 static void SEGMENT(uint32_t w1, uint32_t w2)
 {
-    /* TODO */
+    set_address(w2);
 }
 
 static void POLEF(uint32_t w1, uint32_t w2)
 {
     uint8_t  flags   = (w1 >> 16);
     uint16_t gain    = w1;
-    uint32_t address = (w2 & 0xffffff);
+    uint32_t address = get_address(w2);
 
     if (l_alist.count == 0)
         return;
@@ -240,7 +266,7 @@ static void POLEF(uint32_t w1, uint32_t w2)
             flags & A_INIT,
             l_alist.out,
             l_alist.in,
-            l_alist.count,
+            align(l_alist.count, 16),
             gain,
             l_alist.table,
             address);
@@ -256,6 +282,7 @@ void alist_process_audio(void)
         MIXER,          INTERLEAVE,     POLEF,          SETLOOP
     };
 
+    clear_segments();
     alist_process(ABI, 0x10);
 }
 
@@ -269,6 +296,7 @@ void alist_process_audio_ge(void)
         MIXER,          INTERLEAVE,     POLEF,          SETLOOP
     };
 
+    clear_segments();
     alist_process(ABI, 0x10);
 }
 
@@ -282,5 +310,6 @@ void alist_process_audio_bc(void)
         MIXER,          INTERLEAVE,     POLEF,          SETLOOP
     };
 
+    clear_segments();
     alist_process(ABI, 0x10);
 }

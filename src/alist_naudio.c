@@ -1,5 +1,5 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- *   Mupen64plus-rsp-hle - ucode3.c                                        *
+ *   Mupen64plus-rsp-hle - alist_naudio.c                                  *
  *   Mupen64Plus homepage: http://code.google.com/p/mupen64plus/           *
  *   Copyright (C) 2014 Bobby Smiles                                       *
  *   Copyright (C) 2009 Richard Goedeken                                   *
@@ -178,7 +178,7 @@ static void LOADBUFF(uint32_t w1, uint32_t w2)
     uint16_t dmem    = (w1 & 0xfff) + NAUDIO_MAIN;
     uint32_t address = (w2 & 0xffffff);
 
-    alist_load(dmem & ~3, address & ~3, (count + 3) & ~3);
+    alist_load(dmem, address, count);
 }
 
 static void SAVEBUFF(uint32_t w1, uint32_t w2)
@@ -187,12 +187,12 @@ static void SAVEBUFF(uint32_t w1, uint32_t w2)
     uint16_t dmem    = (w1 & 0xfff) + NAUDIO_MAIN;
     uint32_t address = (w2 & 0xffffff);
 
-    alist_save(dmem & ~3, address & ~3, (count + 3) & ~3);
+    alist_save(dmem, address, count);
 }
 
 static void LOADADPCM(uint32_t w1, uint32_t w2)
 {
-    uint16_t count   = (w1 & 0xffff);
+    uint16_t count   = w1;
     uint32_t address = (w2 & 0xffffff);
 
     dram_load_u16((uint16_t*)l_alist.table, address, count >> 1);
@@ -242,6 +242,7 @@ static void RESAMPLE(uint32_t w1, uint32_t w2)
 
     alist_resample(
             flags & 0x1,
+            false,          /* TODO: check which ABI supports it */
             dmemo,
             dmemi,
             NAUDIO_COUNT,

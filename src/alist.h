@@ -1,7 +1,7 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *   Mupen64plus-rsp-hle - alist.h                                         *
  *   Mupen64Plus homepage: http://code.google.com/p/mupen64plus/           *
- *   Copyright (C) 2002 Hacktarux                                          *
+ *   Copyright (C) 2014 Bobby Smiles                                       *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -25,17 +25,17 @@
 void alist_process_audio(void);
 void alist_process_audio_ge(void);
 void alist_process_audio_bc(void);
-void alist_process_mk(void);
-void alist_process_sfj(void);
-void alist_process_sf(void);
-void alist_process_fz(void);
-void alist_process_wrjb(void);
-void alist_process_ys(void);
-void alist_process_1080(void);
-void alist_process_oot(void);
-void alist_process_mm(void);
-void alist_process_mmb(void);
-void alist_process_ac(void);
+void alist_process_nead_mk(void);
+void alist_process_nead_sfj(void);
+void alist_process_nead_sf(void);
+void alist_process_nead_fz(void);
+void alist_process_nead_wrjb(void);
+void alist_process_nead_ys(void);
+void alist_process_nead_1080(void);
+void alist_process_nead_oot(void);
+void alist_process_nead_mm(void);
+void alist_process_nead_mmb(void);
+void alist_process_nead_ac(void);
 void alist_process_naudio(void);
 void alist_process_naudio_bk(void);
 void alist_process_naudio_dk(void);

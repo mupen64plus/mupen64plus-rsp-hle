@@ -1,7 +1,7 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  *   Mupen64plus-rsp-hle - alist_internal.h                                *
  *   Mupen64Plus homepage: http://code.google.com/p/mupen64plus/           *
- *   Copyright (C) 2002 Hacktarux                                          *
+ *   Copyright (C) 2014 Bobby Smiles                                       *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -24,10 +24,13 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stddef.h>
 
 typedef void (*acmd_callback_t)(uint32_t w1, uint32_t w2);
 
 void alist_process(const acmd_callback_t abi[], unsigned int abi_size);
+uint32_t alist_get_address(uint32_t so, const uint32_t *segments, size_t n);
+void alist_set_address(uint32_t so, uint32_t *segments, size_t n);
 void alist_clear(uint16_t dmem, uint16_t count);
 void alist_load(uint16_t dmem, uint32_t address, uint16_t count);
 void alist_save(uint16_t dmem, uint32_t address, uint16_t count);
@@ -87,7 +90,9 @@ void alist_adpcm(
         uint32_t loop_address,
         uint32_t last_frame_address);
 
-void alist_resample(bool init,
+void alist_resample(
+        bool init,
+        bool flag2,
         uint16_t dmemo, uint16_t dmemi, uint16_t count,
         uint32_t pitch, uint32_t address);
 
