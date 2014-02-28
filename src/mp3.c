@@ -23,7 +23,7 @@
 #include <string.h>
 #include <stdint.h>
 
-#include "hle_external.h"
+#include "arithmetics.h"
 #include "hle_internal.h"
 #include "memory.h"
 
@@ -656,43 +656,20 @@ static void InnerLoop(struct hle_t* hle)
     for (i = 0; i < 8; i++) {
         /* v0 */
         vt = (*(int16_t *)(hle->mp3_buffer + ((tmp - 0x40)^S16)) * hi0);
-        if (vt > 32767) {
-            vt = 32767;
-        } else {
-            if (vt < -32767)
-                vt = -32767;
-        }
-        *(int16_t *)((uint8_t *)hle->mp3_buffer + ((tmp - 0x40)^S16)) = (int16_t)vt;
+        *(int16_t *)((uint8_t *)hle->mp3_buffer + ((tmp - 0x40)^S16)) = clamp_s16(vt);
 
         /* v17 */
         vt = (*(int16_t *)(hle->mp3_buffer + ((tmp - 0x30)^S16)) * hi0);
-        if (vt > 32767) {
-            vt = 32767;
-        } else {
-            if (vt < -32767)
-                vt = -32767;
-        }
-        *(int16_t *)((uint8_t *)hle->mp3_buffer + ((tmp - 0x30)^S16)) = vt;
+        *(int16_t *)((uint8_t *)hle->mp3_buffer + ((tmp - 0x30)^S16)) = clamp_s16(vt);
 
         /* v2 */
         vt = (*(int16_t *)(hle->mp3_buffer + ((tmp - 0x1E)^S16)) * hi1);
-        if (vt > 32767) {
-            vt = 32767;
-        } else {
-            if (vt < -32767)
-                vt = -32767;
-        }
-        *(int16_t *)((uint8_t *)hle->mp3_buffer + ((tmp - 0x1E)^S16)) = vt;
+        *(int16_t *)((uint8_t *)hle->mp3_buffer + ((tmp - 0x1E)^S16)) = clamp_s16(vt);
 
         /* v4 */
         vt = (*(int16_t *)(hle->mp3_buffer + ((tmp - 0xE)^S16)) * hi1);
-        if (vt > 32767) {
-            vt = 32767;
-        } else {
-            if (vt < -32767)
-                vt = -32767;
-        }
-        *(int16_t *)((uint8_t *)hle->mp3_buffer + ((tmp - 0xE)^S16)) = vt;
+        *(int16_t *)((uint8_t *)hle->mp3_buffer + ((tmp - 0xE)^S16)) = clamp_s16(vt);
+
         tmp += 2;
     }
 }
