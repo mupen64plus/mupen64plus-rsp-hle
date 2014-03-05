@@ -34,10 +34,8 @@
 #define RSP_HLE_VERSION        0x020000
 #define RSP_PLUGIN_API_VERSION 0x020000
 
-/* global variables */
-RSP_INFO g_RspInfo;
-
 /* local variables */
+static struct hle_t g_hle;
 static void (*l_DebugCallback)(void *, int, const char *) = NULL;
 static void *l_DebugCallContext = NULL;
 static int l_PluginInit = 0;
@@ -112,17 +110,17 @@ EXPORT m64p_error CALL PluginGetVersion(m64p_plugin_type *PluginType, int *Plugi
 
 EXPORT unsigned int CALL DoRspCycles(unsigned int Cycles)
 {
-    hle_execute();
+    hle_execute(&g_hle);
     return Cycles;
 }
 
 EXPORT void CALL InitiateRSP(RSP_INFO Rsp_Info, unsigned int *CycleCount)
 {
-    g_RspInfo = Rsp_Info;
+    g_hle.rsp_info = Rsp_Info;
 }
 
 EXPORT void CALL RomClosed(void)
 {
-    memset(g_RspInfo.DMEM, 0, 0x1000);
-    memset(g_RspInfo.IMEM, 0, 0x1000);
+    memset(g_hle.rsp_info.DMEM, 0, 0x1000);
+    memset(g_hle.rsp_info.IMEM, 0, 0x1000);
 }

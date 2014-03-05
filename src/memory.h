@@ -26,7 +26,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "plugin.h"
+#include "main.h"
 
 #ifdef M64P_BIG_ENDIAN
 #define S 0
@@ -63,53 +63,53 @@ static inline unsigned int align(unsigned int x, unsigned amount)
     return (x + amount) & ~amount;
 }
 
-static inline uint8_t* const dmem_u8(uint16_t address)
+static inline uint8_t* const dmem_u8(struct hle_t* hle, uint16_t address)
 {
-    return (uint8_t*)(&g_RspInfo.DMEM[(address & 0xfff) ^ S8]);
+    return (uint8_t*)(&hle->rsp_info.DMEM[(address & 0xfff) ^ S8]);
 }
 
-static inline uint16_t* const dmem_u16(uint16_t address)
-{
-    assert((address & 1) == 0);
-    return (uint16_t*)(&g_RspInfo.DMEM[(address & 0xfff) ^ S16]);
-}
-
-static inline uint32_t* const dmem_u32(uint16_t address)
-{
-    assert((address & 3) == 0);
-    return (uint32_t*)(&g_RspInfo.DMEM[(address & 0xfff)]);
-}
-
-static inline uint8_t* const dram_u8(uint32_t address)
-{
-    return (uint8_t*)&g_RspInfo.RDRAM[(address & 0xffffff) ^ S8];
-}
-
-static inline uint16_t* const dram_u16(uint32_t address)
+static inline uint16_t* const dmem_u16(struct hle_t* hle, uint16_t address)
 {
     assert((address & 1) == 0);
-    return (uint16_t*)&g_RspInfo.RDRAM[(address & 0xffffff) ^ S16];
+    return (uint16_t*)(&hle->rsp_info.DMEM[(address & 0xfff) ^ S16]);
 }
 
-static inline uint32_t* const dram_u32(uint32_t address)
+static inline uint32_t* const dmem_u32(struct hle_t* hle, uint16_t address)
 {
     assert((address & 3) == 0);
-    return (uint32_t*)&g_RspInfo.RDRAM[address & 0xffffff];
+    return (uint32_t*)(&hle->rsp_info.DMEM[(address & 0xfff)]);
 }
 
-void dmem_load_u8 (uint8_t*  dst, uint16_t address, size_t count);
-void dmem_load_u16(uint16_t* dst, uint16_t address, size_t count);
-void dmem_load_u32(uint32_t* dst, uint16_t address, size_t count);
-void dmem_store_u8 (const uint8_t*  src, uint16_t address, size_t count);
-void dmem_store_u16(const uint16_t* src, uint16_t address, size_t count);
-void dmem_store_u32(const uint32_t* src, uint16_t address, size_t count);
+static inline uint8_t* const dram_u8(struct hle_t* hle, uint32_t address)
+{
+    return (uint8_t*)&hle->rsp_info.RDRAM[(address & 0xffffff) ^ S8];
+}
 
-void dram_load_u8 (uint8_t*  dst, uint32_t address, size_t count);
-void dram_load_u16(uint16_t* dst, uint32_t address, size_t count);
-void dram_load_u32(uint32_t* dst, uint32_t address, size_t count);
-void dram_store_u8 (const uint8_t*  src, uint32_t address, size_t count);
-void dram_store_u16(const uint16_t* src, uint32_t address, size_t count);
-void dram_store_u32(const uint32_t* src, uint32_t address, size_t count);
+static inline uint16_t* const dram_u16(struct hle_t* hle, uint32_t address)
+{
+    assert((address & 1) == 0);
+    return (uint16_t*)&hle->rsp_info.RDRAM[(address & 0xffffff) ^ S16];
+}
+
+static inline uint32_t* const dram_u32(struct hle_t* hle, uint32_t address)
+{
+    assert((address & 3) == 0);
+    return (uint32_t*)&hle->rsp_info.RDRAM[address & 0xffffff];
+}
+
+void dmem_load_u8 (struct hle_t* hle, uint8_t*  dst, uint16_t address, size_t count);
+void dmem_load_u16(struct hle_t* hle, uint16_t* dst, uint16_t address, size_t count);
+void dmem_load_u32(struct hle_t* hle, uint32_t* dst, uint16_t address, size_t count);
+void dmem_store_u8 (struct hle_t* hle, const uint8_t*  src, uint16_t address, size_t count);
+void dmem_store_u16(struct hle_t* hle, const uint16_t* src, uint16_t address, size_t count);
+void dmem_store_u32(struct hle_t* hle, const uint32_t* src, uint16_t address, size_t count);
+
+void dram_load_u8 (struct hle_t* hle, uint8_t*  dst, uint32_t address, size_t count);
+void dram_load_u16(struct hle_t* hle, uint16_t* dst, uint32_t address, size_t count);
+void dram_load_u32(struct hle_t* hle, uint32_t* dst, uint32_t address, size_t count);
+void dram_store_u8 (struct hle_t* hle, const uint8_t*  src, uint32_t address, size_t count);
+void dram_store_u16(struct hle_t* hle, const uint16_t* src, uint32_t address, size_t count);
+void dram_store_u32(struct hle_t* hle, const uint32_t* src, uint32_t address, size_t count);
 
 #endif
 

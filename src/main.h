@@ -22,7 +22,39 @@
 #ifndef MAIN_H
 #define MAIN_H
 
-void hle_execute(void);
+#include <stdint.h>
+
+#include "m64p_plugin.h"
+#include "alist.h"
+
+/* rsp hle internal state */
+struct hle_t
+{
+    /* plugin.c */
+    RSP_INFO rsp_info;
+
+    /* alist.c */
+    uint8_t alist_buffer[0x1000];
+
+    /* alist_audio.c */
+    struct alist_audio_t alist_audio;
+
+    /* alist_naudio.c */
+    struct alist_naudio_t alist_naudio;
+
+    /* alist_nead.c */
+    struct alist_nead_t alist_nead;
+
+    /* mp3.c */
+    uint8_t mp3_buffer[0x1000];
+    uint32_t mp3_inPtr;
+    uint32_t mp3_outPtr;
+    uint32_t mp3_t6;
+    uint32_t mp3_t5;
+    uint32_t mp3_t4;
+};
+
+void hle_execute(struct hle_t* hle);
 
 #endif
 

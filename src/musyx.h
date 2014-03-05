@@ -22,7 +22,9 @@
 #ifndef MUSYX_H
 #define MUSYX_H
 
-void musyx_v1_task(void);
-void musyx_v2_task(void);
+struct hle_t;
+
+void musyx_v1_task(struct hle_t* hle);
+void musyx_v2_task(struct hle_t* hle);
 
 #endif
