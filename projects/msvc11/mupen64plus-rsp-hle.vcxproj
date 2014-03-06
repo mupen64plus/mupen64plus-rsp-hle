@@ -111,6 +111,7 @@
     <ClInclude Include="..\..\src\arithmetics.h" />
     <ClInclude Include="..\..\src\audio.h" />
     <ClInclude Include="..\..\src\cicx105.h" />
+    <ClInclude Include="..\..\src\hle_internal.h" />
     <ClInclude Include="..\..\src\jpeg.h" />
     <ClInclude Include="..\..\src\main.h" />
     <ClInclude Include="..\..\src\memory.h" />

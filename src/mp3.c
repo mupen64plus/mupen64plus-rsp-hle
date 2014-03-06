@@ -23,7 +23,7 @@
 #include <string.h>
 #include <stdint.h>
 
-#include "main.h"
+#include "hle_internal.h"
 #include "memory.h"
 #include "plugin.h"
 

@@ -28,7 +28,7 @@
 #include <stdio.h>
 #endif
 
-#include "main.h"
+#include "hle_internal.h"
 #include "memory.h"
 #include "plugin.h"
 
@@ -74,6 +74,54 @@ static void dump_unknown_non_task(struct hle_t* hle, unsigned int sum);
 static const bool FORWARD_AUDIO = false, FORWARD_GFX = true;
 
 /* Global functions */
+void hle_init(struct hle_t* hle,
+    unsigned char* dram,
+    unsigned char* dmem,
+    unsigned char* imem,
+    unsigned int* mi_intr,
+    unsigned int* sp_mem_addr,
+    unsigned int* sp_dram_addr,
+    unsigned int* sp_rd_length,
+    unsigned int* sp_wr_length,
+    unsigned int* sp_status,
+    unsigned int* sp_dma_full,
+    unsigned int* sp_dma_busy,
+    unsigned int* sp_pc,
+    unsigned int* sp_semaphore,
+    unsigned int* dpc_start,
+    unsigned int* dpc_end,
+    unsigned int* dpc_current,
+    unsigned int* dpc_status,
+    unsigned int* dpc_clock,
+    unsigned int* dpc_bufbusy,
+    unsigned int* dpc_pipebusy,
+    unsigned int* dpc_tmem,
+    void* user_defined)
+{
+    hle->dram         = dram;
+    hle->dmem         = dmem;
+    hle->imem         = imem;
+    hle->mi_intr      = mi_intr;
+    hle->sp_mem_addr  = sp_mem_addr;
+    hle->sp_dram_addr = sp_dram_addr;
+    hle->sp_rd_length = sp_rd_length;
+    hle->sp_wr_length = sp_wr_length;
+    hle->sp_status    = sp_status;
+    hle->sp_dma_full  = sp_dma_full;
+    hle->sp_dma_busy  = sp_dma_busy;
+    hle->sp_pc        = sp_pc;
+    hle->sp_semaphore = sp_semaphore;
+    hle->dpc_start    = dpc_start;
+    hle->dpc_end      = dpc_end;
+    hle->dpc_current  = dpc_current;
+    hle->dpc_status   = dpc_status;
+    hle->dpc_clock    = dpc_clock;
+    hle->dpc_bufbusy  = dpc_bufbusy;
+    hle->dpc_pipebusy = dpc_pipebusy;
+    hle->dpc_tmem     = dpc_tmem;
+    hle->user_defined = user_defined;
+}
+
 void hle_execute(struct hle_t* hle)
 {
     if (is_task(hle)) {

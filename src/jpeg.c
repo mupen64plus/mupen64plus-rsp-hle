@@ -26,7 +26,7 @@
 #include <stdlib.h>
 
 #include "arithmetics.h"
-#include "main.h"
+#include "hle_internal.h"
 #include "memory.h"
 #include "plugin.h"
 

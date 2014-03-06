@@ -23,7 +23,7 @@
 
 #include <string.h>
 
-#include "main.h"
+#include "hle_internal.h"
 
 /**
  * During IPL3 stage of CIC x105 games, the RSP performs some checks and transactions

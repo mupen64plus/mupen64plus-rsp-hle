@@ -26,7 +26,7 @@
 #include <string.h>
 
 #include "alist_internal.h"
-#include "main.h"
+#include "hle_internal.h"
 #include "memory.h"
 
 enum { DMEM_BASE = 0x5c0 };

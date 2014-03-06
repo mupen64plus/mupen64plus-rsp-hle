@@ -25,7 +25,7 @@
 #include <stdint.h>
 
 #include "alist_internal.h"
-#include "main.h"
+#include "hle_internal.h"
 #include "memory.h"
 #include "plugin.h"
 

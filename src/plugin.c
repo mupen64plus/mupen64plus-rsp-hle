@@ -183,33 +183,29 @@ EXPORT unsigned int CALL DoRspCycles(unsigned int Cycles)
 
 EXPORT void CALL InitiateRSP(RSP_INFO Rsp_Info, unsigned int *CycleCount)
 {
-    g_hle.dram = Rsp_Info.RDRAM;
-    g_hle.dmem = Rsp_Info.DMEM;
-    g_hle.imem = Rsp_Info.IMEM;
-
-    g_hle.mi_intr = Rsp_Info.MI_INTR_REG;
-
-    g_hle.sp_mem_addr = Rsp_Info.SP_MEM_ADDR_REG;
-    g_hle.sp_dram_addr = Rsp_Info.SP_DRAM_ADDR_REG;
-    g_hle.sp_rd_length = Rsp_Info.SP_RD_LEN_REG;
-    g_hle.sp_wr_length = Rsp_Info.SP_WR_LEN_REG;
-    g_hle.sp_status = Rsp_Info.SP_STATUS_REG;
-    g_hle.sp_dma_full = Rsp_Info.SP_DMA_FULL_REG;
-    g_hle.sp_dma_busy = Rsp_Info.SP_DMA_BUSY_REG;
-    g_hle.sp_pc = Rsp_Info.SP_PC_REG;
-    g_hle.sp_semaphore = Rsp_Info.SP_SEMAPHORE_REG;
-
-    g_hle.dpc_start = Rsp_Info.DPC_START_REG;
-    g_hle.dpc_end = Rsp_Info.DPC_END_REG;
-    g_hle.dpc_current = Rsp_Info.DPC_CURRENT_REG;
-    g_hle.dpc_status = Rsp_Info.DPC_STATUS_REG;
-    g_hle.dpc_clock = Rsp_Info.DPC_CLOCK_REG;
-    g_hle.dpc_bufbusy = Rsp_Info.DPC_BUFBUSY_REG;
-    g_hle.dpc_pipebusy = Rsp_Info.DPC_PIPEBUSY_REG;
-    g_hle.dpc_tmem = Rsp_Info.DPC_TMEM_REG;
-
-    /* not used in m64p */
-    g_hle.user_defined = NULL;
+    hle_init(&g_hle,
+             Rsp_Info.RDRAM,
+             Rsp_Info.DMEM,
+             Rsp_Info.IMEM,
+             Rsp_Info.MI_INTR_REG,
+             Rsp_Info.SP_MEM_ADDR_REG,
+             Rsp_Info.SP_DRAM_ADDR_REG,
+             Rsp_Info.SP_RD_LEN_REG,
+             Rsp_Info.SP_WR_LEN_REG,
+             Rsp_Info.SP_STATUS_REG,
+             Rsp_Info.SP_DMA_FULL_REG,
+             Rsp_Info.SP_DMA_BUSY_REG,
+             Rsp_Info.SP_PC_REG,
+             Rsp_Info.SP_SEMAPHORE_REG,
+             Rsp_Info.DPC_START_REG,
+             Rsp_Info.DPC_END_REG,
+             Rsp_Info.DPC_CURRENT_REG,
+             Rsp_Info.DPC_STATUS_REG,
+             Rsp_Info.DPC_CLOCK_REG,
+             Rsp_Info.DPC_BUFBUSY_REG,
+             Rsp_Info.DPC_PIPEBUSY_REG,
+             Rsp_Info.DPC_TMEM_REG,
+             NULL);
 
     l_CheckInterrupts = Rsp_Info.CheckInterrupts;
     l_ProcessDlistList = Rsp_Info.ProcessDlistList;

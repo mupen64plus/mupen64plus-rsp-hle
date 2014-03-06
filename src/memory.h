@@ -26,7 +26,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "main.h"
+#include "hle_internal.h"
 
 #ifdef M64P_BIG_ENDIAN
 #define S 0

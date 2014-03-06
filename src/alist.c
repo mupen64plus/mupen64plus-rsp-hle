@@ -28,7 +28,7 @@
 #include "alist_internal.h"
 #include "arithmetics.h"
 #include "audio.h"
-#include "main.h"
+#include "hle_internal.h"
 #include "memory.h"
 #include "plugin.h"
 

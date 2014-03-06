@@ -253,6 +253,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\..\src\hle_internal.h"
+				>
+			</File>
+			<File
 				RelativePath="..\..\src\jpeg.h"
 				>
 			</File>
