@@ -117,32 +117,32 @@ static bool is_task(struct hle_t* hle)
 
 static void rsp_break(struct hle_t* hle, unsigned int setbits)
 {
-    *hle->rsp_info.SP_STATUS_REG |= setbits | SP_STATUS_BROKE | SP_STATUS_HALT;
+    *hle->sp_status |= setbits | SP_STATUS_BROKE | SP_STATUS_HALT;
 
-    if ((*hle->rsp_info.SP_STATUS_REG & SP_STATUS_INTR_ON_BREAK)) {
-        *hle->rsp_info.MI_INTR_REG |= MI_INTR_SP;
-        hle->rsp_info.CheckInterrupts();
+    if ((*hle->sp_status & SP_STATUS_INTR_ON_BREAK)) {
+        *hle->mi_intr |= MI_INTR_SP;
+        hle->CheckInterrupts();
     }
 }
 
 static void forward_gfx_task(struct hle_t* hle)
 {
-    if (hle->rsp_info.ProcessDlistList != NULL) {
-        hle->rsp_info.ProcessDlistList();
-        *hle->rsp_info.DPC_STATUS_REG &= ~DP_STATUS_FREEZE;
+    if (hle->ProcessDlistList != NULL) {
+        hle->ProcessDlistList();
+        *hle->dpc_status &= ~DP_STATUS_FREEZE;
     }
 }
 
 static void forward_audio_task(struct hle_t* hle)
 {
-    if (hle->rsp_info.ProcessAlistList != NULL)
-        hle->rsp_info.ProcessAlistList();
+    if (hle->ProcessAlistList != NULL)
+        hle->ProcessAlistList();
 }
 
 static void show_cfb(struct hle_t* hle)
 {
-    if (hle->rsp_info.ShowCFB != NULL)
-        hle->rsp_info.ShowCFB();
+    if (hle->ShowCFB != NULL)
+        hle->ShowCFB();
 }
 
 static bool try_fast_audio_dispatching(struct hle_t* hle)
@@ -289,7 +289,7 @@ static void normal_task_dispatching(struct hle_t* hle)
         return;
     }
 
-    DebugMessage(M64MSG_WARNING, "unknown OSTask: sum: %x PC:%x", sum, *hle->rsp_info.SP_PC_REG);
+    DebugMessage(M64MSG_WARNING, "unknown OSTask: sum: %x PC:%x", sum, *hle->sp_pc);
 #ifdef ENABLE_TASK_DUMP
     dump_unknown_task(hle, sum);
 #endif
@@ -297,7 +297,7 @@ static void normal_task_dispatching(struct hle_t* hle)
 
 static void non_task_dispatching(struct hle_t* hle)
 {
-    const unsigned int sum = sum_bytes(hle->rsp_info.IMEM, 0x1000 >> 1);
+    const unsigned int sum = sum_bytes(hle->imem, 0x1000 >> 1);
 
     switch (sum) {
     /* CIC x105 ucode (used during boot of CIC x105 games) */
@@ -307,7 +307,7 @@ static void non_task_dispatching(struct hle_t* hle)
         return;
     }
 
-    DebugMessage(M64MSG_WARNING, "unknown RSP code: sum: %x PC:%x", sum, *hle->rsp_info.SP_PC_REG);
+    DebugMessage(M64MSG_WARNING, "unknown RSP code: sum: %x PC:%x", sum, *hle->sp_pc);
 #ifdef ENABLE_TASK_DUMP
     dump_unknown_non_task(hle, sum);
 #endif
@@ -354,10 +354,10 @@ static void dump_unknown_non_task(struct hle_t* hle, unsigned int sum)
 
     /* dump IMEM & DMEM for further analysis */
     sprintf(&filename[0], "imem_%x.bin", sum);
-    dump_binary(filename, hle->rsp_info.IMEM, 0x1000);
+    dump_binary(filename, hle->imem, 0x1000);
 
     sprintf(&filename[0], "dmem_%x.bin", sum);
-    dump_binary(filename, hle->rsp_info.DMEM, 0x1000);
+    dump_binary(filename, hle->dmem, 0x1000);
 }
 
 static void dump_binary(const char *const filename, const unsigned char *const bytes,

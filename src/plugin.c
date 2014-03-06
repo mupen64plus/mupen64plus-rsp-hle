@@ -116,11 +116,40 @@ EXPORT unsigned int CALL DoRspCycles(unsigned int Cycles)
 
 EXPORT void CALL InitiateRSP(RSP_INFO Rsp_Info, unsigned int *CycleCount)
 {
-    g_hle.rsp_info = Rsp_Info;
+    g_hle.dram = Rsp_Info.RDRAM;
+    g_hle.dmem = Rsp_Info.DMEM;
+    g_hle.imem = Rsp_Info.IMEM;
+
+    g_hle.mi_intr = Rsp_Info.MI_INTR_REG;
+
+    g_hle.sp_mem_addr = Rsp_Info.SP_MEM_ADDR_REG;
+    g_hle.sp_dram_addr = Rsp_Info.SP_DRAM_ADDR_REG;
+    g_hle.sp_rd_length = Rsp_Info.SP_RD_LEN_REG;
+    g_hle.sp_wr_length = Rsp_Info.SP_WR_LEN_REG;
+    g_hle.sp_status = Rsp_Info.SP_STATUS_REG;
+    g_hle.sp_dma_full = Rsp_Info.SP_DMA_FULL_REG;
+    g_hle.sp_dma_busy = Rsp_Info.SP_DMA_BUSY_REG;
+    g_hle.sp_pc = Rsp_Info.SP_PC_REG;
+    g_hle.sp_semaphore = Rsp_Info.SP_SEMAPHORE_REG;
+
+    g_hle.dpc_start = Rsp_Info.DPC_START_REG;
+    g_hle.dpc_end = Rsp_Info.DPC_END_REG;
+    g_hle.dpc_current = Rsp_Info.DPC_CURRENT_REG;
+    g_hle.dpc_status = Rsp_Info.DPC_STATUS_REG;
+    g_hle.dpc_clock = Rsp_Info.DPC_CLOCK_REG;
+    g_hle.dpc_bufbusy = Rsp_Info.DPC_BUFBUSY_REG;
+    g_hle.dpc_pipebusy = Rsp_Info.DPC_PIPEBUSY_REG;
+    g_hle.dpc_tmem = Rsp_Info.DPC_TMEM_REG;
+
+    g_hle.CheckInterrupts = Rsp_Info.CheckInterrupts;
+    g_hle.ProcessDlistList = Rsp_Info.ProcessDlistList;
+    g_hle.ProcessAlistList = Rsp_Info.ProcessAlistList;
+    g_hle.ProcessRdpList = Rsp_Info.ProcessRdpList;
+    g_hle.ShowCFB = Rsp_Info.ShowCFB;
 }
 
 EXPORT void CALL RomClosed(void)
 {
-    memset(g_hle.rsp_info.DMEM, 0, 0x1000);
-    memset(g_hle.rsp_info.IMEM, 0, 0x1000);
+    memset(g_hle.dmem, 0, 0x1000);
+    memset(g_hle.imem, 0, 0x1000);
 }

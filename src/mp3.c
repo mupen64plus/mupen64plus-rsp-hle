@@ -216,13 +216,13 @@ void MP3(struct hle_t* hle, uint32_t w1, uint32_t w2)
     writePtr = w2 & 0xFFFFFF;
     readPtr  = writePtr;
     /* Just do that for efficiency... may remove and use directly later anyway */
-    memcpy(hle->mp3_buffer + 0xCE8, hle->rsp_info.RDRAM + readPtr, 8);
+    memcpy(hle->mp3_buffer + 0xCE8, hle->dram + readPtr, 8);
     /* This must be a header byte or whatnot */
     readPtr += 8;
 
     for (cnt = 0; cnt < 0x480; cnt += 0x180) {
         /* DMA: 0xCF0 <- RDRAM[s5] : 0x180 */
-        memcpy(hle->mp3_buffer + 0xCF0, hle->rsp_info.RDRAM + readPtr, 0x180);
+        memcpy(hle->mp3_buffer + 0xCF0, hle->dram + readPtr, 0x180);
         hle->mp3_inPtr  = 0xCF0; /* s7 */
         hle->mp3_outPtr = 0xE70; /* s3 */
 /* --------------- Inner Loop Start -------------------- */
@@ -239,7 +239,7 @@ void MP3(struct hle_t* hle, uint32_t w1, uint32_t w2)
             hle->mp3_inPtr += 0x40;
         }
 /* --------------- Inner Loop End -------------------- */
-        memcpy(hle->rsp_info.RDRAM + writePtr, hle->mp3_buffer + 0xe70, 0x180);
+        memcpy(hle->dram + writePtr, hle->mp3_buffer + 0xe70, 0x180);
         writePtr += 0x180;
         readPtr  += 0x180;
     }

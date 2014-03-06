@@ -144,7 +144,7 @@ void alist_load(struct hle_t* hle, uint16_t dmem, uint32_t address, uint16_t cou
     dmem    &= ~3;
     address &= ~7;
     count = align(count, 8);
-    memcpy(hle->alist_buffer + dmem, hle->rsp_info.RDRAM + address, count);
+    memcpy(hle->alist_buffer + dmem, hle->dram + address, count);
 }
 
 void alist_save(struct hle_t* hle, uint16_t dmem, uint32_t address, uint16_t count)
@@ -153,7 +153,7 @@ void alist_save(struct hle_t* hle, uint16_t dmem, uint32_t address, uint16_t cou
     dmem    &= ~3;
     address &= ~7;
     count = align(count, 8);
-    memcpy(hle->rsp_info.RDRAM + address, hle->alist_buffer + dmem, count);
+    memcpy(hle->dram + address, hle->alist_buffer + dmem, count);
 }
 
 void alist_move(struct hle_t* hle, uint16_t dmemo, uint16_t dmemi, uint16_t count)
@@ -278,7 +278,7 @@ void alist_envmix_exp(
         exp_seq[0]      = (vol[0] * rate[0]);
         exp_seq[1]      = (vol[1] * rate[1]);
     } else {
-        memcpy((uint8_t *)save_buffer, (hle->rsp_info.RDRAM + address), 80);
+        memcpy((uint8_t *)save_buffer, (hle->dram + address), 80);
         wet             = *(int16_t *)(save_buffer +  0); /* 0-1 */
         dry             = *(int16_t *)(save_buffer +  2); /* 2-3 */
         ramps[0].target = *(int32_t *)(save_buffer +  4); /* 4-5 */
@@ -340,7 +340,7 @@ void alist_envmix_exp(
     *(int32_t *)(save_buffer + 14) = exp_seq[1];        /* 14-15 */
     *(int32_t *)(save_buffer + 16) = ramps[0].value;    /* 12-13 */
     *(int32_t *)(save_buffer + 18) = ramps[1].value;    /* 14-15 */
-    memcpy(hle->rsp_info.RDRAM + address, (uint8_t *)save_buffer, 80);
+    memcpy(hle->dram + address, (uint8_t *)save_buffer, 80);
 }
 
 void alist_envmix_lin(
@@ -374,7 +374,7 @@ void alist_envmix_lin(
         ramps[1].target = (target[1] << 16);
     }
     else {
-        memcpy((uint8_t *)save_buffer, hle->rsp_info.RDRAM + address, 80);
+        memcpy((uint8_t *)save_buffer, hle->dram + address, 80);
         wet             = *(int16_t *)(save_buffer +  0); /* 0-1 */
         dry             = *(int16_t *)(save_buffer +  2); /* 2-3 */
         ramps[0].target = *(int16_t *)(save_buffer +  4) << 16; /* 4-5 */
@@ -413,7 +413,7 @@ void alist_envmix_lin(
     *(int32_t *)(save_buffer + 10) = ramps[1].step;  /* 10-11 */
     *(int32_t *)(save_buffer + 16) = ramps[0].value; /* 16-17 */
     *(int32_t *)(save_buffer + 18) = ramps[1].value; /* 18-19 */
-    memcpy(hle->rsp_info.RDRAM + address, (uint8_t *)save_buffer, 80);
+    memcpy(hle->dram + address, (uint8_t *)save_buffer, 80);
 }
 
 void alist_envmix_nead(
@@ -709,10 +709,10 @@ void alist_filter(
     int16_t outbuff[0x3c0];
     int16_t *outp = outbuff;
 
-    int16_t* const lutt6 = (int16_t*)(hle->rsp_info.RDRAM + lut_address[0]);
-    int16_t* const lutt5 = (int16_t*)(hle->rsp_info.RDRAM + lut_address[1]);
+    int16_t* const lutt6 = (int16_t*)(hle->dram + lut_address[0]);
+    int16_t* const lutt5 = (int16_t*)(hle->dram + lut_address[1]);
 
-    int16_t* in1 = (int16_t*)(hle->rsp_info.RDRAM + address);
+    int16_t* in1 = (int16_t*)(hle->dram + address);
     int16_t* in2 = (int16_t*)(hle->alist_buffer + dmem);
 
 
@@ -809,7 +809,7 @@ void alist_filter(
         outp += 8;
     }
 
-    memcpy(hle->rsp_info.RDRAM + address, in2 - 8, 16);
+    memcpy(hle->dram + address, in2 - 8, 16);
     memcpy(hle->alist_buffer + dmem, outbuff, count);
 }
 
