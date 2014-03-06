@@ -47,9 +47,8 @@ static void UNKNOWN(struct hle_t* hle, uint32_t w1, uint32_t w2)
 {
     uint8_t acmd = (w1 >> 24);
 
-    DebugMessage(M64MSG_WARNING,
-            "Unknown audio comand %d: %08x %08x",
-            acmd, w1, w2);
+    WarnMessage("Unknown audio command %d: %08x %08x",
+                acmd, w1, w2);
 }
 
 
@@ -91,7 +90,7 @@ static void NAUDIO_14(struct hle_t* hle, uint32_t w1, uint32_t w2)
                 address);
     }
     else
-        DebugMessage(M64MSG_VERBOSE, "NAUDIO_14: non null codebook[0-3] case not implemented.");
+        WarnMessage("NAUDIO_14: non null codebook[0-3] case not implemented.");
 }
 
 static void SETVOL(struct hle_t* hle, uint32_t w1, uint32_t w2)

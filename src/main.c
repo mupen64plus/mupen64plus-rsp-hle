@@ -147,7 +147,7 @@ static bool try_fast_audio_dispatching(struct hle_t* hle)
             case 0x1e3c1390: /* BlastCorp, DiddyKongRacing */
                 alist_process_audio_bc(hle); return true;
             default:
-                DebugMessage(M64MSG_WARNING, "ABI1 identification regression: v=%08x", v);
+                WarnMessage("ABI1 identification regression: v=%08x", v);
             }
         } else {
             v = *dram_u32(hle, ucode_data + 0x10);
@@ -179,7 +179,7 @@ static bool try_fast_audio_dispatching(struct hle_t* hle)
                 musyx_v2_task(hle); return true;
 
             default:
-                DebugMessage(M64MSG_WARNING, "ABI2 identification regression: v=%08x", v);
+                WarnMessage("ABI2 identification regression: v=%08x", v);
             }
         }
     } else {
@@ -203,7 +203,7 @@ static bool try_fast_audio_dispatching(struct hle_t* hle)
             alist_process_naudio_cbfd(hle); return true;
 
         default:
-            DebugMessage(M64MSG_WARNING, "ABI3 identification regression: v=%08x", v);
+            WarnMessage("ABI3 identification regression: v=%08x", v);
         }
     }
 
@@ -273,7 +273,7 @@ static void normal_task_dispatching(struct hle_t* hle)
         return;
     }
 
-    DebugMessage(M64MSG_WARNING, "unknown OSTask: sum: %x PC:%x", sum, *hle->sp_pc);
+    WarnMessage("unknown OSTask: sum: %x PC:%x", sum, *hle->sp_pc);
 #ifdef ENABLE_TASK_DUMP
     dump_unknown_task(hle, sum);
 #endif
@@ -291,7 +291,7 @@ static void non_task_dispatching(struct hle_t* hle)
         return;
     }
 
-    DebugMessage(M64MSG_WARNING, "unknown RSP code: sum: %x PC:%x", sum, *hle->sp_pc);
+    WarnMessage("unknown RSP code: sum: %x PC:%x", sum, *hle->sp_pc);
 #ifdef ENABLE_TASK_DUMP
     dump_unknown_non_task(hle, sum);
 #endif
@@ -356,10 +356,10 @@ static void dump_binary(const char *const filename, const unsigned char *const b
         f = fopen(filename, "wb");
         if (f != NULL) {
             if (fwrite(bytes, 1, size, f) != size)
-                DebugMessage(M64MSG_ERROR, "Writing error on %s", filename);
+                ErrorMessage("Writing error on %s", filename);
             fclose(f);
         } else
-            DebugMessage(M64MSG_ERROR, "Couldn't open %s for writing !", filename);
+            ErrorMessage("Couldn't open %s for writing !", filename);
     } else
         fclose(f);
 }

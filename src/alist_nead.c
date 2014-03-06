@@ -39,8 +39,7 @@ static void UNKNOWN(struct hle_t* hle, uint32_t w1, uint32_t w2)
 {
     uint8_t acmd = (w1 >> 24);
 
-    DebugMessage(M64MSG_WARNING,
-            "Unknown audio comand %d: %08x %08x",
+    WarnMessage("Unknown audio command %d: %08x %08x",
             acmd, w1, w2);
 }
 

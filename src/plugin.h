@@ -22,9 +22,9 @@
 #ifndef PLUGIN_H
 #define PLUGIN_H
 
-#include "m64p_types.h"
-
-void DebugMessage(int level, const char *message, ...);
+void VerboseMessage(const char *message, ...);
+void ErrorMessage(const char *message, ...);
+void WarnMessage(const char *message, ...);
 
 void CheckInterrupts(void);
 void ProcessDlistList(void);

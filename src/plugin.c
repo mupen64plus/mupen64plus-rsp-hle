@@ -45,20 +45,41 @@ static void (*l_DebugCallback)(void *, int, const char *) = NULL;
 static void *l_DebugCallContext = NULL;
 static int l_PluginInit = 0;
 
-/* Global functions */
-void DebugMessage(int level, const char *message, ...)
+/* local function */
+static void DebugMessage(int level, const char *message, va_list args)
 {
     char msgbuf[1024];
-    va_list args;
 
     if (l_DebugCallback == NULL)
         return;
 
-    va_start(args, message);
     vsprintf(msgbuf, message, args);
 
     (*l_DebugCallback)(l_DebugCallContext, level, msgbuf);
+}
 
+/* Global functions needed by HLE core */
+void VerboseMessage(const char *message, ...)
+{
+    va_list args;
+    va_start(args, message);
+    DebugMessage(M64MSG_VERBOSE, message, args);
+    va_end(args);
+}
+
+void ErrorMessage(const char *message, ...)
+{
+    va_list args;
+    va_start(args, message);
+    DebugMessage(M64MSG_ERROR, message, args);
+    va_end(args);
+}
+
+void WarnMessage(const char *message, ...)
+{
+    va_list args;
+    va_start(args, message);
+    DebugMessage(M64MSG_WARNING, message, args);
     va_end(args);
 }
 
