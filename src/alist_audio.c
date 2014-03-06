@@ -34,12 +34,12 @@ enum { DMEM_BASE = 0x5c0 };
 /* helper functions */
 static uint32_t get_address(struct hle_t* hle, uint32_t so)
 {
-    return alist_get_address(so, hle->alist_audio.segments, N_SEGMENTS);
+    return alist_get_address(hle, so, hle->alist_audio.segments, N_SEGMENTS);
 }
 
 static void set_address(struct hle_t* hle, uint32_t so)
 {
-    alist_set_address(so, hle->alist_audio.segments, N_SEGMENTS);
+    alist_set_address(hle, so, hle->alist_audio.segments, N_SEGMENTS);
 }
 
 static void clear_segments(struct hle_t* hle)

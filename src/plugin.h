@@ -22,15 +22,15 @@
 #ifndef PLUGIN_H
 #define PLUGIN_H
 
-void VerboseMessage(const char *message, ...);
-void ErrorMessage(const char *message, ...);
-void WarnMessage(const char *message, ...);
+void HleVerboseMessage(void* user_defined, const char *message, ...);
+void HleErrorMessage(void* user_defined, const char *message, ...);
+void HleWarnMessage(void* user_defined, const char *message, ...);
 
-void CheckInterrupts(void);
-void ProcessDlistList(void);
-void ProcessAlistList(void);
-void ProcessRdpList(void);
-void ShowCFB(void);
+void HleCheckInterrupts(void* user_defined);
+void HleProcessDlistList(void* user_defined);
+void HleProcessAlistList(void* user_defined);
+void HleProcessRdpList(void* user_defined);
+void HleShowCFB(void* user_defined);
 
 #endif
 

@@ -119,13 +119,13 @@ static void rsp_break(struct hle_t* hle, unsigned int setbits)
 
     if ((*hle->sp_status & SP_STATUS_INTR_ON_BREAK)) {
         *hle->mi_intr |= MI_INTR_SP;
-        CheckInterrupts();
+        HleCheckInterrupts(hle->user_defined);
     }
 }
 
 static void forward_gfx_task(struct hle_t* hle)
 {
-    ProcessDlistList();
+    HleProcessDlistList(hle->user_defined);
     *hle->dpc_status &= ~DP_STATUS_FREEZE;
 }
 
@@ -147,7 +147,7 @@ static bool try_fast_audio_dispatching(struct hle_t* hle)
             case 0x1e3c1390: /* BlastCorp, DiddyKongRacing */
                 alist_process_audio_bc(hle); return true;
             default:
-                WarnMessage("ABI1 identification regression: v=%08x", v);
+                HleWarnMessage(hle->user_defined, "ABI1 identification regression: v=%08x", v);
             }
         } else {
             v = *dram_u32(hle, ucode_data + 0x10);
@@ -179,7 +179,7 @@ static bool try_fast_audio_dispatching(struct hle_t* hle)
                 musyx_v2_task(hle); return true;
 
             default:
-                WarnMessage("ABI2 identification regression: v=%08x", v);
+                HleWarnMessage(hle->user_defined, "ABI2 identification regression: v=%08x", v);
             }
         }
     } else {
@@ -203,7 +203,7 @@ static bool try_fast_audio_dispatching(struct hle_t* hle)
             alist_process_naudio_cbfd(hle); return true;
 
         default:
-            WarnMessage("ABI3 identification regression: v=%08x", v);
+            HleWarnMessage(hle->user_defined, "ABI3 identification regression: v=%08x", v);
         }
     }
 
@@ -223,14 +223,14 @@ static bool try_fast_task_dispatching(struct hle_t* hle)
 
     case 2:
         if (FORWARD_AUDIO) {
-            ProcessAlistList();
+            HleProcessAlistList(hle->user_defined);
             return true;
         } else if (try_fast_audio_dispatching(hle))
             return true;
         break;
 
     case 7:
-        ShowCFB();
+        HleShowCFB(hle->user_defined);
         return true;
     }
 
@@ -273,7 +273,7 @@ static void normal_task_dispatching(struct hle_t* hle)
         return;
     }
 
-    WarnMessage("unknown OSTask: sum: %x PC:%x", sum, *hle->sp_pc);
+    HleWarnMessage(hle->user_defined, "unknown OSTask: sum: %x PC:%x", sum, *hle->sp_pc);
 #ifdef ENABLE_TASK_DUMP
     dump_unknown_task(hle, sum);
 #endif
@@ -291,7 +291,7 @@ static void non_task_dispatching(struct hle_t* hle)
         return;
     }
 
-    WarnMessage("unknown RSP code: sum: %x PC:%x", sum, *hle->sp_pc);
+    HleWarnMessage(hle->user_defined, "unknown RSP code: sum: %x PC:%x", sum, *hle->sp_pc);
 #ifdef ENABLE_TASK_DUMP
     dump_unknown_non_task(hle, sum);
 #endif
@@ -356,10 +356,10 @@ static void dump_binary(const char *const filename, const unsigned char *const b
         f = fopen(filename, "wb");
         if (f != NULL) {
             if (fwrite(bytes, 1, size, f) != size)
-                ErrorMessage("Writing error on %s", filename);
+                hleErrorMessage(hle->user_defined, "Writing error on %s", filename);
             fclose(f);
         } else
-            ErrorMessage("Couldn't open %s for writing !", filename);
+            hleErrorMessage(hle->user_defined, "Couldn't open %s for writing !", filename);
     } else
         fclose(f);
 }

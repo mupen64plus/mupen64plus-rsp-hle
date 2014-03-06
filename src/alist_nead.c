@@ -39,8 +39,9 @@ static void UNKNOWN(struct hle_t* hle, uint32_t w1, uint32_t w2)
 {
     uint8_t acmd = (w1 >> 24);
 
-    WarnMessage("Unknown audio command %d: %08x %08x",
-            acmd, w1, w2);
+    HleWarnMessage(hle->user_defined,
+                   "Unknown audio command %d: %08x %08x",
+                   acmd, w1, w2);
 }
 
 

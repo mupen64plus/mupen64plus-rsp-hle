@@ -168,10 +168,11 @@ void jpeg_decode_OB(struct hle_t* hle)
     const unsigned int macroblock_count = *dmem_u32(hle, TASK_DATA_SIZE);
     const int          qscale           = *dmem_u32(hle, TASK_YIELD_DATA_SIZE);
 
-    VerboseMessage("jpeg_decode_OB: *buffer=%x, #MB=%d, qscale=%d",
-                   address,
-                   macroblock_count,
-                   qscale);
+    HleVerboseMessage(hle->user_defined,
+                      "jpeg_decode_OB: *buffer=%x, #MB=%d, qscale=%d",
+                      address,
+                      macroblock_count,
+                      qscale);
 
     if (qscale != 0) {
         if (qscale > 0)
@@ -214,7 +215,8 @@ static void jpeg_decode_std(struct hle_t* hle,
     uint32_t data_ptr;
 
     if (*dmem_u32(hle, TASK_FLAGS) & 0x1) {
-        WarnMessage("jpeg_decode_%s: task yielding not implemented", version);
+        HleWarnMessage(hle->user_defined,
+                       "jpeg_decode_%s: task yielding not implemented", version);
         return;
     }
 
@@ -226,17 +228,19 @@ static void jpeg_decode_std(struct hle_t* hle,
     qtableU_ptr      = *dram_u32(hle, data_ptr + 16);
     qtableV_ptr      = *dram_u32(hle, data_ptr + 20);
 
-    VerboseMessage("jpeg_decode_%s: *buffer=%x, #MB=%d, mode=%d, *Qy=%x, *Qu=%x, *Qv=%x",
-                   version,
-                   address,
-                   macroblock_count,
-                   mode,
-                   qtableY_ptr,
-                   qtableU_ptr,
-                   qtableV_ptr);
+    HleVerboseMessage(hle->user_defined,
+                      "jpeg_decode_%s: *buffer=%x, #MB=%d, mode=%d, *Qy=%x, *Qu=%x, *Qv=%x",
+                      version,
+                      address,
+                      macroblock_count,
+                      mode,
+                      qtableY_ptr,
+                      qtableU_ptr,
+                      qtableV_ptr);
 
     if (mode != 0 && mode != 2) {
-        WarnMessage("jpeg_decode_%s: invalid mode %d", version, mode);
+        HleWarnMessage(hle->user_defined,
+                       "jpeg_decode_%s: invalid mode %d", version, mode);
         return;
     }
 

@@ -79,6 +79,9 @@ struct hle_t
     uint32_t mp3_t6;
     uint32_t mp3_t5;
     uint32_t mp3_t4;
+
+    /* for user convenience, ths will be passed to "external" functions */
+    void* user_defined;
 };
 
 void hle_execute(struct hle_t* hle);

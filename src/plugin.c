@@ -59,7 +59,7 @@ static void DebugMessage(int level, const char *message, va_list args)
 }
 
 /* Global functions needed by HLE core */
-void VerboseMessage(const char *message, ...)
+void HleVerboseMessage(void* user_defined, const char *message, ...)
 {
     va_list args;
     va_start(args, message);
@@ -67,7 +67,7 @@ void VerboseMessage(const char *message, ...)
     va_end(args);
 }
 
-void ErrorMessage(const char *message, ...)
+void HleErrorMessage(void* user_defined, const char *message, ...)
 {
     va_list args;
     va_start(args, message);
@@ -75,7 +75,7 @@ void ErrorMessage(const char *message, ...)
     va_end(args);
 }
 
-void WarnMessage(const char *message, ...)
+void HleWarnMessage(void* user_defined, const char *message, ...)
 {
     va_list args;
     va_start(args, message);
@@ -83,7 +83,7 @@ void WarnMessage(const char *message, ...)
     va_end(args);
 }
 
-void CheckInterrupts(void)
+void HleCheckInterrupts(void* user_defined)
 {
     if (l_CheckInterrupts == NULL)
         return;
@@ -91,7 +91,7 @@ void CheckInterrupts(void)
     (*l_CheckInterrupts)();
 }
 
-void ProcessDlistList(void)
+void HleProcessDlistList(void* user_defined)
 {
     if (l_ProcessDlistList == NULL)
         return;
@@ -99,7 +99,7 @@ void ProcessDlistList(void)
     (*l_ProcessDlistList)();
 }
 
-void ProcessAlistList(void)
+void HleProcessAlistList(void* user_defined)
 {
     if (l_ProcessAlistList == NULL)
         return;
@@ -107,7 +107,7 @@ void ProcessAlistList(void)
     (*l_ProcessAlistList)();
 }
 
-void ProcessRdpList(void)
+void HleProcessRdpList(void* user_defined)
 {
     if (l_ProcessRdpList == NULL)
         return;
@@ -115,7 +115,7 @@ void ProcessRdpList(void)
     (*l_ProcessRdpList)();
 }
 
-void ShowCFB(void)
+void HleShowCFB(void* user_defined)
 {
     if (l_ShowCFB == NULL)
         return;
@@ -207,6 +207,9 @@ EXPORT void CALL InitiateRSP(RSP_INFO Rsp_Info, unsigned int *CycleCount)
     g_hle.dpc_bufbusy = Rsp_Info.DPC_BUFBUSY_REG;
     g_hle.dpc_pipebusy = Rsp_Info.DPC_PIPEBUSY_REG;
     g_hle.dpc_tmem = Rsp_Info.DPC_TMEM_REG;
+
+    /* not used in m64p */
+    g_hle.user_defined = NULL;
 
     l_CheckInterrupts = Rsp_Info.CheckInterrupts;
     l_ProcessDlistList = Rsp_Info.ProcessDlistList;
