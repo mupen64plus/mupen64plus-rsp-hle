@@ -26,9 +26,9 @@
 #include <stdlib.h>
 
 #include "arithmetics.h"
+#include "hle_external.h"
 #include "hle_internal.h"
 #include "memory.h"
-#include "plugin.h"
 
 #define SUBBLOCK_SIZE 64
 

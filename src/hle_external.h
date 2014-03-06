@@ -1,5 +1,5 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- *   Mupen64plus-rsp-hle - plugin.h                                        *
+ *   Mupen64plus-rsp-hle - hle_external.h                                  *
  *   Mupen64Plus homepage: http://code.google.com/p/mupen64plus/           *
  *   Copyright (C) 2014 Bobby Smiles                                       *
  *                                                                         *
@@ -19,8 +19,10 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-#ifndef PLUGIN_H
-#define PLUGIN_H
+#ifndef HLE_EXTERNAL_H
+#define HLE_EXTERNAL_H
+
+/* users of the hle core are expected to define these functions */
 
 void HleVerboseMessage(void* user_defined, const char *message, ...);
 void HleErrorMessage(void* user_defined, const char *message, ...);

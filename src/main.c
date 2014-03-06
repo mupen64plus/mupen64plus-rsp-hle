@@ -28,9 +28,9 @@
 #include <stdio.h>
 #endif
 
+#include "hle_external.h"
 #include "hle_internal.h"
 #include "memory.h"
-#include "plugin.h"
 
 #include "alist.h"
 #include "cicx105.h"

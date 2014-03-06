@@ -25,10 +25,10 @@
 #include <stddef.h>
 
 #include "arithmetics.h"
+#include "audio.h"
+#include "hle_external.h"
 #include "hle_internal.h"
 #include "memory.h"
-#include "plugin.h"
-#include "audio.h"
 
 /* various constants */
 enum { SUBFRAME_SIZE = 192 };

@@ -253,6 +253,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\..\src\hle_external.h"
+				>
+			</File>
+			<File
 				RelativePath="..\..\src\hle_internal.h"
 				>
 			</File>
@@ -270,10 +274,6 @@
 			</File>
 			<File
 				RelativePath="..\..\src\musyx.h"
-				>
-			</File>
-			<File
-				RelativePath="..\..\src\plugin.h"
 				>
 			</File>
 		</Filter>

@@ -25,9 +25,9 @@
 #include <stdint.h>
 
 #include "alist_internal.h"
+#include "hle_external.h"
 #include "hle_internal.h"
 #include "memory.h"
-#include "plugin.h"
 
 /* remove windows define to 0x06 */
 #ifdef DUPLICATE

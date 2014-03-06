@@ -25,9 +25,9 @@
 #include <stdint.h>
 
 #include "alist_internal.h"
+#include "hle_external.h"
 #include "hle_internal.h"
 #include "memory.h"
-#include "plugin.h"
 
 void MP3(struct hle_t* hle, uint32_t w1, uint32_t w2);
 
