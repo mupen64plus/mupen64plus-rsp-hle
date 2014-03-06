@@ -203,11 +203,11 @@
 				>
 			</File>
 			<File
-				RelativePath="..\..\src\jpeg.c"
+				RelativePath="..\..\src\hle.c"
 				>
 			</File>
 			<File
-				RelativePath="..\..\src\main.c"
+				RelativePath="..\..\src\jpeg.c"
 				>
 			</File>
 			<File
@@ -253,6 +253,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\..\src\hle.h"
+				>
+			</File>
+			<File
 				RelativePath="..\..\src\hle_external.h"
 				>
 			</File>
@@ -262,10 +266,6 @@
 			</File>
 			<File
 				RelativePath="..\..\src\jpeg.h"
-				>
-			</File>
-			<File
-				RelativePath="..\..\src\main.h"
 				>
 			</File>
 			<File

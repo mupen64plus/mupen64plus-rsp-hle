@@ -1,5 +1,5 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- *   Mupen64plus-rsp-hle - main.c                                          *
+ *   Mupen64plus-rsp-hle - hle.c                                           *
  *   Mupen64Plus homepage: http://code.google.com/p/mupen64plus/           *
  *   Copyright (C) 2012 Bobby Smiles                                       *
  *   Copyright (C) 2009 Richard Goedeken                                   *
