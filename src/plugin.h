@@ -26,5 +26,11 @@
 
 void DebugMessage(int level, const char *message, ...);
 
+void CheckInterrupts(void);
+void ProcessDlistList(void);
+void ProcessAlistList(void);
+void ProcessRdpList(void);
+void ShowCFB(void);
+
 #endif
 

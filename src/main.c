@@ -57,8 +57,6 @@ static unsigned int sum_bytes(const unsigned char *bytes, unsigned int size);
 static bool is_task(struct hle_t* hle);
 static void rsp_break(struct hle_t* hle, unsigned int setbits);
 static void forward_gfx_task(struct hle_t* hle);
-static void forward_audio_task(struct hle_t* hle);
-static void show_cfb(struct hle_t* hle);
 static bool try_fast_audio_dispatching(struct hle_t* hle);
 static bool try_fast_task_dispatching(struct hle_t* hle);
 static void normal_task_dispatching(struct hle_t* hle);
@@ -121,28 +119,14 @@ static void rsp_break(struct hle_t* hle, unsigned int setbits)
 
     if ((*hle->sp_status & SP_STATUS_INTR_ON_BREAK)) {
         *hle->mi_intr |= MI_INTR_SP;
-        hle->CheckInterrupts();
+        CheckInterrupts();
     }
 }
 
 static void forward_gfx_task(struct hle_t* hle)
 {
-    if (hle->ProcessDlistList != NULL) {
-        hle->ProcessDlistList();
-        *hle->dpc_status &= ~DP_STATUS_FREEZE;
-    }
-}
-
-static void forward_audio_task(struct hle_t* hle)
-{
-    if (hle->ProcessAlistList != NULL)
-        hle->ProcessAlistList();
-}
-
-static void show_cfb(struct hle_t* hle)
-{
-    if (hle->ShowCFB != NULL)
-        hle->ShowCFB();
+    ProcessDlistList();
+    *hle->dpc_status &= ~DP_STATUS_FREEZE;
 }
 
 static bool try_fast_audio_dispatching(struct hle_t* hle)
@@ -239,14 +223,14 @@ static bool try_fast_task_dispatching(struct hle_t* hle)
 
     case 2:
         if (FORWARD_AUDIO) {
-            forward_audio_task(hle);
+            ProcessAlistList();
             return true;
         } else if (try_fast_audio_dispatching(hle))
             return true;
         break;
 
     case 7:
-        show_cfb(hle);
+        ShowCFB();
         return true;
     }
 

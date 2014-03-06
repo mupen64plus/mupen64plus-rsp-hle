@@ -36,6 +36,11 @@
 
 /* local variables */
 static struct hle_t g_hle;
+static void (*l_CheckInterrupts)(void) = NULL;
+static void (*l_ProcessDlistList)(void) = NULL;
+static void (*l_ProcessAlistList)(void) = NULL;
+static void (*l_ProcessRdpList)(void) = NULL;
+static void (*l_ShowCFB)(void) = NULL;
 static void (*l_DebugCallback)(void *, int, const char *) = NULL;
 static void *l_DebugCallContext = NULL;
 static int l_PluginInit = 0;
@@ -56,6 +61,47 @@ void DebugMessage(int level, const char *message, ...)
 
     va_end(args);
 }
+
+void CheckInterrupts(void)
+{
+    if (l_CheckInterrupts == NULL)
+        return;
+
+    (*l_CheckInterrupts)();
+}
+
+void ProcessDlistList(void)
+{
+    if (l_ProcessDlistList == NULL)
+        return;
+
+    (*l_ProcessDlistList)();
+}
+
+void ProcessAlistList(void)
+{
+    if (l_ProcessAlistList == NULL)
+        return;
+
+    (*l_ProcessAlistList)();
+}
+
+void ProcessRdpList(void)
+{
+    if (l_ProcessRdpList == NULL)
+        return;
+
+    (*l_ProcessRdpList)();
+}
+
+void ShowCFB(void)
+{
+    if (l_ShowCFB == NULL)
+        return;
+
+    (*l_ShowCFB)();
+}
+
 
 /* DLL-exported functions */
 EXPORT m64p_error CALL PluginStartup(m64p_dynlib_handle CoreLibHandle, void *Context,
@@ -141,11 +187,11 @@ EXPORT void CALL InitiateRSP(RSP_INFO Rsp_Info, unsigned int *CycleCount)
     g_hle.dpc_pipebusy = Rsp_Info.DPC_PIPEBUSY_REG;
     g_hle.dpc_tmem = Rsp_Info.DPC_TMEM_REG;
 
-    g_hle.CheckInterrupts = Rsp_Info.CheckInterrupts;
-    g_hle.ProcessDlistList = Rsp_Info.ProcessDlistList;
-    g_hle.ProcessAlistList = Rsp_Info.ProcessAlistList;
-    g_hle.ProcessRdpList = Rsp_Info.ProcessRdpList;
-    g_hle.ShowCFB = Rsp_Info.ShowCFB;
+    l_CheckInterrupts = Rsp_Info.CheckInterrupts;
+    l_ProcessDlistList = Rsp_Info.ProcessDlistList;
+    l_ProcessAlistList = Rsp_Info.ProcessAlistList;
+    l_ProcessRdpList = Rsp_Info.ProcessRdpList;
+    l_ShowCFB = Rsp_Info.ShowCFB;
 }
 
 EXPORT void CALL RomClosed(void)
