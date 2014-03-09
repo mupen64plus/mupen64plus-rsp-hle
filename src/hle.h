@@ -1,5 +1,5 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- *   Mupen64plus-rsp-hle - plugin.h                                        *
+ *   Mupen64plus-rsp-hle - hle.h                                           *
  *   Mupen64Plus homepage: http://code.google.com/p/mupen64plus/           *
  *   Copyright (C) 2014 Bobby Smiles                                       *
  *                                                                         *
@@ -19,15 +19,36 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-#ifndef PLUGIN_H
-#define PLUGIN_H
+#ifndef HLE_H
+#define HLE_H
 
-#include "m64p_types.h"
-#include "m64p_plugin.h"
+#include "hle_internal.h"
 
-extern RSP_INFO g_RspInfo;
+void hle_init(struct hle_t* hle,
+    unsigned char* dram,
+    unsigned char* dmem,
+    unsigned char* imem,
+    unsigned int* mi_intr,
+    unsigned int* sp_mem_addr,
+    unsigned int* sp_dram_addr,
+    unsigned int* sp_rd_length,
+    unsigned int* sp_wr_length,
+    unsigned int* sp_status,
+    unsigned int* sp_dma_full,
+    unsigned int* sp_dma_busy,
+    unsigned int* sp_pc,
+    unsigned int* sp_semaphore,
+    unsigned int* dpc_start,
+    unsigned int* dpc_end,
+    unsigned int* dpc_current,
+    unsigned int* dpc_status,
+    unsigned int* dpc_clock,
+    unsigned int* dpc_bufbusy,
+    unsigned int* dpc_pipebusy,
+    unsigned int* dpc_tmem,
+    void* user_defined);
 
-void DebugMessage(int level, const char *message, ...);
+void hle_execute(struct hle_t* hle);
 
 #endif
 
