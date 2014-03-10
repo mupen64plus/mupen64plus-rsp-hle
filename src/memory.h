@@ -63,35 +63,35 @@ static inline unsigned int align(unsigned int x, unsigned amount)
     return (x + amount) & ~amount;
 }
 
-static inline uint8_t* const dmem_u8(struct hle_t* hle, uint16_t address)
+static inline uint8_t* dmem_u8(struct hle_t* hle, uint16_t address)
 {
     return (uint8_t*)(&hle->dmem[(address & 0xfff) ^ S8]);
 }
 
-static inline uint16_t* const dmem_u16(struct hle_t* hle, uint16_t address)
+static inline uint16_t* dmem_u16(struct hle_t* hle, uint16_t address)
 {
     assert((address & 1) == 0);
     return (uint16_t*)(&hle->dmem[(address & 0xfff) ^ S16]);
 }
 
-static inline uint32_t* const dmem_u32(struct hle_t* hle, uint16_t address)
+static inline uint32_t* dmem_u32(struct hle_t* hle, uint16_t address)
 {
     assert((address & 3) == 0);
     return (uint32_t*)(&hle->dmem[(address & 0xfff)]);
 }
 
-static inline uint8_t* const dram_u8(struct hle_t* hle, uint32_t address)
+static inline uint8_t* dram_u8(struct hle_t* hle, uint32_t address)
 {
     return (uint8_t*)&hle->dram[(address & 0xffffff) ^ S8];
 }
 
-static inline uint16_t* const dram_u16(struct hle_t* hle, uint32_t address)
+static inline uint16_t* dram_u16(struct hle_t* hle, uint32_t address)
 {
     assert((address & 1) == 0);
     return (uint16_t*)&hle->dram[(address & 0xffffff) ^ S16];
 }
 
-static inline uint32_t* const dram_u32(struct hle_t* hle, uint32_t address)
+static inline uint32_t* dram_u32(struct hle_t* hle, uint32_t address)
 {
     assert((address & 3) == 0);
     return (uint32_t*)&hle->dram[address & 0xffffff];
