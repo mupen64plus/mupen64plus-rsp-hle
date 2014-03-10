@@ -830,7 +830,7 @@ static void sfx_stage(struct hle_t* hle, mix_sfx_with_main_subframes_t mix_sfx_w
             dpos += cbuffer_length;
         dlength = SUBFRAME_SIZE;
 
-        if (dpos + SUBFRAME_SIZE > cbuffer_length) {
+        if ((uint32_t)(dpos + SUBFRAME_SIZE) > cbuffer_length) {
             dlength = cbuffer_length - dpos;
             dram_load_u16(hle, (uint16_t *)delayed + dlength, cbuffer_ptr, SUBFRAME_SIZE - dlength);
         }
