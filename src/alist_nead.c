@@ -24,6 +24,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "common.h"
+
 #include "alist_internal.h"
 #include "hle_external.h"
 #include "hle_internal.h"
@@ -45,7 +47,7 @@ static void UNKNOWN(struct hle_t* hle, uint32_t w1, uint32_t w2)
 }
 
 
-static void SPNOOP(struct hle_t* hle, uint32_t w1, uint32_t w2)
+static void SPNOOP(struct hle_t* UNUSED(hle), uint32_t UNUSED(w1), uint32_t UNUSED(w2))
 {
 }
 
@@ -57,7 +59,7 @@ static void LOADADPCM(struct hle_t* hle, uint32_t w1, uint32_t w2)
     dram_load_u16(hle, (uint16_t*)hle->alist_nead.table, address, count >> 1);
 }
 
-static void SETLOOP(struct hle_t* hle, uint32_t w1, uint32_t w2)
+static void SETLOOP(struct hle_t* hle, uint32_t UNUSED(w1), uint32_t w2)
 {
     hle->alist_nead.loop = w2 & 0xffffff;
 }
@@ -186,7 +188,7 @@ static void ENVSETUP1(struct hle_t* hle, uint32_t w1, uint32_t w2)
     hle->alist_nead.env_steps[1]  = w2;
 }
 
-static void ENVSETUP2(struct hle_t* hle, uint32_t w1, uint32_t w2)
+static void ENVSETUP2(struct hle_t* hle, uint32_t UNUSED(w1), uint32_t w2)
 {
     hle->alist_nead.env_values[0] = (w2 >> 16);
     hle->alist_nead.env_values[1] = w2;
@@ -263,7 +265,7 @@ static void INTERL(struct hle_t* hle, uint32_t w1, uint32_t w2)
     alist_copy_every_other_sample(hle, dmemo, dmemi, count);
 }
 
-static void INTERLEAVE_MK(struct hle_t* hle, uint32_t w1, uint32_t w2)
+static void INTERLEAVE_MK(struct hle_t* hle, uint32_t UNUSED(w1), uint32_t w2)
 {
     uint16_t left = (w2 >> 16);
     uint16_t right = w2;
@@ -319,7 +321,7 @@ static void FILTER(struct hle_t* hle, uint32_t w1, uint32_t w2)
     }
 }
 
-static void SEGMENT(struct hle_t* hle, uint32_t w1, uint32_t w2)
+static void SEGMENT(struct hle_t* UNUSED(hle), uint32_t UNUSED(w1), uint32_t UNUSED(w2))
 {
 }
 

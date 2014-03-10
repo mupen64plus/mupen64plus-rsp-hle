@@ -24,6 +24,8 @@
 #include <string.h>
 #include <stddef.h>
 
+#include "common.h"
+
 #include "arithmetics.h"
 #include "audio.h"
 #include "hle_external.h"
@@ -851,7 +853,7 @@ static void sfx_stage(struct hle_t* hle, mix_sfx_with_main_subframes_t mix_sfx_w
 }
 
 static void mix_sfx_with_main_subframes_v1(musyx_t *musyx, const int16_t *subframe,
-                                           const uint16_t* gains)
+                                           const uint16_t* UNUSED(gains))
 {
     unsigned i;
 

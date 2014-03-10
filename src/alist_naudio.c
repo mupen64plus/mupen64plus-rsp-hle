@@ -24,6 +24,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "common.h"
+
 #include "alist_internal.h"
 #include "hle_external.h"
 #include "hle_internal.h"
@@ -53,7 +55,7 @@ static void UNKNOWN(struct hle_t* hle, uint32_t w1, uint32_t w2)
 }
 
 
-static void SPNOOP(struct hle_t* hle, uint32_t w1, uint32_t w2)
+static void SPNOOP(struct hle_t* UNUSED(hle), uint32_t UNUSED(w1), uint32_t UNUSED(w2))
 {
 }
 
@@ -63,7 +65,7 @@ static void NAUDIO_0000(struct hle_t* hle, uint32_t w1, uint32_t w2)
     UNKNOWN(hle, w1, w2);
 }
 
-static void NAUDIO_02B0(struct hle_t* hle, uint32_t w1, uint32_t w2)
+static void NAUDIO_02B0(struct hle_t* UNUSED(hle), uint32_t UNUSED(w1), uint32_t UNUSED(w2))
 {
     /* ??? */
     /* UNKNOWN(w1, w2); commented to avoid constant spamming during gameplay */
@@ -192,7 +194,7 @@ static void DMEMMOVE(struct hle_t* hle, uint32_t w1, uint32_t w2)
     alist_move(hle, dmemo, dmemi, (count + 3) & ~3);
 }
 
-static void SETLOOP(struct hle_t* hle, uint32_t w1, uint32_t w2)
+static void SETLOOP(struct hle_t* hle, uint32_t UNUSED(w1), uint32_t w2)
 {
     hle->alist_naudio.loop = (w2 & 0xffffff);
 }
@@ -237,12 +239,12 @@ static void RESAMPLE(struct hle_t* hle, uint32_t w1, uint32_t w2)
             address);
 }
 
-static void INTERLEAVE(struct hle_t* hle, uint32_t w1, uint32_t w2)
+static void INTERLEAVE(struct hle_t* hle, uint32_t UNUSED(w1), uint32_t UNUSED(w2))
 {
     alist_interleave(hle, NAUDIO_MAIN, NAUDIO_DRY_LEFT, NAUDIO_DRY_RIGHT, NAUDIO_COUNT);
 }
 
-static void MP3ADDY(struct hle_t* hle, uint32_t w1, uint32_t w2)
+static void MP3ADDY(struct hle_t* UNUSED(hle), uint32_t UNUSED(w1), uint32_t UNUSED(w2))
 {
 }
 

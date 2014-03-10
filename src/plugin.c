@@ -25,6 +25,7 @@
 #include <string.h>
 #include <stdio.h>
 
+#include "common.h"
 #include "hle.h"
 
 #define M64P_PLUGIN_PROTOTYPES 1
@@ -60,7 +61,7 @@ static void DebugMessage(int level, const char *message, va_list args)
 }
 
 /* Global functions needed by HLE core */
-void HleVerboseMessage(void* user_defined, const char *message, ...)
+void HleVerboseMessage(void* UNUSED(user_defined), const char *message, ...)
 {
     va_list args;
     va_start(args, message);
@@ -68,7 +69,7 @@ void HleVerboseMessage(void* user_defined, const char *message, ...)
     va_end(args);
 }
 
-void HleErrorMessage(void* user_defined, const char *message, ...)
+void HleErrorMessage(void* UNUSED(user_defined), const char *message, ...)
 {
     va_list args;
     va_start(args, message);
@@ -76,7 +77,7 @@ void HleErrorMessage(void* user_defined, const char *message, ...)
     va_end(args);
 }
 
-void HleWarnMessage(void* user_defined, const char *message, ...)
+void HleWarnMessage(void* UNUSED(user_defined), const char *message, ...)
 {
     va_list args;
     va_start(args, message);
@@ -84,7 +85,7 @@ void HleWarnMessage(void* user_defined, const char *message, ...)
     va_end(args);
 }
 
-void HleCheckInterrupts(void* user_defined)
+void HleCheckInterrupts(void* UNUSED(user_defined))
 {
     if (l_CheckInterrupts == NULL)
         return;
@@ -92,7 +93,7 @@ void HleCheckInterrupts(void* user_defined)
     (*l_CheckInterrupts)();
 }
 
-void HleProcessDlistList(void* user_defined)
+void HleProcessDlistList(void* UNUSED(user_defined))
 {
     if (l_ProcessDlistList == NULL)
         return;
@@ -100,7 +101,7 @@ void HleProcessDlistList(void* user_defined)
     (*l_ProcessDlistList)();
 }
 
-void HleProcessAlistList(void* user_defined)
+void HleProcessAlistList(void* UNUSED(user_defined))
 {
     if (l_ProcessAlistList == NULL)
         return;
@@ -108,7 +109,7 @@ void HleProcessAlistList(void* user_defined)
     (*l_ProcessAlistList)();
 }
 
-void HleProcessRdpList(void* user_defined)
+void HleProcessRdpList(void* UNUSED(user_defined))
 {
     if (l_ProcessRdpList == NULL)
         return;
@@ -116,7 +117,7 @@ void HleProcessRdpList(void* user_defined)
     (*l_ProcessRdpList)();
 }
 
-void HleShowCFB(void* user_defined)
+void HleShowCFB(void* UNUSED(user_defined))
 {
     if (l_ShowCFB == NULL)
         return;
@@ -126,7 +127,7 @@ void HleShowCFB(void* user_defined)
 
 
 /* DLL-exported functions */
-EXPORT m64p_error CALL PluginStartup(m64p_dynlib_handle CoreLibHandle, void *Context,
+EXPORT m64p_error CALL PluginStartup(m64p_dynlib_handle UNUSED(CoreLibHandle), void *Context,
                                      void (*DebugCallback)(void *, int, const char *))
 {
     if (l_PluginInit)
@@ -182,7 +183,7 @@ EXPORT unsigned int CALL DoRspCycles(unsigned int Cycles)
     return Cycles;
 }
 
-EXPORT void CALL InitiateRSP(RSP_INFO Rsp_Info, unsigned int *CycleCount)
+EXPORT void CALL InitiateRSP(RSP_INFO Rsp_Info, unsigned int* UNUSED(CycleCount))
 {
     hle_init(&g_hle,
              Rsp_Info.RDRAM,
