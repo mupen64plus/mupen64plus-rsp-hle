@@ -200,14 +200,15 @@ static void ENVMIXER_MK(struct hle_t* hle, uint32_t w1, uint32_t w2)
 
     uint16_t dmemi = (w1 >> 12) & 0xff0;
     uint8_t  count = (w1 >>  8) & 0xff;
-    xors[2] = 0;    /* unsupported by this ucode */
-    xors[3] = 0;    /* unsupported by this ucode */
-    xors[0] = 0 - (int16_t)((w1 & 0x2) >> 1);
-    xors[1] = 0 - (int16_t)((w1 & 0x1)     );
     uint16_t dmem_dl = (w2 >> 20) & 0xff0;
     uint16_t dmem_dr = (w2 >> 12) & 0xff0;
     uint16_t dmem_wl = (w2 >>  4) & 0xff0;
     uint16_t dmem_wr = (w2 <<  4) & 0xff0;
+
+    xors[2] = 0;    /* unsupported by this ucode */
+    xors[3] = 0;    /* unsupported by this ucode */
+    xors[0] = 0 - (int16_t)((w1 & 0x2) >> 1);
+    xors[1] = 0 - (int16_t)((w1 & 0x1)     );
 
     alist_envmix_nead(
             hle,
@@ -227,14 +228,15 @@ static void ENVMIXER(struct hle_t* hle, uint32_t w1, uint32_t w2)
     uint16_t dmemi = (w1 >> 12) & 0xff0;
     uint8_t  count = (w1 >>  8) & 0xff;
     bool     swap_wet_LR = (w1 >> 4) & 0x1;
-    xors[2] = 0 - (int16_t)((w1 & 0x8) >> 1);
-    xors[3] = 0 - (int16_t)((w1 & 0x4) >> 1);
-    xors[0] = 0 - (int16_t)((w1 & 0x2) >> 1);
-    xors[1] = 0 - (int16_t)((w1 & 0x1)     );
     uint16_t dmem_dl = (w2 >> 20) & 0xff0;
     uint16_t dmem_dr = (w2 >> 12) & 0xff0;
     uint16_t dmem_wl = (w2 >>  4) & 0xff0;
     uint16_t dmem_wr = (w2 <<  4) & 0xff0;
+
+    xors[2] = 0 - (int16_t)((w1 & 0x8) >> 1);
+    xors[3] = 0 - (int16_t)((w1 & 0x4) >> 1);
+    xors[0] = 0 - (int16_t)((w1 & 0x2) >> 1);
+    xors[1] = 0 - (int16_t)((w1 & 0x1)     );
 
     alist_envmix_nead(
             hle,

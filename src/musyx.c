@@ -434,20 +434,16 @@ static void init_subframes_v1(musyx_t *musyx)
 static void init_subframes_v2(musyx_t *musyx)
 {
     unsigned i,k;
+    int16_t values[4];
+    int16_t* subframes[4];
 
-    int16_t values[4] = {
-        clamp_s16(musyx->base_vol[0]),
-        clamp_s16(musyx->base_vol[1]),
-        clamp_s16(musyx->base_vol[2]),
-        clamp_s16(musyx->base_vol[3])
-    };
+    for(k = 0; k < 4; ++k)
+        values[k] = clamp_s16(musyx->base_vol[k]);
 
-    int16_t* subframes[4] = {
-        musyx->left,
-        musyx->right,
-        musyx->cc0,
-        musyx->e50
-    };
+    subframes[0] = musyx->left;
+    subframes[1] = musyx->right;
+    subframes[2] = musyx->cc0;
+    subframes[3] = musyx->e50;
 
     for (i = 0; i < SUBFRAME_SIZE; ++i) {
 
