@@ -106,7 +106,7 @@
     <ClCompile Include="..\..\src\plugin.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\src\alist_internal.h" />
+    <ClInclude Include="..\..\src\alist.h" />
     <ClInclude Include="..\..\src\arithmetics.h" />
     <ClInclude Include="..\..\src\audio.h" />
     <ClInclude Include="..\..\src\common.h" />

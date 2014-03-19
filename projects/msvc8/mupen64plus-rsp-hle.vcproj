@@ -233,7 +233,7 @@
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
 			<File
-				RelativePath="..\..\src\alist_internal.h"
+				RelativePath="..\..\src\alist.h"
 				>
 			</File>
 			<File

@@ -25,7 +25,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "alist_internal.h"
+#include "alist.h"
 #include "arithmetics.h"
 #include "audio.h"
 #include "hle_external.h"
