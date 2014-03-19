@@ -30,7 +30,7 @@
 #include "hle_external.h"
 #include "hle_internal.h"
 #include "memory.h"
-#include "mp3.h"
+#include "ucodes.h"
 
 enum { NAUDIO_COUNT = 0x170 }; /* ie 184 samples */
 enum {

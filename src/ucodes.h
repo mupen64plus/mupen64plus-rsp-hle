@@ -1,5 +1,5 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- *   Mupen64plus-rsp-hle - alist.h                                         *
+ *   Mupen64plus-rsp-hle - ucodes.h                                        *
  *   Mupen64Plus homepage: http://code.google.com/p/mupen64plus/           *
  *   Copyright (C) 2014 Bobby Smiles                                       *
  *                                                                         *
@@ -19,14 +19,20 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-#ifndef ALIST_H
-#define ALIST_H
+#ifndef UCODES_H
+#define UCODES_H
 
 #include <stdint.h>
 
-enum { N_SEGMENTS = 16 };
+struct hle_t;
 
-/* alist_audio state */
+
+/* cic_x105 ucode */
+void cicx105_ucode(struct hle_t* hle);
+
+
+/* audio list ucodes - audio */
+enum { N_SEGMENTS = 16 };
 struct alist_audio_t {
     /* segments */
     uint32_t segments[N_SEGMENTS];
@@ -57,7 +63,12 @@ struct alist_audio_t {
     int16_t table[16 * 8];
 };
 
-/* alist_naudio state */
+void alist_process_audio   (struct hle_t* hle);
+void alist_process_audio_ge(struct hle_t* hle);
+void alist_process_audio_bc(struct hle_t* hle);
+
+
+/* audio list ucodes - naudio */
 struct alist_naudio_t {
     /* gains */
     int16_t dry;
@@ -75,7 +86,14 @@ struct alist_naudio_t {
     int16_t table[16 * 8];
 };
 
-/* alist_nead state */
+void alist_process_naudio     (struct hle_t* hle);
+void alist_process_naudio_bk  (struct hle_t* hle);
+void alist_process_naudio_dk  (struct hle_t* hle);
+void alist_process_naudio_mp3 (struct hle_t* hle);
+void alist_process_naudio_cbfd(struct hle_t* hle);
+
+
+/* audio list ucodes - nead */
 struct alist_nead_t {
     /* main buffers */
     uint16_t in;
@@ -97,12 +115,6 @@ struct alist_nead_t {
     uint32_t filter_lut_address[2];
 };
 
-struct hle_t;
-
-void alist_process_audio   (struct hle_t* hle);
-void alist_process_audio_ge(struct hle_t* hle);
-void alist_process_audio_bc(struct hle_t* hle);
-
 void alist_process_nead_mk  (struct hle_t* hle);
 void alist_process_nead_sfj (struct hle_t* hle);
 void alist_process_nead_sf  (struct hle_t* hle);
@@ -115,11 +127,20 @@ void alist_process_nead_mm  (struct hle_t* hle);
 void alist_process_nead_mmb (struct hle_t* hle);
 void alist_process_nead_ac  (struct hle_t* hle);
 
-void alist_process_naudio     (struct hle_t* hle);
-void alist_process_naudio_bk  (struct hle_t* hle);
-void alist_process_naudio_dk  (struct hle_t* hle);
-void alist_process_naudio_mp3 (struct hle_t* hle);
-void alist_process_naudio_cbfd(struct hle_t* hle);
+
+/* mp3 ucode */
+void mp3_task(struct hle_t* hle, unsigned int index, uint32_t address);
+
+
+/* musyx ucodes */
+void musyx_v1_task(struct hle_t* hle);
+void musyx_v2_task(struct hle_t* hle);
+
+
+/* jpeg ucodes */
+void jpeg_decode_PS0(struct hle_t* hle);
+void jpeg_decode_PS(struct hle_t* hle);
+void jpeg_decode_OB(struct hle_t* hle);
 
 #endif
 

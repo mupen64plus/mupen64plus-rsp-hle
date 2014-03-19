@@ -233,10 +233,6 @@
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
 			<File
-				RelativePath="..\..\src\alist.h"
-				>
-			</File>
-			<File
 				RelativePath="..\..\src\alist_internal.h"
 				>
 			</File>
@@ -246,10 +242,6 @@
 			</File>
 			<File
 				RelativePath="..\..\src\arithmetics.h"
-				>
-			</File>
-			<File
-				RelativePath="..\..\src\cicx105.h"
 				>
 			</File>
 			<File
@@ -269,19 +261,11 @@
 				>
 			</File>
 			<File
-				RelativePath="..\..\src\jpeg.h"
-				>
-			</File>
-			<File
 				RelativePath="..\..\src\memory.h"
 				>
 			</File>
 			<File
-				RelativePath="..\..\src\musyx.h"
-				>
-			</File>
-			<File
-				RelativePath="..\..\src\mp3.h"
+				RelativePath="..\..\src\ucodes.h"
 				>
 			</File>
 		</Filter>
