@@ -247,6 +247,14 @@ static void MP3ADDY(struct hle_t* UNUSED(hle), uint32_t UNUSED(w1), uint32_t UNU
 {
 }
 
+static void MP3(struct hle_t* hle, uint32_t w1, uint32_t w2)
+{
+    unsigned index = (w1 & 0x1e);
+    uint32_t address = (w2 & 0xffffff);
+
+    mp3_task(hle, index, address);
+}
+
 /* global functions */
 void alist_process_naudio(struct hle_t* hle)
 {

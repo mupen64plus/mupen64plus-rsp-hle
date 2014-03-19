@@ -26,6 +26,6 @@
 
 struct hle_t;
 
-void MP3(struct hle_t* hle, uint32_t w1, uint32_t w2);
+void mp3_task(struct hle_t* hle, unsigned int index, uint32_t address);
 
 #endif
