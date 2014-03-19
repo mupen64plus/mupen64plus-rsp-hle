@@ -118,6 +118,7 @@
     <ClInclude Include="..\..\src\jpeg.h" />
     <ClInclude Include="..\..\src\memory.h" />
     <ClInclude Include="..\..\src\musyx.h" />
+    <ClInclude Include="..\..\src\mp3.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

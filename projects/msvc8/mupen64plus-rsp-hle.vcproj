@@ -280,6 +280,10 @@
 				RelativePath="..\..\src\musyx.h"
 				>
 			</File>
+			<File
+				RelativePath="..\..\src\mp3.h"
+				>
+			</File>
 		</Filter>
 	</Files>
 	<Globals>
