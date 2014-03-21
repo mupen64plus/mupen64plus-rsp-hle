@@ -237,19 +237,11 @@
 				>
 			</File>
 			<File
-				RelativePath="..\..\src\alist_internal.h"
-				>
-			</File>
-			<File
 				RelativePath="..\..\src\audio.h"
 				>
 			</File>
 			<File
 				RelativePath="..\..\src\arithmetics.h"
-				>
-			</File>
-			<File
-				RelativePath="..\..\src\cicx105.h"
 				>
 			</File>
 			<File
@@ -269,15 +261,11 @@
 				>
 			</File>
 			<File
-				RelativePath="..\..\src\jpeg.h"
-				>
-			</File>
-			<File
 				RelativePath="..\..\src\memory.h"
 				>
 			</File>
 			<File
-				RelativePath="..\..\src\musyx.h"
+				RelativePath="..\..\src\ucodes.h"
 				>
 			</File>
 		</Filter>

@@ -27,7 +27,7 @@
 
 #include "common.h"
 
-#include "alist_internal.h"
+#include "alist.h"
 #include "hle_internal.h"
 #include "memory.h"
 

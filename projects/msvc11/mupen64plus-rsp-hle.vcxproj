@@ -107,17 +107,14 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\alist.h" />
-    <ClInclude Include="..\..\src\alist_internal.h" />
     <ClInclude Include="..\..\src\arithmetics.h" />
     <ClInclude Include="..\..\src\audio.h" />
-    <ClInclude Include="..\..\src\cicx105.h" />
     <ClInclude Include="..\..\src\common.h" />
     <ClInclude Include="..\..\src\hle.h" />
     <ClInclude Include="..\..\src\hle_external.h" />
     <ClInclude Include="..\..\src\hle_internal.h" />
-    <ClInclude Include="..\..\src\jpeg.h" />
     <ClInclude Include="..\..\src\memory.h" />
-    <ClInclude Include="..\..\src\musyx.h" />
+    <ClInclude Include="..\..\src\ucodes.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
