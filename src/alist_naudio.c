@@ -64,10 +64,11 @@ static void NAUDIO_0000(struct hle_t* hle, uint32_t w1, uint32_t w2)
     UNKNOWN(hle, w1, w2);
 }
 
-static void NAUDIO_02B0(struct hle_t* UNUSED(hle), uint32_t UNUSED(w1), uint32_t UNUSED(w2))
+static void NAUDIO_02B0(struct hle_t* hle, uint32_t UNUSED(w1), uint32_t w2)
 {
-    /* ??? */
-    /* UNKNOWN(w1, w2); commented to avoid constant spamming during gameplay */
+    /* emulate code at 0x12b0 (inside SETVOL), because PC always execute in IMEM */
+    hle->alist_naudio.rate[1] &= ~0xffff;
+    hle->alist_naudio.rate[1] |= (w2 & 0xffff);
 }
 
 static void NAUDIO_14(struct hle_t* hle, uint32_t w1, uint32_t w2)
