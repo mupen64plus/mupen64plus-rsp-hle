@@ -29,5 +29,10 @@
 #  define UNUSED(x) UNUSED_ ## x
 #endif
 
+/* macro for inline keyword */
+#ifdef _MSC_VER
+#define inline __inline
+#endif
+
 #endif
 
