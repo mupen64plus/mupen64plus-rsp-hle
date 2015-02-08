@@ -974,14 +974,12 @@ void alist_iirf(
 {
     int16_t *dst = (int16_t*)(hle->alist_buffer + dmemo);
     int32_t i, prev;
-	int16_t frame[8];
+    int16_t frame[8];
     int16_t ibuf[4];
     uint16_t index = 7;
 
 
     count = align(count, 16);
-
-    #define vmulf(a, b)     (((a)*(b)+0x4000)>>15)
 
     if(init)
     {
@@ -1004,7 +1002,7 @@ void alist_iirf(
         for(i = 0; i < 8; ++i)
         {
             int32_t accu;
-			ibuf[index&3] = *alist_s16(hle, dmemi);
+            ibuf[index&3] = *alist_s16(hle, dmemi);
 
             accu = prev + vmulf(table[0], ibuf[index&3]) + vmulf(table[1], ibuf[(index-1)&3]) + vmulf(table[0], ibuf[(index-2)&3]);
             accu += vmulf(table[8], frame[index]) * 2;
@@ -1018,8 +1016,8 @@ void alist_iirf(
         count -= 0x10;
     } while (count > 0);
 
-    dram_store_u16(hle, &frame[6], address + 4, 4);
-    dram_store_u16(hle, (int16_t*)&ibuf[(index-2)&3], address+8, 2);
-    dram_store_u16(hle, (int16_t*)&ibuf[(index-1)&3], address+10, 2);
+    dram_store_u16(hle, (uint16_t*)&frame[6], address + 4, 4);
+    dram_store_u16(hle, (uint16_t*)&ibuf[(index-2)&3], address+8, 2);
+    dram_store_u16(hle, (uint16_t*)&ibuf[(index-1)&3], address+10, 2);
 }
 
