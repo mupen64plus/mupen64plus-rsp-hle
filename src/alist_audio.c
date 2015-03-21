@@ -25,9 +25,8 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "common.h"
-
 #include "alist.h"
+#include "common.h"
 #include "hle_internal.h"
 #include "memory.h"
 
