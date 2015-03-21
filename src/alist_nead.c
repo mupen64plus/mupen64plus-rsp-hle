@@ -29,6 +29,7 @@
 #include "hle_external.h"
 #include "hle_internal.h"
 #include "memory.h"
+#include "ucodes.h"
 
 /* remove windows define to 0x06 */
 #ifdef DUPLICATE

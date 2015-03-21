@@ -26,6 +26,7 @@
 
 #include "common.h"
 #include "hle.h"
+#include "hle_internal.h"
 
 #define M64P_PLUGIN_PROTOTYPES 1
 #include "m64p_common.h"

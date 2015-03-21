@@ -29,6 +29,7 @@
 #include "common.h"
 #include "hle_internal.h"
 #include "memory.h"
+#include "ucodes.h"
 
 enum { DMEM_BASE = 0x5c0 };
 
