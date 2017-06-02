@@ -320,7 +320,10 @@ static void normal_task_dispatching(struct hle_t* hle)
         return;
 
     /* Resident evil 2 */
-    case 0x29a20:
+    case 0x29a20: /* USA */
+    case 0x298c5: /* Europe */
+    case 0x298b8: /* USA Rev A */
+    case 0x296d9: /* J */
         resize_bilinear_task(hle);
         return;
     }
