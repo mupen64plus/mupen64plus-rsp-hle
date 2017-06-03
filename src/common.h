@@ -34,5 +34,28 @@
 #define inline __inline
 #endif
 
+/* Plugin types */
+#define PLUGIN_TYPE_RSP			1
+#define PLUGIN_TYPE_GFX			2
+#define PLUGIN_TYPE_AUDIO		3
+#define PLUGIN_TYPE_CONTROLLER	4
+
+/***** Structures *****/
+
+typedef struct
+{
+	unsigned short Version;        /* Set to 0x0102 */
+	unsigned short Type;           /* Set to PLUGIN_TYPE_GFX */
+	char Name[100];      /* Name of the DLL */
+
+						 /* If DLL supports memory these memory options then set them to TRUE or FALSE
+						 if it does not support it */
+	int NormalMemory;    /* a normal BYTE array */
+	int MemoryBswaped;  /* a normal BYTE array where the memory has been pre
+						bswap on a dword (32 bits) boundry */
+
+} PLUGIN_INFO;
+
+
 #endif
 

@@ -28,10 +28,21 @@
 #include "hle.h"
 #include "hle_internal.h"
 
+#ifndef _PJ64_SPEC
 #define M64P_PLUGIN_PROTOTYPES 1
 #include "m64p_common.h"
 #include "m64p_plugin.h"
 #include "m64p_types.h"
+#else
+#include "Rsp.h"
+#if defined(_WIN32)
+#define EXPORT      __declspec(dllexport)
+#define CALL        __cdecl
+#else
+#define EXPORT      __attribute__((visibility("default")))
+#define CALL
+#endif
+#endif
 
 #define RSP_HLE_VERSION        0x020500
 #define RSP_PLUGIN_API_VERSION 0x020000
@@ -45,7 +56,9 @@ static void (*l_ProcessRdpList)(void) = NULL;
 static void (*l_ShowCFB)(void) = NULL;
 static void (*l_DebugCallback)(void *, int, const char *) = NULL;
 static void *l_DebugCallContext = NULL;
+#ifndef _PJ64_SPEC
 static int l_PluginInit = 0;
+#endif
 
 /* local function */
 static void DebugMessage(int level, const char *message, va_list args)
@@ -65,7 +78,7 @@ void HleVerboseMessage(void* UNUSED(user_defined), const char *message, ...)
 {
     va_list args;
     va_start(args, message);
-    DebugMessage(M64MSG_VERBOSE, message, args);
+    //DebugMessage(M64MSG_VERBOSE, message, args);
     va_end(args);
 }
 
@@ -73,7 +86,7 @@ void HleErrorMessage(void* UNUSED(user_defined), const char *message, ...)
 {
     va_list args;
     va_start(args, message);
-    DebugMessage(M64MSG_ERROR, message, args);
+    //DebugMessage(M64MSG_ERROR, message, args);
     va_end(args);
 }
 
@@ -81,7 +94,7 @@ void HleWarnMessage(void* UNUSED(user_defined), const char *message, ...)
 {
     va_list args;
     va_start(args, message);
-    DebugMessage(M64MSG_WARNING, message, args);
+    //DebugMessage(M64MSG_WARNING, message, args);
     va_end(args);
 }
 
@@ -127,6 +140,7 @@ void HleShowCFB(void* UNUSED(user_defined))
 
 
 /* DLL-exported functions */
+#ifndef _PJ64_SPEC
 EXPORT m64p_error CALL PluginStartup(m64p_dynlib_handle UNUSED(CoreLibHandle), void *Context,
                                      void (*DebugCallback)(void *, int, const char *))
 {
@@ -176,8 +190,9 @@ EXPORT m64p_error CALL PluginGetVersion(m64p_plugin_type *PluginType, int *Plugi
 
     return M64ERR_SUCCESS;
 }
+#endif
 
-EXPORT unsigned int CALL DoRspCycles(unsigned int Cycles)
+EXPORT uint32_t CALL DoRspCycles(uint32_t Cycles)
 {
     hle_execute(&g_hle);
     return Cycles;
@@ -210,11 +225,35 @@ EXPORT void CALL InitiateRSP(RSP_INFO Rsp_Info, unsigned int* UNUSED(CycleCount)
              NULL);
 
     l_CheckInterrupts = Rsp_Info.CheckInterrupts;
+#ifdef _PJ64_SPEC
+    l_ProcessDlistList = Rsp_Info.ProcessDList;
+    l_ProcessAlistList = Rsp_Info.ProcessAList;
+#else
     l_ProcessDlistList = Rsp_Info.ProcessDlistList;
     l_ProcessAlistList = Rsp_Info.ProcessAlistList;
+#endif
     l_ProcessRdpList = Rsp_Info.ProcessRdpList;
     l_ShowCFB = Rsp_Info.ShowCFB;
 }
+
+#ifdef _PJ64_SPEC
+EXPORT void CALL CloseDLL(void)
+{
+    /* do nothing */
+}
+EXPORT void CALL GetDllInfo(PLUGIN_INFO * PluginInfo)
+{
+    PluginInfo->Version = 0x0101;
+	PluginInfo->Type = PLUGIN_TYPE_RSP;
+	//strcpy(PluginInfo->Name, "Mupen64Plus HLE RSP Plugin");
+	PluginInfo->NormalMemory = 1;
+	PluginInfo->MemoryBswaped = 1;
+}
+EXPORT void CALL DllConfig(int hWnd)
+{
+    /* do nothing */
+}
+#endif
 
 EXPORT void CALL RomClosed(void)
 {
