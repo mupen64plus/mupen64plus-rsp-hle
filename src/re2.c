@@ -94,4 +94,6 @@ void resize_bilinear_task(struct hle_t* hle)
         }
         y += y_ratio;
     }
+
+    rsp_break(hle, SP_STATUS_TASKDONE);
 }
