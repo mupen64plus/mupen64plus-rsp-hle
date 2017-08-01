@@ -134,7 +134,7 @@ static void ENVMIXER(struct hle_t* hle, uint32_t w1, uint32_t w2)
 
     alist_envmix_lin(
             hle,
-            flags & 0x1,
+            flags & A_INIT,
             NAUDIO_DRY_LEFT,
             NAUDIO_DRY_RIGHT,
             NAUDIO_WET_LEFT,
