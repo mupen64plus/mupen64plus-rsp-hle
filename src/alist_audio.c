@@ -111,7 +111,7 @@ static void RESAMPLE(struct hle_t* hle, uint32_t w1, uint32_t w2)
 
     alist_resample(
             hle,
-            flags & 0x1,
+            flags & A_INIT,
             flags & 0x2,
             hle->alist_audio.out,
             hle->alist_audio.in,
@@ -152,8 +152,8 @@ static void ADPCM(struct hle_t* hle, uint32_t w1, uint32_t w2)
 
     alist_adpcm(
             hle,
-            flags & 0x1,
-            flags & 0x2,
+            flags & A_INIT,
+            flags & A_LOOP,
             false,          /* unsupported in this ucode */
             hle->alist_audio.out,
             hle->alist_audio.in,
