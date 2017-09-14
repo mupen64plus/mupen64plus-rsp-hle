@@ -274,6 +274,7 @@ void alist_process_naudio(struct hle_t* hle)
     };
 
     alist_process(hle, ABI, 0x10);
+    rsp_break(hle, SP_STATUS_TASKDONE);
 }
 
 void alist_process_naudio_bk(struct hle_t* hle)
@@ -287,6 +288,7 @@ void alist_process_naudio_bk(struct hle_t* hle)
     };
 
     alist_process(hle, ABI, 0x10);
+    rsp_break(hle, SP_STATUS_TASKDONE);
 }
 
 void alist_process_naudio_dk(struct hle_t* hle)
@@ -300,6 +302,7 @@ void alist_process_naudio_dk(struct hle_t* hle)
     };
 
     alist_process(hle, ABI, 0x10);
+    rsp_break(hle, SP_STATUS_TASKDONE);
 }
 
 void alist_process_naudio_mp3(struct hle_t* hle)
@@ -312,6 +315,7 @@ void alist_process_naudio_mp3(struct hle_t* hle)
     };
 
     alist_process(hle, ABI, 0x10);
+    rsp_break(hle, SP_STATUS_TASKDONE);
 }
 
 void alist_process_naudio_cbfd(struct hle_t* hle)
@@ -325,4 +329,5 @@ void alist_process_naudio_cbfd(struct hle_t* hle)
     };
 
     alist_process(hle, ABI, 0x10);
+    rsp_break(hle, SP_STATUS_TASKDONE);
 }

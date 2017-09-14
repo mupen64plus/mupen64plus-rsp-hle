@@ -278,6 +278,7 @@ void alist_process_audio(struct hle_t* hle)
 
     clear_segments(hle);
     alist_process(hle, ABI, 0x10);
+    rsp_break(hle, SP_STATUS_TASKDONE);
 }
 
 void alist_process_audio_ge(struct hle_t* hle)
@@ -291,6 +292,7 @@ void alist_process_audio_ge(struct hle_t* hle)
 
     clear_segments(hle);
     alist_process(hle, ABI, 0x10);
+    rsp_break(hle, SP_STATUS_TASKDONE);
 }
 
 void alist_process_audio_bc(struct hle_t* hle)
@@ -304,4 +306,5 @@ void alist_process_audio_bc(struct hle_t* hle)
 
     clear_segments(hle);
     alist_process(hle, ABI, 0x10);
+    rsp_break(hle, SP_STATUS_TASKDONE);
 }
