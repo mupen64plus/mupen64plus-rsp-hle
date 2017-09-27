@@ -383,13 +383,7 @@ static bool try_re2_task_dispatching(struct hle_t* hle)
         return true;
 
     case 0x3d84:
-        /* FIXME: implement proper ucode
-         * Forward the task if possible,
-         * otherwise just skip it as it seems to work OK like that
-         */
-        if (HleForwardTask(hle->user_defined) != 0) {
-            rsp_break(hle, SP_STATUS_TASKDONE);
-        }
+        fill_video_double_buffer_task(hle);
         return true;
     }
 
