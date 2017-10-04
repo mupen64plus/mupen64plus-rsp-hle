@@ -214,7 +214,10 @@ static bool try_fast_audio_dispatching(struct hle_t* hle)
                 alist_process_nead_ac(hle); return true;
             case 0x00010010: /* MusyX v2 (IndianaJones, BattleForNaboo) */
                 musyx_v2_task(hle); return true;
-
+            case 0x1f701238: /* Mario Artist Talent Studio */
+                alist_process_nead_mats(hle); return true;
+            case 0x1f4c1230: /* FZeroX Expansion */
+                alist_process_nead_efz(hle); return true;
             default:
                 HleWarnMessage(hle->user_defined, "ABI2 identification regression: v=%08x", v);
             }
