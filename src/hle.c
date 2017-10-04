@@ -273,8 +273,7 @@ static bool try_fast_task_dispatching(struct hle_t* hle)
 
     case 7:
         HleShowCFB(hle->user_defined);
-        rsp_break(hle, SP_STATUS_TASKDONE);
-        return true;
+        break;
     }
 
     return false;
