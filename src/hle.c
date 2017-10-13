@@ -162,8 +162,19 @@ static void send_alist_to_audio_plugin(struct hle_t* hle)
 
 static void send_dlist_to_gfx_plugin(struct hle_t* hle)
 {
+    /* Since GFX_INFO version 2, these bits are set before calling the ProcessDlistList function.
+     * And the GFX plugin is responsible to unset them if needed.
+     * For GFX_INFO version < 2, the GFX plugin didn't have access to sp_status so
+     * it doesn't matter if we set these bits before calling ProcessDlistList function.
+     */
+    *hle->sp_status |= SP_STATUS_TASKDONE | SP_STATUS_BROKE | SP_STATUS_HALT;
+
     HleProcessDlistList(hle->user_defined);
-    rsp_break(hle, SP_STATUS_TASKDONE);
+
+    if ((*hle->sp_status & SP_STATUS_INTR_ON_BREAK)) {
+        *hle->mi_intr |= MI_INTR_SP;
+        HleCheckInterrupts(hle->user_defined);
+    }
 }
 
 static bool try_fast_audio_dispatching(struct hle_t* hle)
