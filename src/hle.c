@@ -171,7 +171,7 @@ static void send_dlist_to_gfx_plugin(struct hle_t* hle)
 
     HleProcessDlistList(hle->user_defined);
 
-    if ((*hle->sp_status & SP_STATUS_INTR_ON_BREAK)) {
+    if ((*hle->sp_status & SP_STATUS_INTR_ON_BREAK) && (*hle->sp_status & (SP_STATUS_TASKDONE | SP_STATUS_BROKE | SP_STATUS_HALT))) {
         *hle->mi_intr |= MI_INTR_SP;
         HleCheckInterrupts(hle->user_defined);
     }
