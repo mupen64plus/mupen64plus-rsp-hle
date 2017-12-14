@@ -208,9 +208,9 @@ void fill_video_double_buffer_task(struct hle_t* hle)
         pixel1 = *dram_u32(hle, pSrc+j);
         pixel2 = *dram_u32(hle, pDest+j);
       
-        r = (int)((float)(((pixel1 >> 24)&0xff) + ((pixel2 >> 24)&0xff)) / 2.f);
-        g = (int)((float)(((pixel1 >> 16)&0xff) + ((pixel2 >> 16)&0xff)) / 2.f);
-        b = (int)((float)(((pixel1 >> 8)&0xff) + ((pixel2 >> 8)&0xff)) / 2.f);
+        r = (((pixel1 >> 24) & 0xff) + ((pixel2 >> 24) & 0xff)) >> 1;
+        g = (((pixel1 >> 16) & 0xff) + ((pixel2 >> 16) & 0xff)) >> 1;
+        b = (((pixel1 >> 8) & 0xff) + ((pixel2 >> 8) & 0xff)) >> 1;
       
         pixel = (r << 24) | (g << 16) | (b << 8) | 0;
       
