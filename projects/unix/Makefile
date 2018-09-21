@@ -102,12 +102,6 @@ ifneq ("$(filter ppc64 powerpc64,$(HOST_CPU))","")
   PIC ?= 1
   $(warning Architecture "$(HOST_CPU)" not officially supported.')
 endif
-ifneq ("$(filter aarch64,$(HOST_CPU))","")
-    CPU := AARCH
-    ARCH_DETECTED := 64BITS
-    PIC ?= 1
-    NO_ASM := 1
-endif
 ifneq ("$(filter arm%,$(HOST_CPU))","")
   ifeq ("$(filter arm%b,$(HOST_CPU))","")
     CPU := ARM
