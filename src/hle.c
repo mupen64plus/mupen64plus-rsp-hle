@@ -48,7 +48,7 @@ static bool try_fast_audio_dispatching(struct hle_t* hle);
 static bool try_fast_task_dispatching(struct hle_t* hle);
 static void normal_task_dispatching(struct hle_t* hle);
 static void non_task_dispatching(struct hle_t* hle);
-static bool try_re2_task_dispatching(struct hle_t* hle);
+static bool try_gfx_task_dispatching(struct hle_t* hle);
 
 #ifdef ENABLE_TASK_DUMP
 static void dump_binary(struct hle_t* hle, const char *const filename,
@@ -266,14 +266,8 @@ static bool try_fast_task_dispatching(struct hle_t* hle)
     /* identify task ucode by its type */
     switch (*dmem_u32(hle, TASK_TYPE)) {
     case 1:
-        /* Resident evil 2 */
-        if (*dmem_u32(hle, TASK_DATA_PTR) == 0) {
-            return try_re2_task_dispatching(hle);
-        }
-
-        /* Yakouchuu II - Satsujin Kouro */
-        if ((hle->product_code == 0x4e594b4a) && sum_bytes((void*)dram_u32(hle, *dmem_u32(hle, TASK_UCODE)), 1488) == 0x19495) {
-            hvqm2_decode_sp1_task(hle);
+        /* This task dispatch is only enabled for games known to declare "non GFX" ucodes as GFX */
+        if (hle->try_gfx_task_dispatching && try_gfx_task_dispatching(hle)) {
             return true;
         }
 
@@ -372,8 +366,12 @@ static void non_task_dispatching(struct hle_t* hle)
     }
 }
 
-/* Resident evil 2 */
-static bool try_re2_task_dispatching(struct hle_t* hle)
+/* Some ucodes improperly set their type as GFX,
+ * despite not producing any DList/RDP List.
+ * These can ucodes can therefore be processed here
+ * instead of inside the video plugin.
+ */
+static bool try_gfx_task_dispatching(struct hle_t* hle)
 {
     const unsigned int sum =
         sum_bytes((void*)dram_u32(hle, *dmem_u32(hle, TASK_UCODE)), 256);
@@ -390,6 +388,10 @@ static bool try_re2_task_dispatching(struct hle_t* hle)
 
     case 0x3d84:
         fill_video_double_buffer_task(hle);
+        return true;
+
+    case 0x3bde:
+        hvqm2_decode_sp1_task(hle);
         return true;
     }
 

@@ -428,19 +428,28 @@ EXPORT unsigned int CALL DoRspCycles(unsigned int Cycles)
      * once_per_rom is reset in RomClose. */
     if (!g_hle.once_per_rom) {
 
-        /* Extract ROM product code so we can roughly identify ROM */
-        m64p_rom_header rom_header;
-        CoreDoCommand(M64CMD_ROM_GET_HEADER, sizeof(rom_header), &rom_header);
+        g_hle.try_gfx_task_dispatching = 0;
 
-        /* XXX: rom_header structure is WRONG,
-         * so we recompose proper product code from exposed m64p_rom_header */
-        g_hle.product_code
-            = ((uint32_t)rom_header.Manufacturer_ID & UINT32_C(0xff000000))
-            | ((uint32_t)rom_header.Cartridge_ID & UINT32_C(0x00ff)) << 16
-            | ((uint32_t)rom_header.Cartridge_ID & UINT32_C(0xff00))
-            | ((uint32_t)rom_header.Country_code & UINT32_C(0x00ff));
+        /* Use header to identify ROM and tweak ucode detection */
+        /* XXX: rom_header structure is WRONG, and accessing it in endian safe way
+         * is easier done using byte accesses */
+        uint8_t rom_header[sizeof(m64p_rom_header)];
+        CoreDoCommand(M64CMD_ROM_GET_HEADER, sizeof(rom_header), rom_header);
 
-        HleWarnMessage(g_hle.user_defined, "Product Code = %08x", g_hle.product_code);
+        if ((memcmp(rom_header + 0x3b, "NYKJ", 4) == 0) /* Yakouchuu - Satsujin Kouro */
+         || (memcmp(rom_header + 0x3b, "NB5J", 4) == 0) /* Biohazard II Japan */
+         || (memcmp(rom_header + 0x3b, "NREE", 4) == 0) /* Resident Evil II USA */
+         || (memcmp(rom_header + 0x3b, "NREP", 4) == 0) /* Resident Evil II Europe */
+        ) {
+            g_hle.try_gfx_task_dispatching = 1;
+        }
+
+        /* nuboom240 HVQM demo */
+        static const uint8_t nuboom240_crc[8] = { 0x39, 0xde, 0x59, 0xab, 0xa5, 0x79, 0x70, 0x18 };
+        if ((memcmp(rom_header + 0x10, nuboom240_crc, 8) == 0)
+        ) {
+            g_hle.try_gfx_task_dispatching = 1;
+        }
 
         g_hle.once_per_rom = 1;
     }

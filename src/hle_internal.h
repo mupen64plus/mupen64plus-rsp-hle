@@ -62,7 +62,7 @@ struct hle_t
     int hle_gfx;
     int hle_aud;
 
-    uint32_t product_code;
+    int try_gfx_task_dispatching;
 
     /* alist.c */
     uint8_t alist_buffer[0x1000];
