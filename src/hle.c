@@ -352,6 +352,7 @@ static ucode_func_t try_normal_task_detection(struct hle_t* hle)
         return &jpeg_decode_OB;
     }
 
+    /* Resident Evil 2 */
     sum = sum_bytes((void*)dram_u32(hle, *dmem_u32(hle, TASK_UCODE)), 256);
     switch (sum) {
 
@@ -363,9 +364,16 @@ static ucode_func_t try_normal_task_detection(struct hle_t* hle)
 
     case 0x3d84:
         return &fill_video_double_buffer_task;
+    }
 
-    case 0x3bde:
+    /* HVQM */
+    sum = sum_bytes((void*)dram_u32(hle, *dmem_u32(hle, TASK_UCODE)), 1488);
+    switch (sum) {
+    case 0x19495:
         return &hvqm2_decode_sp1_task;
+
+    case 0x19728:
+        return &hvqm2_decode_sp2_task;
     }
 
     return NULL;
