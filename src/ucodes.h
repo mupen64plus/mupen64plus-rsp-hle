@@ -165,6 +165,7 @@ void fill_video_double_buffer_task(struct hle_t* hle);
 
 /* hvqm2 ucode */
 void hvqm2_decode_sp1_task(struct hle_t* hle);
+void hvqm2_decode_sp2_task(struct hle_t* hle);
 
 #endif
 
