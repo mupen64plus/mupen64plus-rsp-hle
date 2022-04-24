@@ -330,6 +330,18 @@ void alist_process_naudio_mp3(struct hle_t* hle)
 
 void alist_process_naudio_cbfd(struct hle_t* hle)
 {
+    /* What differs from alist_process_naudio_mp3?
+     *
+     * JoshW: It appears that despite being a newer game, CBFD appears to have a slightly older ucode version
+     * compared to JFG, B.T. et al.
+     * For naudio_mp3, the functions DMEM parameters have an additional protective AND on them
+     * (basically dmem & 0xffff).
+     * But there are minor differences are in the RESAMPLE and ENVMIXER functions.
+     * I don't think it is making any noticeable difference, as it could be just a simplification of the logic.
+     *
+     * bsmiles32: The only difference I could remember between mp3 and cbfd variants is in the MP3ADDY command.
+     * And the MP3 overlay is also different.
+     */
     static const acmd_callback_t ABI[0x10] = {
         OVERLOAD,       ADPCM,          CLEARBUFF,      ENVMIXER,
         LOADBUFF,       RESAMPLE,       SAVEBUFF,       MP3,
