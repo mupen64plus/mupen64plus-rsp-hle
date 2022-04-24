@@ -267,8 +267,8 @@ static void OVERLOAD(struct hle_t* hle, uint32_t w1, uint32_t w2)
 {
     /* Overload distortion effect for Conker's Bad Fur Day */
     uint16_t dmem = (w1 & 0xfff) + NAUDIO_MAIN;
-    int16_t gain = w2 & 0x7fff;
-    int16_t attenuation = w2 >> 16;
+    int16_t gain = (int16_t)(uint16_t)w2;
+    uint16_t attenuation = w2 >> 16;
 
     alist_overload(hle, dmem, NAUDIO_COUNT, gain, attenuation);
 }
@@ -318,7 +318,7 @@ void alist_process_naudio_dk(struct hle_t* hle)
 void alist_process_naudio_mp3(struct hle_t* hle)
 {
     static const acmd_callback_t ABI[0x10] = {
-        UNKNOWN,        ADPCM,          CLEARBUFF,      ENVMIXER,
+        OVERLOAD,       ADPCM,          CLEARBUFF,      ENVMIXER,
         LOADBUFF,       RESAMPLE,       SAVEBUFF,       MP3,
         MP3ADDY,        SETVOL,         DMEMMOVE,       LOADADPCM,
         MIXER,          INTERLEAVE,     NAUDIO_14,      SETLOOP
