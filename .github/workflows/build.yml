@@ -11,7 +11,10 @@ on:
       - '**/*.md'
       - '.{gitattributes,gitignore,travis.yml}'
       - 'appveyor.yml,README'
+  schedule:
+    - cron: '30 14 21 * *'
   workflow_dispatch:
+
 jobs:
 
   Linux:
@@ -33,31 +36,30 @@ jobs:
             bits: 32
     name: Linux / ${{ matrix.cc }} / ${{ matrix.platform }}
     runs-on: ubuntu-22.04
+    if: (github.event_name == 'schedule' && github.repository == 'mupen64plus/mupen64plus-rsp-hle') || (github.event_name != 'schedule')
     steps:
       - uses: actions/checkout@v3
       - name: Get build dependencies and arrange the environment
         run: |
+          echo "G_REV=$(git rev-parse --short HEAD)" >> "${GITHUB_ENV}"
           sudo apt-get update
           sudo apt-get --reinstall -y install gcc-multilib g++-multilib libc6 libc6-dev-i386
           sudo ldconfig
-      - name: Build and related stuff
+      - name: Build and related stuff, backup binaries
         run: |
-          if [[ ${{ matrix.bits }} -eq 32 ]]; then export OPTFLAGS="-O2 -flto -mtune=pentium4"; else export OPTFLAGS="-O2 -flto -mtune=core2"; fi
-          G_REV=$(git rev-parse --short HEAD)
-          echo "G_REV=${G_REV}" >> "${GITHUB_ENV}"
+          if [[ ${{ matrix.bits }} -eq 32 ]]; then export PIC="1" CPU_TUNE="-msse2 -mtune=pentium4"; else CPU_TUNE="-mtune=core2"; fi
+          export OPTFLAGS="-O2 -flto ${CPU_TUNE}"
           ORIG="$(pwd)"
-          if [[ "${{ matrix.cc }}" == "GCC" ]]; then
-            CC="gcc"
-            CXX="g++"
-          else
+          CC="gcc"
+          CXX="g++"
+          if [[ "${{ matrix.cc }}" != "GCC" ]]; then
             CC="clang"
             CXX="clang++"
           fi
-          if [[ ${{ matrix.bits }} -eq 32 ]]; then export PIC="1"; fi
           ${CC} --version
           echo ""
           git clone --depth 1 https://github.com/mupen64plus/mupen64plus-core.git ../mupen64plus-core
-          mkdir tmp
+          mkdir pkg
           echo ""
           echo ":: ${{ matrix.cc }} ${{ matrix.platform }} ::"
           echo ""
@@ -65,20 +67,18 @@ jobs:
           echo ""
           make CC="${CC}" CXX="${CXX}" BITS="${{ matrix.bits }}" -C projects/unix all -j4
           echo ""
-          make -C projects/unix install DESTDIR="${ORIG}/tmp"
+          make -C projects/unix install DESTDIR="${ORIG}/pkg/"
           echo ""
-          cd tmp/usr/local/lib/mupen64plus
-          ls -gG *.so
-          ldd mupen64plus-rsp-hle.so
-          cd "${ORIG}"
-          mkdir pkg
-          if [[ "${CC}" == "gcc" ]]; then tar cvzf pkg/mupen64plus-rsp-hle-${{ matrix.platform }}-g${G_REV}.tar.gz -C tmp/ "usr"; fi
+          ls -gG pkg/usr/local/lib/mupen64plus/*.so
+          echo ""
+          ldd pkg/usr/local/lib/mupen64plus/mupen64plus-rsp-hle.so
+          tar cvzf pkg/mupen64plus-rsp-hle-linux-${{ matrix.platform }}-g${{ env.G_REV }}.tar.gz -C pkg/ "usr"
       - name: Upload artifact
+        if: matrix.cc == 'GCC'
         uses: actions/upload-artifact@v3
         with:
-          name: mupen64plus-rsp-hle-${{ matrix.platform }}-g${{ env.G_REV }}
-          path: pkg/*
-          if-no-files-found: ignore
+          name: mupen64plus-rsp-hle-linux-${{ matrix.platform }}-g${{ env.G_REV }}
+          path: pkg/*.tar.gz
 
   MSYS2:
     strategy:
@@ -94,7 +94,8 @@ jobs:
             cross: i686
             bits: 32
     name: Windows / MSYS2 ${{ matrix.cc }} / ${{ matrix.platform }}
-    runs-on: windows-2019
+    runs-on: windows-2022
+    if: (github.event_name == 'schedule' && github.repository == 'mupen64plus/mupen64plus-rsp-hle') || (github.event_name != 'schedule')
     defaults:
       run:
         shell: msys2 {0}
@@ -110,17 +111,18 @@ jobs:
             make
             mingw-w64-${{ matrix.cross }}-gcc
             mingw-w64-${{ matrix.cross }}-toolchain
-      - name: Build and related stuff
+      - name: Build and related stuff, backup binaries
         run: |
-          if [[ ${{ matrix.bits }} -eq 32 ]]; then export OPTFLAGS="-O2 -flto -mtune=pentium4"; else export OPTFLAGS="-O2 -flto -mtune=core2"; fi
           echo "G_REV=$(git rev-parse --short HEAD)" >> "${GITHUB_ENV}"
+          if [[ ${{ matrix.bits }} -eq 32 ]]; then CPU_TUNE="-msse2 -mtune=pentium4"; else CPU_TUNE="-mtune=core2"; fi
+          export OPTFLAGS="-O2 -flto ${CPU_TUNE}"
           ORIG="$(pwd)"
           CC="gcc"
           CXX="g++"
           ${CC} --version
           echo ""
           git clone --depth 1 https://github.com/mupen64plus/mupen64plus-core.git ../mupen64plus-core
-          mkdir tmp
+          mkdir pkg
           echo ""
           echo ":: ${{ matrix.cc }} ${{ matrix.platform }} ::"
           echo ""
@@ -128,19 +130,11 @@ jobs:
           echo ""
           make CC="${CC}" CXX="${CXX}" BITS="${{ matrix.bits }}" -C projects/unix all -j4
           echo ""
-          make -C projects/unix install PLUGINDIR="" SHAREDIR="" BINDIR="" MANDIR="" LIBDIR="" APPSDIR="" ICONSDIR="icons" INCDIR="api" LDCONFIG="true" DESTDIR="${ORIG}/tmp"
+          make -C projects/unix install PLUGINDIR="" SHAREDIR="" BINDIR="" MANDIR="" LIBDIR="" APPSDIR="" ICONSDIR="icons" INCDIR="api" LDCONFIG="true" DESTDIR="${ORIG}/pkg/"
           echo ""
-          ls -gG tmp/*.dll
-          ldd tmp/mupen64plus-rsp-hle.dll
-      - name: Copy binaries, dependencies, etc...
-        run: |
-          mkdir pkg
-          cd tmp
-          for BIN in *.dll
-          do
-            echo ":: Copying ${BIN}"
-            cp "${BIN}" ../pkg/
-          done
+          ls -gG pkg/*.dll
+          echo ""
+          ldd pkg/mupen64plus-rsp-hle.dll
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
@@ -158,37 +152,30 @@ jobs:
           - toolset: v141_xp
             platform: x86
             vs: 2019
-    name: Windows / MSVC ${{ matrix.toolset }} / ${{ matrix.platform }}
+    name: Windows / MSVC with ${{ matrix.toolset }} / ${{ matrix.platform }}
     runs-on: windows-${{ matrix.vs }}
+    if: (github.event_name == 'schedule' && github.repository == 'mupen64plus/mupen64plus-rsp-hle') || (github.event_name != 'schedule')
     defaults:
       run:
         shell: cmd
     steps:
       - uses: actions/checkout@v3
       - uses: microsoft/setup-msbuild@v1
-    #  with:
-    #    vs-version: 16.11
-      - name: Build and related stuff
+      - name: Build and related stuff, backup binaries
         run: |
-          for /f "tokens=1" %%R in ('git rev-parse --short HEAD') do set "G_REV=%%R"
-          echo G_REV=%G_REV%>> "%GITHUB_ENV%"
+          for /f "tokens=1" %%R in ('git rev-parse --short HEAD') do echo G_REV=%%R>> "%GITHUB_ENV%"
           set "ARCH=${{ matrix.platform }}"
           if [%ARCH%] == [x86] set "ARCH=Win32"
           echo.
           msbuild --version
           echo.
           git clone --depth 1 https://github.com/mupen64plus/mupen64plus-core.git ..\mupen64plus-core
+          md pkg
           echo.
           msbuild projects\msvc\mupen64plus-rsp-hle.vcxproj /p:Configuration=Release;Platform=%ARCH%;PlatformToolset=${{ matrix.toolset }}
           echo.
-          md backup
-          copy projects\msvc\%ARCH%\Release\mupen64plus-rsp-hle.dll backup\
-          dir backup\*.dll
-      - name: Copy binaries, dependencies, etc...
-        run: |
-          md pkg
-          cd pkg
-          xcopy "..\backup" .
+          copy "projects\msvc\%ARCH%\Release\mupen64plus-rsp-hle.dll" pkg\
+          dir pkg\*.dll
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
@@ -197,8 +184,8 @@ jobs:
 
   Nightly-build:
     runs-on: ubuntu-latest
+    if: github.ref_name == 'master'
     needs: [Linux, MSYS2, MSVC]
-    if: github.ref == 'refs/heads/master'
     steps:
       - uses: actions/checkout@v3
       - name: Download artifacts
@@ -213,8 +200,7 @@ jobs:
         run: |
           mkdir pkg
           cd binaries
-          for BIN in *
-          do
+          for BIN in *; do
             cd "${BIN}"
             if [[ "${BIN:20:4}" == "msys" ]]; then
               echo ":: Creating ${BIN}.zip"
@@ -230,10 +216,9 @@ jobs:
           done
           cd ../pkg
           echo ""
-          for BIN in *
-          do
+          for BIN in *; do
             ls -gG ${BIN}
-            tigerdeep -l ${BIN} >> ../${BIN:0:19}.tiger.txt
+            tigerdeep -lz ${BIN} >> ../${BIN:0:19}.tiger.txt
             sha256sum ${BIN} >> ../${BIN:0:19}.sha256.txt
             sha512sum ${BIN} >> ../${BIN:0:19}.sha512.txt
           done
