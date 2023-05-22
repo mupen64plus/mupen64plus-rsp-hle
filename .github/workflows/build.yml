@@ -221,9 +221,11 @@ jobs:
             tigerdeep -lz ${BIN} >> ../${BIN:0:19}.tiger.txt
             sha256sum ${BIN} >> ../${BIN:0:19}.sha256.txt
             sha512sum ${BIN} >> ../${BIN:0:19}.sha512.txt
+            b2sum ${BIN} >> ../${BIN:0:19}.blake2.txt
           done
           mv ../*.tiger.txt .
           mv ../*.sha*.txt .
+          mv ../*.blake2.txt .
           echo ""
           echo "TIGER:"
           cat *.tiger.txt
@@ -233,6 +235,9 @@ jobs:
           echo ""
           echo "SHA512:"
           cat *.sha512.txt
+          echo ""
+          echo "BLAKE2:"
+          cat *.blake2.txt
           echo ""
           git tag -f nightly-build
           git push -f origin nightly-build
