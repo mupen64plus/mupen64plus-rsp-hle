@@ -36,6 +36,8 @@ enum { SUBFRAME_SIZE = 192 };
 enum { MAX_VOICES = 32 };
 
 enum { SAMPLE_BUFFER_SIZE = 0x200 };
+/* A high skip starts on a gapped half-frame and can consume 24 extra bytes. */
+enum { ADPCM_BUFFER_SIZE = SAMPLE_BUFFER_SIZE * 2 * 5 / 16 + 24 };
 
 
 enum {
@@ -144,24 +146,26 @@ static void init_subframes_v2(musyx_t *musyx);
 static uint32_t voice_stage(struct hle_t* hle, musyx_t *musyx,
                             uint32_t voice_ptr, uint32_t last_sample_ptr);
 
-static void dma_cat8(struct hle_t* hle, uint8_t *dst, uint32_t catsrc_ptr);
-static void dma_cat16(struct hle_t* hle, uint16_t *dst, uint32_t catsrc_ptr);
+static bool dma_cat8(struct hle_t* hle, uint8_t *dst, size_t capacity,
+                     size_t *loaded_size, uint32_t catsrc_ptr);
+static bool dma_cat16(struct hle_t* hle, uint16_t *dst, size_t capacity,
+                      uint32_t catsrc_ptr);
 
-static void load_samples_PCM16(struct hle_t* hle, uint32_t voice_ptr, int16_t *samples,
+static bool load_samples_PCM16(struct hle_t* hle, uint32_t voice_ptr, int16_t *samples,
                                unsigned *segbase, unsigned *offset);
-static void load_samples_ADPCM(struct hle_t* hle, uint32_t voice_ptr, int16_t *samples,
+static bool load_samples_ADPCM(struct hle_t* hle, uint32_t voice_ptr, int16_t *samples,
                                unsigned *segbase, unsigned *offset);
 
-static void adpcm_decode_frames(struct hle_t* hle,
+static bool adpcm_decode_frames(struct hle_t* hle,
                                 int16_t *dst, const uint8_t *src,
-                                const int16_t *table, uint8_t count,
-                                uint8_t skip_samples);
+                                size_t src_size, const int16_t *table,
+                                uint8_t count, uint8_t skip_samples);
 
 static void adpcm_predict_frame(int16_t *dst, const uint8_t *src,
                                 const uint8_t *nibbles,
                                 unsigned int rshift);
 
-static void mix_voice_samples(struct hle_t* hle, musyx_t *musyx,
+static bool mix_voice_samples(struct hle_t* hle, musyx_t *musyx,
                               uint32_t voice_ptr, const int16_t *samples,
                               unsigned segbase, unsigned offset, uint32_t last_sample_ptr);
 
@@ -459,7 +463,7 @@ static void init_subframes_v2(musyx_t *musyx)
 static uint32_t voice_stage(struct hle_t* hle, musyx_t *musyx,
                             uint32_t voice_ptr, uint32_t last_sample_ptr)
 {
-    uint32_t output_ptr;
+    uint32_t output_ptr = 0;
     int i = 0;
 
     /* voice stage can be skipped if first voice has no samples */
@@ -468,22 +472,29 @@ static uint32_t voice_stage(struct hle_t* hle, musyx_t *musyx,
         output_ptr = *dram_u32(hle, voice_ptr + VOICE_INTERLEAVED_PTR);
     } else {
         /* otherwise process voices until a non null output_ptr is encountered */
-        for (;;) {
+        for (i = 0; i < MAX_VOICES; ++i) {
             /* load voice samples (PCM16 or APDCM) */
-            int16_t samples[SAMPLE_BUFFER_SIZE];
+            int16_t samples[SAMPLE_BUFFER_SIZE] = { 0 };
             unsigned segbase;
             unsigned offset;
+            bool valid;
 
             HleVerboseMessage(hle->user_defined, "Processing Voice #%d", i);
 
             if (*dram_u8(hle, voice_ptr + VOICE_ADPCM_FRAMES) == 0)
-                load_samples_PCM16(hle, voice_ptr, samples, &segbase, &offset);
+                valid = load_samples_PCM16(hle, voice_ptr, samples, &segbase, &offset);
             else
-                load_samples_ADPCM(hle, voice_ptr, samples, &segbase, &offset);
+                valid = load_samples_ADPCM(hle, voice_ptr, samples, &segbase, &offset);
 
             /* mix them with each internal subframes */
-            mix_voice_samples(hle, musyx, voice_ptr, samples, segbase, offset,
-                              last_sample_ptr + i * 8);
+            if (valid)
+                valid = mix_voice_samples(hle, musyx, voice_ptr, samples,
+                                          segbase, offset,
+                                          last_sample_ptr + i * 8);
+
+            if (!valid)
+                HleWarnMessage(hle->user_defined,
+                               "Ignoring invalid MusyX voice #%d", i);
 
             /* check break condition */
             output_ptr = *dram_u32(hle, voice_ptr + VOICE_INTERLEAVED_PTR);
@@ -491,15 +502,19 @@ static uint32_t voice_stage(struct hle_t* hle, musyx_t *musyx,
                 break;
 
             /* next voice */
-            ++i;
             voice_ptr += VOICE_SIZE;
         }
+
+        if (i == MAX_VOICES)
+            HleWarnMessage(hle->user_defined,
+                           "MusyX voice list has no output pointer");
     }
 
     return output_ptr;
 }
 
-static void dma_cat8(struct hle_t* hle, uint8_t *dst, uint32_t catsrc_ptr)
+static bool dma_cat8(struct hle_t* hle, uint8_t *dst, size_t capacity,
+                     size_t *loaded_size, uint32_t catsrc_ptr)
 {
     uint32_t ptr1  = *dram_u32(hle, catsrc_ptr + CATSRC_PTR1);
     uint32_t ptr2  = *dram_u32(hle, catsrc_ptr + CATSRC_PTR2);
@@ -516,15 +531,24 @@ static void dma_cat8(struct hle_t* hle, uint8_t *dst, uint32_t catsrc_ptr)
                       size1,
                       size2);
 
+    if (count1 > capacity || count2 > capacity - count1) {
+        HleWarnMessage(hle->user_defined,
+                       "MusyX DMA exceeds sample buffer: %zu > %zu",
+                       count1 + count2, capacity);
+        return false;
+    }
+
     dram_load_u8(hle, dst, ptr1, count1);
 
-    if (size2 == 0)
-        return;
+    if (size2 != 0)
+        dram_load_u8(hle, dst + count1, ptr2, count2);
 
-    dram_load_u8(hle, dst + count1, ptr2, count2);
+    *loaded_size = count1 + count2;
+    return true;
 }
 
-static void dma_cat16(struct hle_t* hle, uint16_t *dst, uint32_t catsrc_ptr)
+static bool dma_cat16(struct hle_t* hle, uint16_t *dst, size_t capacity,
+                      uint32_t catsrc_ptr)
 {
     uint32_t ptr1  = *dram_u32(hle, catsrc_ptr + CATSRC_PTR1);
     uint32_t ptr2  = *dram_u32(hle, catsrc_ptr + CATSRC_PTR2);
@@ -541,15 +565,22 @@ static void dma_cat16(struct hle_t* hle, uint16_t *dst, uint32_t catsrc_ptr)
                       size1,
                       size2);
 
+    if (count1 > capacity || count2 > capacity - count1) {
+        HleWarnMessage(hle->user_defined,
+                       "MusyX DMA exceeds sample buffer: %zu > %zu",
+                       count1 + count2, capacity);
+        return false;
+    }
+
     dram_load_u16(hle, dst, ptr1, count1);
 
-    if (size2 == 0)
-        return;
+    if (size2 != 0)
+        dram_load_u16(hle, dst + count1, ptr2, count2);
 
-    dram_load_u16(hle, dst + count1, ptr2, count2);
+    return true;
 }
 
-static void load_samples_PCM16(struct hle_t* hle, uint32_t voice_ptr, int16_t *samples,
+static bool load_samples_PCM16(struct hle_t* hle, uint32_t voice_ptr, int16_t *samples,
                                unsigned *segbase, unsigned *offset)
 {
 
@@ -561,21 +592,31 @@ static void load_samples_PCM16(struct hle_t* hle, uint32_t voice_ptr, int16_t *s
 
     HleVerboseMessage(hle->user_defined, "Format: PCM16");
 
+    if (count > SAMPLE_BUFFER_SIZE) {
+        HleWarnMessage(hle->user_defined,
+                       "Invalid MusyX PCM sample count: %u", count);
+        return false;
+    }
+
     *segbase = SAMPLE_BUFFER_SIZE - count;
     *offset  = u8_3e;
 
-    dma_cat16(hle, (uint16_t *)samples + *segbase, voice_ptr + VOICE_CATSRC_0);
+    if (!dma_cat16(hle, (uint16_t *)samples + *segbase, count,
+                   voice_ptr + VOICE_CATSRC_0))
+        return false;
 
-    if (u16_42 != 0)
-        dma_cat16(hle, (uint16_t *)samples, voice_ptr + VOICE_CATSRC_1);
+    if (u16_42 != 0 &&
+        !dma_cat16(hle, (uint16_t *)samples, *segbase,
+                   voice_ptr + VOICE_CATSRC_1))
+        return false;
+
+    return true;
 }
 
-static void load_samples_ADPCM(struct hle_t* hle, uint32_t voice_ptr, int16_t *samples,
+static bool load_samples_ADPCM(struct hle_t* hle, uint32_t voice_ptr, int16_t *samples,
                                unsigned *segbase, unsigned *offset)
 {
-    /* decompressed samples cannot exceed 0x400 bytes;
-     * ADPCM has a compression ratio of 5/16 */
-    uint8_t buffer[SAMPLE_BUFFER_SIZE * 2 * 5 / 16];
+    uint8_t buffer[ADPCM_BUFFER_SIZE] = { 0 };
     int16_t adpcm_table[128];
 
     uint8_t u8_3c = *dram_u8(hle, voice_ptr + VOICE_ADPCM_FRAMES    );
@@ -584,33 +625,50 @@ static void load_samples_ADPCM(struct hle_t* hle, uint32_t voice_ptr, int16_t *s
     uint8_t u8_3f = *dram_u8(hle, voice_ptr + VOICE_SKIP_SAMPLES + 1);
     uint32_t adpcm_table_ptr = *dram_u32(hle, voice_ptr + VOICE_ADPCM_TABLE_PTR);
     unsigned count;
+    size_t loaded_size;
 
     HleVerboseMessage(hle->user_defined, "Format: ADPCM");
 
     HleVerboseMessage(hle->user_defined, "Loading ADPCM table: %08x", adpcm_table_ptr);
     dram_load_u16(hle, (uint16_t *)adpcm_table, adpcm_table_ptr, 128);
 
+    if (u8_3c + u8_3d > SAMPLE_BUFFER_SIZE / 32) {
+        HleWarnMessage(hle->user_defined,
+                       "Invalid MusyX ADPCM frame counts: %u, %u",
+                       u8_3c, u8_3d);
+        return false;
+    }
+
     count = u8_3c << 5;
 
     *segbase = SAMPLE_BUFFER_SIZE - count;
     *offset  = u8_3e & 0x1f;
 
-    dma_cat8(hle, buffer, voice_ptr + VOICE_CATSRC_0);
-    adpcm_decode_frames(hle, samples + *segbase, buffer, adpcm_table, u8_3c, u8_3e);
+    if (!dma_cat8(hle, buffer, sizeof(buffer), &loaded_size,
+                  voice_ptr + VOICE_CATSRC_0) ||
+        !adpcm_decode_frames(hle, samples + *segbase, buffer, loaded_size,
+                             adpcm_table, u8_3c, u8_3e))
+        return false;
 
     if (u8_3d != 0) {
-        dma_cat8(hle, buffer, voice_ptr + VOICE_CATSRC_1);
-        adpcm_decode_frames(hle, samples, buffer, adpcm_table, u8_3d, u8_3f);
+        if (!dma_cat8(hle, buffer, sizeof(buffer), &loaded_size,
+                      voice_ptr + VOICE_CATSRC_1) ||
+            !adpcm_decode_frames(hle, samples, buffer, loaded_size,
+                                 adpcm_table, u8_3d, u8_3f))
+            return false;
     }
+
+    return true;
 }
 
-static void adpcm_decode_frames(struct hle_t* hle,
+static bool adpcm_decode_frames(struct hle_t* hle,
                                 int16_t *dst, const uint8_t *src,
-                                const int16_t *table, uint8_t count,
-                                uint8_t skip_samples)
+                                size_t src_size, const int16_t *table,
+                                uint8_t count, uint8_t skip_samples)
 {
     int16_t frame[32];
-    const uint8_t *nibbles = src + 8;
+    size_t src_pos = 0;
+    size_t nibbles_pos = 8;
     unsigned i;
     bool jump_gap = false;
 
@@ -620,17 +678,33 @@ static void adpcm_decode_frames(struct hle_t* hle,
 
     if (skip_samples >= 32) {
         jump_gap = true;
-        nibbles += 16;
-        src += 4;
+        nibbles_pos += 16;
+        src_pos += 4;
     }
 
     for (i = 0; i < count; ++i) {
-        uint8_t c2 = nibbles[0];
+        uint8_t c2;
+        const int16_t *book;
+        unsigned int rshift;
 
-        const int16_t *book = (c2 & 0xf0) + table;
-        unsigned int rshift = (c2 & 0x0f);
+        if (src_pos > src_size || src_size - src_pos < 4 ||
+            nibbles_pos > src_size || src_size - nibbles_pos < 16) {
+            HleWarnMessage(hle->user_defined,
+                           "MusyX ADPCM data is shorter than its frame count");
+            return false;
+        }
 
-        adpcm_predict_frame(frame, src, nibbles, rshift);
+        c2 = src[nibbles_pos];
+        if ((c2 & 0x80) != 0) {
+            HleWarnMessage(hle->user_defined,
+                           "Invalid MusyX ADPCM predictor: %u", c2 >> 4);
+            return false;
+        }
+
+        book = (c2 & 0xf0) + table;
+        rshift = c2 & 0x0f;
+
+        adpcm_predict_frame(frame, src + src_pos, src + nibbles_pos, rshift);
 
         memcpy(dst, frame, 2 * sizeof(frame[0]));
         adpcm_compute_residuals(dst +  2, frame +  2, book, dst     , 6);
@@ -639,15 +713,17 @@ static void adpcm_decode_frames(struct hle_t* hle,
         adpcm_compute_residuals(dst + 24, frame + 24, book, dst + 22, 8);
 
         if (jump_gap) {
-            nibbles += 8;
-            src += 32;
+            nibbles_pos += 8;
+            src_pos += 32;
         }
 
         jump_gap = !jump_gap;
-        nibbles += 16;
-        src += 4;
+        nibbles_pos += 16;
+        src_pos += 4;
         dst += 32;
     }
+
+    return true;
 }
 
 static void adpcm_predict_frame(int16_t *dst, const uint8_t *src,
@@ -667,7 +743,7 @@ static void adpcm_predict_frame(int16_t *dst, const uint8_t *src,
     }
 }
 
-static void mix_voice_samples(struct hle_t* hle, musyx_t *musyx,
+static bool mix_voice_samples(struct hle_t* hle, musyx_t *musyx,
                               uint32_t voice_ptr, const int16_t *samples,
                               unsigned segbase, unsigned offset, uint32_t last_sample_ptr)
 {
@@ -683,14 +759,15 @@ static void mix_voice_samples(struct hle_t* hle, musyx_t *musyx,
     const uint16_t u16_4e = *dram_u16(hle, voice_ptr + VOICE_U16_4E);
 
     /* init values and pointers */
-    const int16_t       *sample         = samples + segbase + offset + u16_4e;
-    const int16_t *const sample_end     = samples + segbase + end_point;
-    const int16_t *const sample_restart = samples + (restart_point & 0x7fff) +
-                                          (((restart_point & 0x8000) != 0) ? 0x000 : segbase);
+    size_t sample_pos = segbase + offset + u16_4e;
+    const size_t sample_end = segbase + end_point;
+    const size_t sample_restart = (restart_point & 0x7fff) +
+                                  (((restart_point & 0x8000) != 0) ? 0x000 : segbase);
 
 
     uint32_t pitch_accu = pitch_q16;
     uint32_t pitch_step = pitch_shift << 4;
+    uint16_t sample_indices[SUBFRAME_SIZE];
 
     int32_t  v4_env[4];
     int32_t  v4_env_step[4];
@@ -719,23 +796,37 @@ static void mix_voice_samples(struct hle_t* hle, musyx_t *musyx,
                       v4_env[0],      v4_env[1],      v4_env[2],      v4_env[3],
                       v4_env_step[0], v4_env_step[1], v4_env_step[2], v4_env_step[3]);
 
+    /* Validate the entire path before modifying the output subframes. */
     for (i = 0; i < SUBFRAME_SIZE; ++i) {
-        /* update sample and lut pointers and then pitch_accu */
-        const int16_t *lut = (RESAMPLE_LUT + ((pitch_accu & 0xfc00) >> 8));
-        int dist;
-        int16_t v;
-
-        sample += (pitch_accu >> 16);
+        sample_pos += pitch_accu >> 16;
         pitch_accu &= 0xffff;
         pitch_accu += pitch_step;
 
         /* handle end/restart points */
-        dist = sample - sample_end;
-        if (dist >= 0)
-            sample = sample_restart + dist;
+        if (sample_pos >= sample_end)
+            sample_pos = sample_restart + sample_pos - sample_end;
+
+        if (sample_pos > SAMPLE_BUFFER_SIZE - 4) {
+            HleWarnMessage(hle->user_defined,
+                           "Invalid MusyX sample position: %zu", sample_pos);
+            return false;
+        }
+
+        sample_indices[i] = sample_pos;
+    }
+
+    pitch_accu = pitch_q16;
+
+    for (i = 0; i < SUBFRAME_SIZE; ++i) {
+        /* update the LUT pointer and pitch accumulator */
+        const int16_t *lut = (RESAMPLE_LUT + ((pitch_accu & 0xfc00) >> 8));
+        int16_t v;
+
+        pitch_accu &= 0xffff;
+        pitch_accu += pitch_step;
 
         /* apply resample filter */
-        v = clamp_s16(dot4(sample, lut));
+        v = clamp_s16(dot4(samples + sample_indices[i], lut));
 
         for (k = 0; k < 4; ++k) {
             /* envmix */
@@ -755,6 +846,8 @@ static void mix_voice_samples(struct hle_t* hle, musyx_t *musyx,
     HleVerboseMessage(hle->user_defined,
                       "last_sample = %04x %04x %04x %04x",
                       v4[0], v4[1], v4[2], v4[3]);
+
+    return true;
 }
 
 
