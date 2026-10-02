@@ -50,7 +50,7 @@ static void swap(int16_t **a, int16_t **b)
 
 static int16_t* sample(struct hle_t* hle, unsigned pos)
 {
-    return (int16_t*)hle->alist_buffer + ((pos ^ S) & 0xfff);
+    return (int16_t*)hle->alist_buffer + ((pos ^ S) & 0x7ff);
 }
 
 static uint8_t* alist_u8(struct hle_t* hle, uint16_t dmem)
@@ -60,7 +60,28 @@ static uint8_t* alist_u8(struct hle_t* hle, uint16_t dmem)
 
 static int16_t* alist_s16(struct hle_t* hle, uint16_t dmem)
 {
-    return (int16_t*)(hle->alist_buffer + ((dmem ^ S16) & 0xfff));
+    dmem &= 0xffe;
+    return (int16_t*)(hle->alist_buffer + (dmem ^ S16));
+}
+
+static bool alist_range_valid(struct hle_t* hle, uint16_t dmem, size_t count)
+{
+    if (dmem <= sizeof(hle->alist_buffer)
+            && count <= sizeof(hle->alist_buffer) - dmem) {
+        return true;
+    }
+
+    HleWarnMessage(hle->user_defined, "Invalid audio buffer range");
+    return false;
+}
+
+static bool alist_s16_range_valid(struct hle_t* hle, uint16_t dmem, size_t count)
+{
+    if ((dmem & 1) == 0)
+        return alist_range_valid(hle, dmem, count);
+
+    HleWarnMessage(hle->user_defined, "Unaligned audio buffer range");
+    return false;
 }
 
 
@@ -154,20 +175,32 @@ void alist_clear(struct hle_t* hle, uint16_t dmem, uint16_t count)
 
 void alist_load(struct hle_t* hle, uint16_t dmem, uint32_t address, uint16_t count)
 {
+    size_t aligned_count;
+
     /* enforce DMA alignment constraints */
     dmem    &= ~3;
     address &= ~7;
-    count = align(count, 8);
-    memcpy(hle->alist_buffer + dmem, hle->dram + address, count);
+    aligned_count = align(count, 8);
+
+    if (!alist_range_valid(hle, dmem, aligned_count))
+        return;
+
+    memcpy(hle->alist_buffer + dmem, hle->dram + address, aligned_count);
 }
 
 void alist_save(struct hle_t* hle, uint16_t dmem, uint32_t address, uint16_t count)
 {
+    size_t aligned_count;
+
     /* enforce DMA alignment constraints */
     dmem    &= ~3;
     address &= ~7;
-    count = align(count, 8);
-    memcpy(hle->dram + address, hle->alist_buffer + dmem, count);
+    aligned_count = align(count, 8);
+
+    if (!alist_range_valid(hle, dmem, aligned_count))
+        return;
+
+    memcpy(hle->dram + address, hle->alist_buffer + dmem, aligned_count);
 }
 
 void alist_move(struct hle_t* hle, uint16_t dmemo, uint16_t dmemi, uint16_t count)
@@ -191,19 +224,39 @@ void alist_copy_every_other_sample(struct hle_t* hle, uint16_t dmemo, uint16_t d
 void alist_repeat64(struct hle_t* hle, uint16_t dmemo, uint16_t dmemi, uint8_t count)
 {
     uint16_t buffer[64];
+    const size_t block_size = sizeof(buffer);
 
-    memcpy(buffer, hle->alist_buffer + dmemi, 128);
+    if (count == 0)
+        return;
+
+    if (!alist_range_valid(hle, dmemi, block_size)
+            || !alist_range_valid(hle, dmemo, (size_t)count * block_size))
+        return;
+
+    memcpy(buffer, hle->alist_buffer + dmemi, block_size);
 
     while(count != 0) {
-        memcpy(hle->alist_buffer + dmemo, buffer, 128);
-        dmemo += 128;
+        memcpy(hle->alist_buffer + dmemo, buffer, block_size);
+        dmemo += block_size;
         --count;
     }
 }
 
 void alist_copy_blocks(struct hle_t* hle, uint16_t dmemo, uint16_t dmemi, uint16_t block_size, uint8_t count)
 {
+    size_t bytes_per_block;
+    size_t total;
     int block_left = count;
+
+    if (block_size == 0 || count == 0)
+        return;
+
+    bytes_per_block = align(block_size, 0x20);
+    total = bytes_per_block * count;
+
+    if (!alist_range_valid(hle, dmemi, total)
+            || !alist_range_valid(hle, dmemo, total))
+        return;
 
     do
     {
@@ -225,6 +278,17 @@ void alist_copy_blocks(struct hle_t* hle, uint16_t dmemo, uint16_t dmemi, uint16
 
 void alist_interleave(struct hle_t* hle, uint16_t dmemo, uint16_t left, uint16_t right, uint16_t count)
 {
+    size_t input_count = (count >> 2) * 4;
+    size_t output_count = input_count * 2;
+
+    if (input_count == 0)
+        return;
+
+    if (!alist_s16_range_valid(hle, left, input_count)
+            || !alist_s16_range_valid(hle, right, input_count)
+            || !alist_s16_range_valid(hle, dmemo, output_count))
+        return;
+
     uint16_t       *dst  = (uint16_t*)(hle->alist_buffer + dmemo);
     const uint16_t *srcL = (uint16_t*)(hle->alist_buffer + left);
     const uint16_t *srcR = (uint16_t*)(hle->alist_buffer + right);
@@ -267,12 +331,21 @@ void alist_envmix_exp(
         uint32_t address)
 {
     size_t n = (aux) ? 4 : 2;
+    size_t processed_count = (count == 0) ? 0 : align(count, 16);
 
-    const int16_t* const in = (int16_t*)(hle->alist_buffer + dmemi);
-    int16_t* const dl = (int16_t*)(hle->alist_buffer + dmem_dl);
-    int16_t* const dr = (int16_t*)(hle->alist_buffer + dmem_dr);
-    int16_t* const wl = (int16_t*)(hle->alist_buffer + dmem_wl);
-    int16_t* const wr = (int16_t*)(hle->alist_buffer + dmem_wr);
+    if (processed_count != 0
+            && (!alist_s16_range_valid(hle, dmemi, processed_count)
+            || !alist_s16_range_valid(hle, dmem_dl, processed_count)
+            || !alist_s16_range_valid(hle, dmem_dr, processed_count)
+            || (aux && !alist_s16_range_valid(hle, dmem_wl, processed_count))
+            || (aux && !alist_s16_range_valid(hle, dmem_wr, processed_count))))
+        return;
+
+    const int16_t* const in = processed_count ? (int16_t*)(hle->alist_buffer + dmemi) : NULL;
+    int16_t* const dl = processed_count ? (int16_t*)(hle->alist_buffer + dmem_dl) : NULL;
+    int16_t* const dr = processed_count ? (int16_t*)(hle->alist_buffer + dmem_dr) : NULL;
+    int16_t* const wl = processed_count && aux ? (int16_t*)(hle->alist_buffer + dmem_wl) : NULL;
+    int16_t* const wr = processed_count && aux ? (int16_t*)(hle->alist_buffer + dmem_wr) : NULL;
 
     struct ramp_t ramps[2];
     int32_t exp_seq[2];
@@ -331,8 +404,10 @@ void alist_envmix_exp(
 
             buffers[0] = dl + (ptr^S);
             buffers[1] = dr + (ptr^S);
-            buffers[2] = wl + (ptr^S);
-            buffers[3] = wr + (ptr^S);
+            if (aux) {
+                buffers[2] = wl + (ptr^S);
+                buffers[3] = wr + (ptr^S);
+            }
 
             gains[0] = clamp_s16((l_vol * dry + 0x4000) >> 15);
             gains[1] = clamp_s16((r_vol * dry + 0x4000) >> 15);
@@ -372,12 +447,22 @@ void alist_envmix_ge(
 {
     unsigned k;
     size_t n = (aux) ? 4 : 2;
+    size_t sample_count = count >> 1;
+    size_t processed_count = align(sample_count, S + 1) * sizeof(int16_t);
 
-    const int16_t* const in = (int16_t*)(hle->alist_buffer + dmemi);
-    int16_t* const dl = (int16_t*)(hle->alist_buffer + dmem_dl);
-    int16_t* const dr = (int16_t*)(hle->alist_buffer + dmem_dr);
-    int16_t* const wl = (int16_t*)(hle->alist_buffer + dmem_wl);
-    int16_t* const wr = (int16_t*)(hle->alist_buffer + dmem_wr);
+    if (processed_count != 0
+            && (!alist_s16_range_valid(hle, dmemi, processed_count)
+            || !alist_s16_range_valid(hle, dmem_dl, processed_count)
+            || !alist_s16_range_valid(hle, dmem_dr, processed_count)
+            || (aux && !alist_s16_range_valid(hle, dmem_wl, processed_count))
+            || (aux && !alist_s16_range_valid(hle, dmem_wr, processed_count))))
+        return;
+
+    const int16_t* const in = processed_count ? (int16_t*)(hle->alist_buffer + dmemi) : NULL;
+    int16_t* const dl = processed_count ? (int16_t*)(hle->alist_buffer + dmem_dl) : NULL;
+    int16_t* const dr = processed_count ? (int16_t*)(hle->alist_buffer + dmem_dr) : NULL;
+    int16_t* const wl = processed_count && aux ? (int16_t*)(hle->alist_buffer + dmem_wl) : NULL;
+    int16_t* const wr = processed_count && aux ? (int16_t*)(hle->alist_buffer + dmem_wr) : NULL;
 
     struct ramp_t ramps[2];
     short save_buffer[40];
@@ -412,8 +497,10 @@ void alist_envmix_ge(
 
         buffers[0] = dl + (k^S);
         buffers[1] = dr + (k^S);
-        buffers[2] = wl + (k^S);
-        buffers[3] = wr + (k^S);
+        if (aux) {
+            buffers[2] = wl + (k^S);
+            buffers[3] = wr + (k^S);
+        }
 
         gains[0] = clamp_s16((l_vol * dry + 0x4000) >> 15);
         gains[1] = clamp_s16((r_vol * dry + 0x4000) >> 15);
@@ -449,14 +536,24 @@ void alist_envmix_lin(
         uint32_t address)
 {
     size_t k;
+    size_t sample_count = count >> 1;
+    size_t processed_count = align(sample_count, S + 1) * sizeof(int16_t);
     struct ramp_t ramps[2];
     int16_t save_buffer[40];
 
-    const int16_t * const in = (int16_t*)(hle->alist_buffer + dmemi);
-    int16_t* const dl = (int16_t*)(hle->alist_buffer + dmem_dl);
-    int16_t* const dr = (int16_t*)(hle->alist_buffer + dmem_dr);
-    int16_t* const wl = (int16_t*)(hle->alist_buffer + dmem_wl);
-    int16_t* const wr = (int16_t*)(hle->alist_buffer + dmem_wr);
+    if (processed_count != 0
+            && (!alist_s16_range_valid(hle, dmemi, processed_count)
+            || !alist_s16_range_valid(hle, dmem_dl, processed_count)
+            || !alist_s16_range_valid(hle, dmem_dr, processed_count)
+            || !alist_s16_range_valid(hle, dmem_wl, processed_count)
+            || !alist_s16_range_valid(hle, dmem_wr, processed_count)))
+        return;
+
+    const int16_t * const in = processed_count ? (int16_t*)(hle->alist_buffer + dmemi) : NULL;
+    int16_t* const dl = processed_count ? (int16_t*)(hle->alist_buffer + dmem_dl) : NULL;
+    int16_t* const dr = processed_count ? (int16_t*)(hle->alist_buffer + dmem_dr) : NULL;
+    int16_t* const wl = processed_count ? (int16_t*)(hle->alist_buffer + dmem_wl) : NULL;
+    int16_t* const wr = processed_count ? (int16_t*)(hle->alist_buffer + dmem_wr) : NULL;
 
     memcpy((uint8_t *)save_buffer, hle->dram + address, 80);
     if (init) {
@@ -522,6 +619,19 @@ void alist_envmix_nead(
         uint16_t *env_steps,
         const int16_t *xors)
 {
+    size_t processed_count = align(count, 8);
+    size_t processed_bytes = processed_count * sizeof(int16_t);
+
+    if (processed_count == 0)
+        return;
+
+    if (!alist_s16_range_valid(hle, dmemi, processed_bytes)
+            || !alist_s16_range_valid(hle, dmem_dl, processed_bytes)
+            || !alist_s16_range_valid(hle, dmem_dr, processed_bytes)
+            || !alist_s16_range_valid(hle, dmem_wl, processed_bytes)
+            || !alist_s16_range_valid(hle, dmem_wr, processed_bytes))
+        return;
+
     int16_t *in = (int16_t*)(hle->alist_buffer + dmemi);
     int16_t *dl = (int16_t*)(hle->alist_buffer + dmem_dl);
     int16_t *dr = (int16_t*)(hle->alist_buffer + dmem_dr);
@@ -529,7 +639,7 @@ void alist_envmix_nead(
     int16_t *wr = (int16_t*)(hle->alist_buffer + dmem_wr);
 
     /* make sure count is a multiple of 8 */
-    count = align(count, 8);
+    count = processed_count;
 
     if (swap_wet_LR)
         swap(&wl, &wr);
@@ -564,6 +674,15 @@ void alist_envmix_nead(
 
 void alist_mix(struct hle_t* hle, uint16_t dmemo, uint16_t dmemi, uint16_t count, int16_t gain)
 {
+    size_t processed_count = (count >> 1) * 2;
+
+    if (processed_count == 0)
+        return;
+
+    if (!alist_s16_range_valid(hle, dmemi, processed_count)
+            || !alist_s16_range_valid(hle, dmemo, processed_count))
+        return;
+
     int16_t       *dst = (int16_t*)(hle->alist_buffer + dmemo);
     const int16_t *src = (int16_t*)(hle->alist_buffer + dmemi);
 
@@ -580,6 +699,14 @@ void alist_mix(struct hle_t* hle, uint16_t dmemo, uint16_t dmemi, uint16_t count
 
 void alist_multQ44(struct hle_t* hle, uint16_t dmem, uint16_t count, int8_t gain)
 {
+    size_t processed_count = (count >> 1) * 2;
+
+    if (processed_count == 0)
+        return;
+
+    if (!alist_s16_range_valid(hle, dmem, processed_count))
+        return;
+
     int16_t *dst = (int16_t*)(hle->alist_buffer + dmem);
 
     count >>= 1;
@@ -594,6 +721,15 @@ void alist_multQ44(struct hle_t* hle, uint16_t dmem, uint16_t count, int8_t gain
 
 void alist_add(struct hle_t* hle, uint16_t dmemo, uint16_t dmemi, uint16_t count)
 {
+    size_t processed_count = (count >> 1) * 2;
+
+    if (processed_count == 0)
+        return;
+
+    if (!alist_s16_range_valid(hle, dmemi, processed_count)
+            || !alist_s16_range_valid(hle, dmemo, processed_count))
+        return;
+
     int16_t       *dst = (int16_t*)(hle->alist_buffer + dmemo);
     const int16_t *src = (int16_t*)(hle->alist_buffer + dmemi);
 
@@ -774,7 +910,15 @@ void alist_adpcm(
         int16_t frame[16];
         uint8_t code = *alist_u8(hle, dmemi++);
         unsigned char scale = (code & 0xf0) >> 4;
-        const int16_t* const cb_entry = codebook + ((code & 0xf) << 4);
+        unsigned int predictor = code & 0xf;
+        const int16_t* cb_entry;
+
+        if (predictor >= 8) {
+            HleWarnMessage(hle->user_defined, "Invalid ADPCM predictor");
+            return;
+        }
+
+        cb_entry = codebook + (predictor << 4);
 
         dmemi += predict_frame(hle, frame, dmemi, scale);
 
@@ -801,6 +945,15 @@ void alist_filter(
     int x;
     int16_t outbuff[0x3c0];
     int16_t *outp = outbuff;
+    size_t processed_count = (count == 0) ? 0 : align(count, 16);
+
+    if (processed_count == 0 || processed_count > sizeof(outbuff)) {
+        HleWarnMessage(hle->user_defined, "Invalid audio filter range");
+        return;
+    }
+
+    if (!alist_s16_range_valid(hle, dmem, processed_count))
+        return;
 
     int16_t* const lutt6 = (int16_t*)(hle->dram + lut_address[0]);
     int16_t* const lutt5 = (int16_t*)(hle->dram + lut_address[1]);
@@ -916,6 +1069,12 @@ void alist_polef(
         int16_t* table,
         uint32_t address)
 {
+    size_t processed_count = align(count, 16);
+
+    if (processed_count == 0
+            || !alist_s16_range_valid(hle, dmemo, processed_count))
+        return;
+
     int16_t *dst = (int16_t*)(hle->alist_buffer + dmemo);
 
     const int16_t* const h1 = table;
@@ -924,8 +1083,6 @@ void alist_polef(
     unsigned i;
     int16_t l1, l2;
     int16_t h2_before[8];
-
-    count = align(count, 16);
 
     if (init) {
         l1 = 0;
@@ -958,8 +1115,8 @@ void alist_polef(
         l2 = dst[7^S];
 
         dst += 8;
-        count -= 16;
-    } while (count != 0);
+        processed_count -= 16;
+    } while (processed_count != 0);
 
     dram_store_u32(hle, (uint32_t*)(dst - 4), address, 2);
 }
@@ -973,14 +1130,18 @@ void alist_iirf(
         int16_t* table,
         uint32_t address)
 {
+    size_t processed_count = align(count, 16);
+
+    if (processed_count == 0
+            || !alist_s16_range_valid(hle, dmemo, processed_count))
+        return;
+
     int16_t *dst = (int16_t*)(hle->alist_buffer + dmemo);
     int32_t i, prev;
     int16_t frame[8];
     int16_t ibuf[4];
     uint16_t index = 7;
 
-
-    count = align(count, 16);
 
     if(init)
     {
@@ -1014,8 +1175,8 @@ void alist_iirf(
             dmemi += 2;
         }
         dst += 8;
-        count -= 0x10;
-    } while (count > 0);
+        processed_count -= 0x10;
+    } while (processed_count > 0);
 
     dram_store_u16(hle, (uint16_t*)&frame[6], address + 4, 2);
     dram_store_u16(hle, (uint16_t*)&ibuf[(index-2)&3], address+8, 1);
@@ -1026,7 +1187,13 @@ void alist_iirf(
 void alist_overload(struct hle_t* hle, uint16_t dmem, int16_t count, int16_t gain, uint16_t attenuation)
 {
     int16_t accu;
-    int16_t * sample = (int16_t*)(hle->alist_buffer + dmem);
+    int16_t *sample;
+
+    if (count <= 0
+            || !alist_s16_range_valid(hle, dmem, (size_t)count * sizeof(*sample)))
+        return;
+
+    sample = (int16_t*)(hle->alist_buffer + dmem);
 
     while (count != 0)
     {

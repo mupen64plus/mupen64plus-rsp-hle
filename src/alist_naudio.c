@@ -189,6 +189,11 @@ static void LOADADPCM(struct hle_t* hle, uint32_t w1, uint32_t w2)
     uint16_t count   = w1;
     uint32_t address = (w2 & 0xffffff);
 
+    if ((count >> 1) > sizeof(hle->alist_naudio.table) / sizeof(uint16_t)) {
+        HleWarnMessage(hle->user_defined, "Invalid ADPCM table size");
+        return;
+    }
+
     dram_load_u16(hle, (uint16_t*)hle->alist_naudio.table, address, count >> 1);
 }
 
