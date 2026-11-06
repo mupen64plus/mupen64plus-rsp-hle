@@ -252,6 +252,15 @@ static void hvqm2_decode(struct hle_t* hle, int is32)
     arg.alpha = *dram_u8(hle, data_ptr);
     arg.nest = data_ptr + 1;
 
+    if (arg.chroma_step_h != 2 ||
+        (arg.chroma_step_v != 1 && arg.chroma_step_v != 2)) {
+        HleWarnMessage(hle->user_defined,
+                       "Unsupported HVQM chroma steps: %u, %u",
+                       arg.chroma_step_h, arg.chroma_step_v);
+        rsp_break(hle, SP_STATUS_TASKDONE);
+        return;
+    }
+
     assert(arg.chroma_step_h == 2);
     assert((arg.chroma_step_v == 1) || (arg.chroma_step_v == 2));
     assert((*hle->sp_status & 0x80) == 0);  //SP_STATUS_YIELD
