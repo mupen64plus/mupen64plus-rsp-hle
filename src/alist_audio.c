@@ -27,6 +27,7 @@
 
 #include "alist.h"
 #include "common.h"
+#include "hle_external.h"
 #include "hle_internal.h"
 #include "memory.h"
 #include "ucodes.h"
@@ -214,8 +215,14 @@ static void LOADADPCM(struct hle_t* hle, uint32_t w1, uint32_t w2)
 {
     uint16_t count   = w1;
     uint32_t address = get_address(hle, w2);
+    size_t aligned_count = align(count, 8);
 
-    dram_load_u16(hle, (uint16_t*)hle->alist_audio.table, address, align(count, 8) >> 1);
+    if (aligned_count > sizeof(hle->alist_audio.table)) {
+        HleWarnMessage(hle->user_defined, "Invalid ADPCM table size");
+        return;
+    }
+
+    dram_load_u16(hle, (uint16_t*)hle->alist_audio.table, address, aligned_count >> 1);
 }
 
 static void INTERLEAVE(struct hle_t* hle, uint32_t UNUSED(w1), uint32_t w2)
